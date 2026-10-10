@@ -3,7 +3,8 @@
 # ---------------------------------------------------------------------------
 # Build stage
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# The build runs on the builder's own platform: the published app is portable (no native host), so the arm64 image needs no emulation here.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG Channel=local
 ARG BuildNumber=0
 ARG BuildDate=
