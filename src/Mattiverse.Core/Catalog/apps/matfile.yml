@@ -13,7 +13,8 @@ x-mattiverse:
     port: 2222
     hostPort: 2222
   notes:
-    - To browse host folders, mount them into the container (add a volume to the compose file) and create a root path in MatFile.
+    - MatFile is an early version. The start page runs; sign-in, roles and the file explorer are still to come.
+    - To browse host folders later, mount them into the container (add a volume to the compose file) and create a root path in MatFile.
   variables:
     - key: ADMIN_PASSWORD
       label: Admin password
@@ -24,12 +25,6 @@ x-mattiverse:
       label: Time zone
       default: Europe/Berlin
       advanced: true
-  credentials:
-    - label: Username
-      value: admin
-    - label: Password
-      value: ${ADMIN_PASSWORD}
-      secret: true
 
 services:
   matfile:

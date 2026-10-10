@@ -318,7 +318,7 @@ details.advanced[open] > summary { margin-bottom: 14px; }
 .mat-table__actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px 16px; border-top: 1px solid var(--border); }
 
 .search { position: relative; flex: 1 1 220px; max-width: 360px; display: flex; align-items: center; }
-.search .mat-icon { position: absolute; left: 14px; color: var(--text-muted); pointer-events: none; }
+.search .mat-icon { position: absolute; left: 14px; z-index: 1; color: var(--text-muted); pointer-events: none; }
 .search .mat-input { padding-left: 40px; border-radius: 999px; }
 .toolbar-field { display: flex; align-items: center; gap: 8px; }
 .toolbar-field label { color: var(--text-muted); font-size: .84rem; font-weight: 600; }
@@ -573,3 +573,18 @@ body.is-flush .appview { height: 100dvh; }
 .mat-buttons--center { justify-content: center; }
 /* Delete actions keep their distance from the safe ones. */
 .row-actions > .inline-form:has(.mat-btn--danger) { margin-left: 12px; }
+
+/* Small screens: secondary columns go away, row actions shrink to icons, widgets sit two by two. */
+@media (max-width: 700px) {
+  .hide-sm { display: none !important; }
+  .row-actions .mat-btn--sm:not(.mat-btn--icon) { width: 32px; padding: 0; }
+  .row-actions .mat-btn--sm:not(.mat-btn--icon) span { display: none; }
+  .row-actions > .inline-form:has(.mat-btn--danger) { margin-left: 4px; }
+  .widgets { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .widget { padding: 12px 14px; gap: 10px; border-radius: 18px; }
+  .widget__icon { width: 36px; height: 36px; font-size: 1.1rem; border-radius: 11px; }
+  .widget__value { font-size: 1.1rem; }
+  .widget__label { font-size: .78rem; }
+  .launcher__hero { margin-bottom: 14px; }
+  .launcher__time { font-size: 2.2rem; }
+}

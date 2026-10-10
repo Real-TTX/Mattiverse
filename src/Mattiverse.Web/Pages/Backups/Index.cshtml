@@ -113,7 +113,7 @@ else
             else
             {
                 <table class="data">
-                    <thead><tr><th>App</th><th>Created</th><th>Kind</th><th>Size</th><th>Status</th><th class="actions"></th></tr></thead>
+                    <thead><tr><th>App</th><th>Created</th><th class="hide-sm">Kind</th><th class="hide-sm">Size</th><th>Status</th><th class="actions"></th></tr></thead>
                     <tbody>
                         @foreach (var backup in Model.Items)
                         {
@@ -125,8 +125,8 @@ else
                                     </div>
                                 </td>
                                 <td class="nowrap">@Format.DateTimeLocal(backup.CreateDate)<br /><small class="text-muted">@Format.Ago(backup.CreateDate)</small></td>
-                                <td><span class="mat-badge">@backup.Kind</span></td>
-                                <td class="nowrap">@Format.Size(backup.SizeBytes)<br /><small class="text-muted">@backup.VolumeCount volume@(backup.VolumeCount == 1 ? "" : "s")</small></td>
+                                <td class="hide-sm"><span class="mat-badge">@backup.Kind</span></td>
+                                <td class="nowrap hide-sm">@Format.Size(backup.SizeBytes)<br /><small class="text-muted">@backup.VolumeCount volume@(backup.VolumeCount == 1 ? "" : "s")</small></td>
                                 <td>
                                     <span class="pill pill--@(backup.Status == BackupStatus.Succeeded ? "online" : backup.Status == BackupStatus.Failed ? "offline" : "busy")" title="@backup.Error">@backup.Status</span>
                                     @if (backup.Status == BackupStatus.Succeeded && !backup.Consistent)

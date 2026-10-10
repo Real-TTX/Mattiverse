@@ -12,7 +12,7 @@ x-mattiverse:
     port: 9000
     hostPort: 9000
   notes:
-    - Portainer locks itself 5 minutes after the start if no administrator has been created. Open it right after the install.
+    - Portainer locks itself 5 minutes after the start if no administrator has been created. Open it right after the install, or press Restart on the app page if it says "timed out".
   credentials:
     - label: First sign-in
       value: Portainer asks you to create the administrator account.

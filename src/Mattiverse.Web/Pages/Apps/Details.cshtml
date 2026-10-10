@@ -183,6 +183,14 @@
 
     default:
         <div class="stack">
+            @if (isAdmin)
+            {
+                @foreach (var note in Model.Catalog?.Notes ?? [])
+                {
+                    <div class="alert alert--info" style="margin:0;"><icon name="info" /><span>@note</span></div>
+                }
+            }
+
             @if (isAdmin && Model.Credentials.Count > 0)
             {
                 <div class="card">
@@ -259,15 +267,15 @@
                     else
                     {
                         <table class="data">
-                            <thead><tr><th>Container</th><th>Image</th><th>Status</th><th>Ports</th></tr></thead>
+                            <thead><tr><th>Container</th><th class="hide-sm">Image</th><th>Status</th><th class="hide-sm">Ports</th></tr></thead>
                             <tbody>
                                 @foreach (var container in Model.Containers)
                                 {
                                     <tr>
                                         <td><strong>@container.Service</strong><br /><small class="text-muted mono">@container.Name</small></td>
-                                        <td class="mono" style="overflow-wrap:anywhere;">@container.Image</td>
+                                        <td class="mono hide-sm" style="overflow-wrap:anywhere;">@container.Image</td>
                                         <td><span class="pill pill--@(container.IsRunning ? "online" : "unknown")">@container.Status</span></td>
-                                        <td class="text-muted" style="overflow-wrap:anywhere;">@(string.IsNullOrEmpty(container.Ports) ? "–" : container.Ports)</td>
+                                        <td class="text-muted hide-sm" style="overflow-wrap:anywhere;">@(string.IsNullOrEmpty(container.Ports) ? "–" : container.Ports)</td>
                                     </tr>
                                 }
                             </tbody>

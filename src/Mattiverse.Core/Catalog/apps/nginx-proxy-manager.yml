@@ -17,12 +17,8 @@ x-mattiverse:
   notes:
     - Needs the host ports 80 and 443. Stop any other web server or proxy that uses them first.
   credentials:
-    - label: Email
-      value: admin@example.com
-    - label: Password
-      value: changeme
-    - label: Note
-      value: Nginx Proxy Manager asks you to change these on the first sign-in.
+    - label: First sign-in
+      value: Nginx Proxy Manager asks you to create the administrator account.
 
 services:
   app:

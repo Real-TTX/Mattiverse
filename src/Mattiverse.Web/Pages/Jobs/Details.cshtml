@@ -28,6 +28,10 @@
             {
                 <a href="/Apps/Details?id=@app.Id" class="mat-btn" data-job-done hidden><icon name="info" /><span>Details</span></a>
             }
+            @if (app is null || job.Kind == JobKind.Uninstall)
+            {
+                <a href="@(job.Kind == JobKind.Uninstall ? "/Apps" : "/")" class="mat-btn mat-btn--primary" data-job-done hidden><icon name="@(job.Kind == JobKind.Uninstall ? "apps" : "home")" /><span>@(job.Kind == JobKind.Uninstall ? "Back to Apps" : "Home")</span></a>
+            }
             <a href="/Jobs" class="mat-btn mat-btn--ghost"><icon name="back" /><span>Activity</span></a>
         </mat-form-buttons>
     </div>

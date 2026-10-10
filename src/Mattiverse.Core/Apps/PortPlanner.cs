@@ -83,6 +83,7 @@ public sealed class PortPlanner
             }
         }
 
-        return conflicts;
+        // 443 over TCP and UDP is one problem for the reader: say it once per port and container.
+        return conflicts.DistinctBy(c => (c.Port, c.Container)).ToList();
     }
 }

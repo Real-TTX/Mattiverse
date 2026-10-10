@@ -50,14 +50,14 @@
         {
             <table class="data">
                 <thead>
-                    <tr><th>Username</th><th>Display name</th><th>Role</th><th>Status</th><th>Last login</th><th class="actions">Actions</th></tr>
+                    <tr><th>Username</th><th class="hide-sm">Display name</th><th>Role</th><th>Status</th><th class="hide-sm">Last login</th><th class="actions">Actions</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var u in Model.Items)
                     {
                         <tr>
                             <td><a href="/Users/Edit?id=@u.Id"><strong>@u.Username</strong></a></td>
-                            <td>@u.DisplayName</td>
+                            <td class="hide-sm">@u.DisplayName</td>
                             <td><span class="mat-badge">@u.Role</span></td>
                             <td>
                                 @if (u.IsActive)
@@ -69,7 +69,7 @@
                                     <span class="pill pill--unknown">Inactive</span>
                                 }
                             </td>
-                            <td class="text-muted nowrap">@(u.LastLoginAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "–")</td>
+                            <td class="text-muted nowrap hide-sm">@(u.LastLoginAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "–")</td>
                             <td class="actions">
                                 <div class="row-actions">
                                     @if (u.Id != currentUserId)
