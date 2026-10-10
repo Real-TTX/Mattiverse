@@ -77,8 +77,9 @@ which is wider than needed; Mattiverse leaves it off.)
 
 ## Other findings
 
-- **Port 8020**: no Mat project uses it, as asked. The *Schulio* project (`Schulio/docker-compose.yml`, `SCHULIO_PORT=8020`)
-  does, and its container was running on the development PC, so the dev stack takes `MATTIVERSE_PORT` (the tests used 8120).
+- **Port 8030**: the first choice, 8020, is the default of the *Schulio* project (`Schulio/docker-compose.yml`, `SCHULIO_PORT=8020`),
+  which was running on the development PC. 8030 is used by no project in the development folder and was free on that PC.
+  `MATTIVERSE_PORT` still changes the host port if it is ever taken.
 - `Prompt-Docker-Init-Mattiverse.txt` and `Prompt-Docker-Init-MatDock.txt` in the development folder are verbatim copies of the
   MatSplit prompt (port 4774, "Projektname: MatSplit"). MatDock really uses 4455.
 - Host ports used by more than one project (found while collecting the catalog): `9101` (MatCMS and Feusys.Web),

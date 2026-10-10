@@ -148,11 +148,11 @@ public sealed class ProxyPublisher
         }
     }
 
-    /// <summary>The port Mattiverse listens on inside its container (from <c>ASPNETCORE_URLS</c>, default 8020).</summary>
+    /// <summary>The port Mattiverse listens on inside its container (from <c>ASPNETCORE_URLS</c>, default 8030).</summary>
     public static int SelfPort()
     {
         var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
         var match = System.Text.RegularExpressions.Regex.Match(urls ?? string.Empty, @":(\d+)");
-        return match.Success ? int.Parse(match.Groups[1].Value) : 8020;
+        return match.Success ? int.Parse(match.Groups[1].Value) : 8030;
     }
 }

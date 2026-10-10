@@ -8,7 +8,7 @@ public static partial class HealthCheck
     public static async Task<int> RunAsync()
     {
         var match = PortRegex().Match(Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? string.Empty);
-        var port = match.Success ? match.Groups[1].Value : "8020";
+        var port = match.Success ? match.Groups[1].Value : "8030";
 
         try
         {

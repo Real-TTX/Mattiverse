@@ -3,7 +3,7 @@
 #   ./scripts/redeploy.ps1            (rebuilds the container and redeploys the stack)
 #   docker compose -f docker-compose.dev.yml up -d --build
 #
-# Web:        http://localhost:8020      (MATTIVERSE_PORT changes the host port)
+# Web:        http://localhost:8030      (MATTIVERSE_PORT changes the host port)
 # SQLite web: http://localhost:8021      (MATTIVERSE_DB_PORT changes the host port)
 name: mattiverse-dev
 
@@ -20,7 +20,7 @@ services:
     container_name: mattiverse-dev
     restart: unless-stopped
     ports:
-      - "${MATTIVERSE_PORT:-8020}:8020"
+      - "${MATTIVERSE_PORT:-8030}:8030"
     environment:
       # Development seeds a ready-to-use account (tester / Tester123!) so testing never touches the real admin.
       ASPNETCORE_ENVIRONMENT: Development

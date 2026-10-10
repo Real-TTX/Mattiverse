@@ -99,7 +99,7 @@ Every list has its toolbar (search, filters, sort) on top, its actions below and
 One command. The Docker socket is how Mattiverse installs and manages your apps.
 
 ```bash
-docker run -d --name mattiverse --restart unless-stopped -p 8020:8020 \
+docker run -d --name mattiverse --restart unless-stopped -p 8030:8030 \
   -v mattiverse-data:/data \
   -v /var/run/docker.sock:/var/run/docker.sock \
   ghcr.io/real-ttx/mattiverse:latest
@@ -116,7 +116,7 @@ services:
     container_name: mattiverse
     restart: unless-stopped
     ports:
-      - "8020:8020"
+      - "8030:8030"
     volumes:
       - mattiverse-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -125,7 +125,7 @@ volumes:
   mattiverse-data:
 ```
 
-Open **http://localhost:8020**. The first start asks for the administrator account and then walks you through the
+Open **http://localhost:8030**. The first start asks for the administrator account and then walks you through the
 setup wizard. An update is `docker compose pull && docker compose up -d`; everything lives in the `mattiverse-data` volume.
 
 | Tag | Built from | Use it for |
@@ -146,7 +146,7 @@ setup wizard. An update is `docker compose pull && docker compose up -d`; everyt
 | `Mattiverse__HostPortRangeStart` / `End` | `8100` / `8999` | Pool for app ports when the preferred port is taken |
 | `Mattiverse__Admin__Seed` | `false` | Create the admin from `__Username` / `__Password` (headless installs; the password must be changed at the first sign-in) |
 | `Mattiverse__DockerHost` | – | Use another Docker endpoint than the mounted socket |
-| `MATTIVERSE_PORT` | `8020` | Host port in the compose files |
+| `MATTIVERSE_PORT` | `8030` | Host port in the compose files |
 | `TZ` | – | Time zone for schedules and the apps |
 
 ## How it works
@@ -195,7 +195,7 @@ dotnet test                           # unit tests (catalog, installer files, ba
 
 The dev stack is the app plus a SQLite web viewer (the SQLite counterpart of pgAdmin) on
 `http://localhost:8021`. In `Development` a ready-made account **`tester` / `Tester123!`** exists, so testing never
-touches the real administrator. `MATTIVERSE_PORT` changes the host port when 8020 is taken.
+touches the real administrator. `MATTIVERSE_PORT` changes the host port when 8030 is taken.
 
 Testing means rebuilding the container and redeploying the stack, nothing else.
 

@@ -46,7 +46,7 @@ RUN apt-get update \
  && apt-get autoremove -y \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-ENV ASPNETCORE_URLS=http://+:8020 \
+ENV ASPNETCORE_URLS=http://+:8030 \
     ASPNETCORE_ENVIRONMENT=Production \
     Mattiverse__DataPath=/data \
     DOTNET_gcServer=0 \
@@ -55,7 +55,7 @@ ENV ASPNETCORE_URLS=http://+:8020 \
 # Config, database, keys, compose files of the installed apps and backups: one volume.
 RUN mkdir -p /data
 VOLUME ["/data"]
-EXPOSE 8020
+EXPOSE 8030
 
 COPY --from=build /app/publish .
 

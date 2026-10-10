@@ -10,7 +10,7 @@ Mat universe: a setup wizard asks for the reverse proxy (Matcad), the DynDNS cli
 management (MatDock). Everything it creates is a plain `docker compose` project.
 
 Stack: ASP.NET Core on **.NET 10**, C#, **Razor Pages** + TagHelper controls, EF Core + **SQLite**, the `docker` CLI against the mounted
-socket, plain JavaScript (no build step), Docker-first. Web port **8020**.
+socket, plain JavaScript (no build step), Docker-first. Web port **8030**.
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing the design: it records the decisions (compose files on the volume,
 backups integrated, catalog as data, ...). [docs/CATALOG.md](docs/CATALOG.md) is the format of a catalog entry,
@@ -30,7 +30,7 @@ backups integrated, catalog as data, ...). [docs/CATALOG.md](docs/CATALOG.md) is
   `MSYS_NO_PATHCONV=1` for Git Bash arguments that start with `/`.
 - **The development PC has all Docker address pools used up** (`all predefined address pools have been fully subnetted`).
   To test installs there, put an explicit `networks: default: ipam: config: - subnet: 10.253.x.0/24` into the catalog copy
-  under `/data/catalog` and give each app its own subnet; and use a free host port (`MATTIVERSE_PORT`, 8020 is Schulio's).
+  under `/data/catalog` and give each app its own subnet. The web port is 8030 (8020 is Schulio's); `MATTIVERSE_PORT` changes the host port.
 
 ## Map
 

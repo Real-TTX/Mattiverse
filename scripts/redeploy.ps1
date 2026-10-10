@@ -8,7 +8,7 @@
 .PARAMETER Fresh
     Also deletes the data volume first (clean start, the setup wizard appears again).
 .PARAMETER Port
-    Host port of the web interface (default 8020).
+    Host port of the web interface (default 8030).
 .EXAMPLE
     ./scripts/redeploy.ps1
 .EXAMPLE
@@ -16,7 +16,7 @@
 #>
 param(
     [switch]$Fresh,
-    [int]$Port = 8020
+    [int]$Port = 8030
 )
 
 $ErrorActionPreference = 'Stop'

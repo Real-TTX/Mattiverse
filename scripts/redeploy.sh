@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Rebuilds the Mattiverse container and redeploys the dev stack (the project's live-reload / test workflow).
-#   ./scripts/redeploy.sh [--fresh] [--port 8020]
+#   ./scripts/redeploy.sh [--fresh] [--port 8030]
 set -euo pipefail
 
 fresh=0
-port=8020
+port=8030
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fresh) fresh=1 ;;
