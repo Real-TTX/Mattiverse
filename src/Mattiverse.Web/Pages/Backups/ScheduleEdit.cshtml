@@ -20,12 +20,12 @@
                     <input asp-for="Input.Name" class="mat-input" />
                 </mat-field>
 
-                <mat-field label="Apps" asp-for="Input.AppId">
-                    <select asp-for="Input.AppId" class="mat-select">
+                <mat-field label="Apps" asp-for="Input.AppSlug" hint="@(Model.Engine is null ? "A schedule runs in MatDock when it can be used, otherwise in Mattiverse." : $"This schedule runs in {Mattiverse.Web.Pages.Backups.IndexModel.EngineLabel(Model.Engine)}.")">
+                    <select asp-for="Input.AppSlug" class="mat-select">
                         <option value="">All apps</option>
                         @foreach (var app in Model.Apps)
                         {
-                            <option value="@app.Id" selected="@(Model.Input.AppId == app.Id)">@app.Name</option>
+                            <option value="@app.Slug" selected="@(Model.Input.AppSlug == app.Slug)">@app.Name</option>
                         }
                     </select>
                 </mat-field>
@@ -48,7 +48,7 @@
                     </mat-field>
                 </div>
 
-                <mat-field label="At" asp-for="Input.Time" hint="Time of day on the Mattiverse host.">
+                <mat-field label="At" asp-for="Input.Time" hint="@(Model.Engine switch { "matdock" => "Time of day in UTC: MatDock runs this schedule.", "local" => "Time of day on the Mattiverse host.", _ => "Time of day. MatDock runs schedules in UTC, Mattiverse's own in the time zone of the host." })">
                     <input asp-for="Input.Time" type="time" class="mat-input" />
                 </mat-field>
 

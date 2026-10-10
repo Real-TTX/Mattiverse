@@ -24,6 +24,8 @@ services:
     environment:
       # Development seeds a ready-to-use account (tester / Tester123!) so testing never touches the real admin.
       ASPNETCORE_ENVIRONMENT: Development
+      # The shared network of the engines and apps: an explicit subnet for the same reason as below (empty = Docker chooses).
+      Mattiverse__NetworkSubnet: ${MATTIVERSE_NETWORK_SUBNET:-}
     volumes:
       - mattiverse-data:/data
       - /var/run/docker.sock:/var/run/docker.sock

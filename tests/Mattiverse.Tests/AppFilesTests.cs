@@ -1,10 +1,10 @@
 using Mattiverse.Core.Apps;
-using Mattiverse.Core.Backups;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
+using Mattiverse.Core.Engines;
 using Mattiverse.Core.Entities;
-using Mattiverse.Core.Security;
 using Microsoft.Extensions.Options;
+using YamlDotNet.Serialization;
 
 namespace Mattiverse.Tests;
 
@@ -12,10 +12,10 @@ public class AppFilesTests
 {
     private static readonly IOptions<MattiverseOptions> Options = Microsoft.Extensions.Options.Options.Create(new MattiverseOptions());
 
-    private static ComposeFiles CreateFiles(string? data = null)
-        => new(new AppPaths(data ?? Path.Combine(Path.GetTempPath(), "mattiverse-tests-" + Guid.NewGuid().ToString("N"))), Options);
+    private static ComposeRenderer Renderer() => new(Options);
 
-    private static CatalogApp Matcad() => CatalogParser.Parse(ReadCatalog("matcad"), "matcad.yml");
+    private static ComposeFiles CreateFiles(string? data = null)
+        => new(new AppPaths(data ?? Path.Combine(Path.GetTempPath(), "mattiverse-tests-" + Guid.NewGuid().ToString("N"))), Renderer());
 
     private static string ReadCatalog(string id)
     {
@@ -24,46 +24,149 @@ public class AppFilesTests
         return reader.ReadToEnd();
     }
 
+    private static CatalogApp Entry(string id) => CatalogParser.Parse(ReadCatalog(id), id + ".yml");
+
+    private static InstalledApp AppOf(string slug, string? uiService, int? uiPort, int? hostPort)
+        => new() { Slug = slug, Name = slug, ProjectName = "mattiverse-" + slug, UiService = uiService, UiPort = uiPort, HostPort = hostPort };
+
+    /// <summary>The rendered compose as plain dictionaries, to assert on what compose will read.</summary>
+    private static Dictionary<string, object> Parse(string yaml)
+        => new DeserializerBuilder().Build().Deserialize<Dictionary<string, object>>(yaml);
+
+    private static IDictionary<object, object> Service(Dictionary<string, object> compose, string name)
+        => (IDictionary<object, object>)((IDictionary<object, object>)compose["services"])[name];
+
     [Fact]
-    public void Override_NamesEveryContainer_AndLabelsIt()
+    public void Render_NamesEveryContainer_AndLabelsIt()
     {
-        var files = CreateFiles();
-        var app = new InstalledApp { Slug = "matcad", UiService = "matcad", UiPort = 4433, HostPort = 4433 };
+        var compose = Parse(Renderer().Render(Entry("matcad"), AppOf("matcad", "matcad", 4433, 4433)));
 
-        var yaml = files.BuildOverride(app, Matcad());
+        var caddy = Service(compose, "caddy");
+        Assert.Equal("mattiverse-matcad-caddy", caddy["container_name"]);
+        Assert.Equal("mattiverse-matcad-matcad", Service(compose, "matcad")["container_name"]);
 
-        Assert.Contains("container_name: mattiverse-matcad-caddy", yaml);
-        Assert.Contains("container_name: mattiverse-matcad-matcad", yaml);
-        Assert.Contains("mattiverse.instance: \"matcad\"", yaml);
-        Assert.Contains("mattiverse.service: \"caddy\"", yaml);
+        var labels = (IDictionary<object, object>)caddy["labels"];
+        Assert.Equal("matcad", labels["mattiverse.instance"]);
+        Assert.Equal("caddy", labels["mattiverse.service"]);
+        Assert.Equal("true", labels["mattiverse.managed"]);
     }
 
     [Fact]
-    public void Override_PublishesOnlyTheUiPort_AndJoinsTheSharedNetwork()
+    public void Render_AppendsTheUiPort_ToTheServiceThatHasThePorts()
     {
-        var files = CreateFiles();
-        var app = new InstalledApp { Slug = "matcad", UiService = "matcad", UiPort = 4433, HostPort = 4500 };
+        var compose = Parse(Renderer().Render(Entry("matmail"), AppOf("matmail", "matmail", 9933, 9100)));
 
-        var yaml = files.BuildOverride(app, Matcad());
+        var ports = ((IList<object>)Service(compose, "matmail")["ports"]).Select(p => p.ToString()).ToList();
 
-        Assert.Equal(1, CountOccurrences(yaml, "ports:"));
-        Assert.Contains("- \"4500:4433\"", yaml);
-        // Caddy is listed as shared in the catalog entry, the UI service always is.
-        Assert.Equal(2, CountOccurrences(yaml, "- mattiverse\n"));
-        Assert.Contains("external: true", yaml);
+        // The catalog's own mail ports stay, the UI port is added after them.
+        Assert.Contains("${SMTP_PORT:-25}:25", ports);
+        Assert.Equal("9100:9933", ports[^1]);
+        Assert.False(Service(compose, "db").ContainsKey("ports"));
     }
 
     [Fact]
-    public void Override_KeepsAServiceOffTheSharedNetwork_UnlessItIsShared()
+    public void Render_PublishesTheUiPort_OfAServiceWithoutPorts()
     {
-        var matmail = CatalogParser.Parse(ReadCatalog("matmail"), "matmail.yml");
-        var files = CreateFiles();
-        var app = new InstalledApp { Slug = "matmail", UiService = "matmail", UiPort = 9933, HostPort = 9933 };
+        var compose = Parse(Renderer().Render(Entry("matcad"), AppOf("matcad", "matcad", 4433, 4500)));
 
-        var yaml = files.BuildOverride(app, matmail);
+        Assert.Equal(["4500:4433"], ((IList<object>)Service(compose, "matcad")["ports"]).Select(p => p.ToString()!).ToArray());
+        // Caddy keeps only the ports the catalog gave it.
+        Assert.Equal(3, ((IList<object>)Service(compose, "caddy")["ports"]).Count);
+    }
 
-        // Only the UI service joins the shared network; the database stays private to the stack.
-        Assert.Equal(1, CountOccurrences(yaml, "- mattiverse\n"));
+    [Fact]
+    public void Render_JoinsTheSharedNetwork_OnlyWhereTheProxyMustReach()
+    {
+        var matcad = Parse(Renderer().Render(Entry("matcad"), AppOf("matcad", "matcad", 4433, 4433)));
+        var matmail = Parse(Renderer().Render(Entry("matmail"), AppOf("matmail", "matmail", 9933, 9933)));
+
+        // Matcad's UI service and its Caddy (listed as shared) join the network; the UI service of MatMail does, its database does not.
+        Assert.Contains("mattiverse", ((IList<object>)Service(matcad, "caddy")["networks"]).Select(n => n.ToString()));
+        Assert.Contains("mattiverse", ((IList<object>)Service(matcad, "matcad")["networks"]).Select(n => n.ToString()));
+        Assert.Contains("mattiverse", ((IList<object>)Service(matmail, "matmail")["networks"]).Select(n => n.ToString()));
+        Assert.False(Service(matmail, "db").ContainsKey("networks"));
+
+        var network = (IDictionary<object, object>)((IDictionary<object, object>)matmail["networks"])["mattiverse"];
+        Assert.Equal("mattiverse", network["name"]);
+        Assert.Equal("true", network["external"].ToString()!.ToLowerInvariant());
+    }
+
+    [Fact]
+    public void Render_KeepsTheVariablePlaceholders_ForComposeToResolve()
+    {
+        var yaml = Renderer().Render(Entry("matcad"), AppOf("matcad", "matcad", 4433, 4433));
+
+        Assert.Contains("${MATCAD_API_KEY}", yaml);
+        Assert.DoesNotContain("\r", yaml);
+        Assert.False(yaml.TrimEnd().EndsWith("...", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Render_AddsTheBlockMatDockShowsAsAnAppTile_AndKeepsOurOwn()
+    {
+        var app = AppOf("matddns", "matddns", 8080, 4060);
+        app.Name = "Matddns (home)";
+
+        var compose = Parse(Renderer().Render(Entry("matddns"), app));
+
+        var block = (IDictionary<object, object>)compose["x-matdock"];
+        Assert.Equal("Matddns (home)", block["name"]);
+        Assert.Equal("Infrastructure", block["category"]);
+        Assert.True(compose.ContainsKey("x-mattiverse"));
+    }
+
+    [Fact]
+    public void Render_MergesWithLabelsAndNetworksThatTheEntryAlreadyHas()
+    {
+        var entry = CatalogParser.Parse("""
+            x-mattiverse:
+              id: custom
+              name: Custom
+              ui: { service: web, port: 80 }
+            services:
+              web:
+                image: nginx
+                labels:
+                  - "traefik.enable=false"
+                networks:
+                  back: {}
+            networks:
+              back: {}
+            """, "custom.yml");
+
+        var compose = Parse(Renderer().Render(entry, AppOf("custom", "web", 80, 8100)));
+
+        var web = Service(compose, "web");
+        var labels = ((IList<object>)web["labels"]).Select(l => l.ToString()).ToList();
+        Assert.Contains("traefik.enable=false", labels);
+        Assert.Contains("mattiverse.instance=custom", labels);
+
+        var networks = (IDictionary<object, object>)web["networks"];
+        Assert.True(networks.ContainsKey("back") && networks.ContainsKey("default") && networks.ContainsKey("mattiverse"));
+        var top = (IDictionary<object, object>)compose["networks"];
+        Assert.True(top.ContainsKey("back") && top.ContainsKey("mattiverse"));
+    }
+
+    [Fact]
+    public void Render_EveryBuiltInEntry_ProducesAComposeFileThatStillParsesAsAnEntry()
+    {
+        var catalog = new CatalogService(new AppPaths(Path.Combine(Path.GetTempPath(), "mattiverse-tests-" + Guid.NewGuid().ToString("N"))), Microsoft.Extensions.Logging.Abstractions.NullLogger<CatalogService>.Instance);
+
+        foreach (var entry in catalog.GetAll())
+        {
+            var app = AppOf(entry.Id, entry.Ui?.Service, entry.Ui?.Port, entry.Ui?.HostPort);
+            var rendered = Renderer().Render(entry, app);
+
+            var again = CatalogParser.Parse(rendered, entry.Id);
+            Assert.Equal(entry.ServiceNames, again.ServiceNames);
+            Assert.Equal(entry.Variables.Count, again.Variables.Count);
+
+            var compose = Parse(rendered);
+            foreach (var service in entry.ServiceNames)
+            {
+                Assert.Equal($"mattiverse-{entry.Id}-{service}", Service(compose, service)["container_name"]);
+            }
+        }
     }
 
     [Fact]
@@ -76,22 +179,24 @@ public class AppFilesTests
     }
 
     [Fact]
-    public async Task WriteAsync_WritesComposeEnvAndOverride()
+    public async Task Build_AndWrite_ProduceTheFilesAnEngineDeploys()
     {
         var data = Path.Combine(Path.GetTempPath(), "mattiverse-tests-" + Guid.NewGuid().ToString("N"));
         var files = CreateFiles(data);
-        var catalog = Matcad();
-        var app = new InstalledApp { Slug = "matcad", ProjectName = "mattiverse-matcad", UiService = "matcad", UiPort = 4433, HostPort = 4433 };
+        var app = AppOf("matcad", "matcad", 4433, 4433);
 
-        await files.WriteAsync(app, catalog, new Dictionary<string, string> { ["MATCAD_API_KEY"] = "k3y" }, "nas.local");
+        var spec = files.Build(app, Entry("matcad"), new Dictionary<string, string> { ["MATCAD_API_KEY"] = "k3y" }, "nas.local");
+        await files.WriteAsync(spec);
+        var read = await files.ReadAsync("matcad", "mattiverse-matcad");
 
-        var (compose, env, overrideYaml) = await files.ReadAsync("matcad");
-        Assert.Equal(catalog.ComposeYaml, compose);
-        Assert.Contains("MATCAD_API_KEY='k3y'", env);
-        Assert.Contains("MV_PUBLIC_HOST='nas.local'", env);
-        Assert.Contains("MV_SLUG='matcad'", env);
-        Assert.Contains("container_name", overrideYaml);
+        Assert.Equal("mattiverse-matcad", spec.Name);
+        Assert.Contains("MATCAD_API_KEY='k3y'", spec.Env);
+        Assert.Contains("MV_PUBLIC_HOST='nas.local'", spec.Env);
+        Assert.Contains("MV_SLUG='matcad'", spec.Env);
+        Assert.NotNull(read);
+        Assert.Equal(spec.Compose, read!.Compose);
         Assert.True(files.Exists("matcad"));
+        Assert.False(File.Exists(Path.Combine(files.Folder("matcad"), "docker-compose.override.yml")));
     }
 
     [Fact]
@@ -109,14 +214,16 @@ public class AppFilesTests
         Assert.False(EnvFileParser.IsBuiltIn("PASSWORD"));
     }
 
-    private static int CountOccurrences(string text, string part)
+    [Fact]
+    public void ComposeHash_IgnoresFormatting_ButNotMeaning()
     {
-        var count = 0;
-        for (var i = text.IndexOf(part, StringComparison.Ordinal); i >= 0; i = text.IndexOf(part, i + part.Length, StringComparison.Ordinal))
-        {
-            count++;
-        }
+        var a = "services:\n  web:\n    image: nginx\n    ports:\n      - \"80:80\"\n";
+        var reformatted = "# comment\r\nservices:\r\n  web:\r\n    ports: ['80:80']\r\n    image: \"nginx\"\r\n\r\n";
+        var changed = "services:\n  web:\n    image: nginx:1.27\n    ports:\n      - \"80:80\"\n";
 
-        return count;
+        Assert.Equal(ComposeHash.Of(a), ComposeHash.Of(reformatted));
+        Assert.NotEqual(ComposeHash.Of(a), ComposeHash.Of(changed));
+        Assert.Equal(ComposeHash.Of("not: [valid"), ComposeHash.Of("not: [valid\r\n"));
     }
+
 }

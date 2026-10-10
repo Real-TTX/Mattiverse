@@ -249,11 +249,18 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function label(name) {
-      var on = $('input[name="' + name + '"]:checked', wiz);
-      if (!on || !on.value) { return 'Nothing (skip)'; }
-      var title = on.closest('.choice') ? on.closest('.choice').querySelector('.choice__title span') : null;
-      return title ? title.textContent : on.value;
+    function engines() {
+      var names = [];
+      $$('.choice[data-engine]', wiz).forEach(function (card) {
+        var box = card.querySelector('input[type=checkbox]');
+        if (box && box.checked) { names.push(card.querySelector('.choice__title span').textContent); }
+      });
+      return names.join(', ') || 'none';
+    }
+
+    function dnsProvider() {
+      var select = $('#DnsProvider', wiz);
+      return select && select.value ? select.options[select.selectedIndex].text : 'none (you manage DNS yourself)';
     }
 
     function buildSummary(el) {
@@ -261,9 +268,8 @@
       var rows = [
         ['Address of this host', host && host.value ? host.value : 'from the browser'],
         ['Domain for your apps', domain && domain.value ? '*.' + domain.value : 'none (apps use ports)'],
-        ['Reverse proxy', label('ProxyAppId')],
-        ['DynDNS client', label('DdnsAppId')],
-        ['Docker management', label('DockerAppId')]
+        ['Engines', engines()],
+        ['DNS provider', dnsProvider()]
       ];
       el.innerHTML = '';
       rows.forEach(function (r) {

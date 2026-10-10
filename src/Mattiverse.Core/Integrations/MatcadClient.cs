@@ -1,128 +1,66 @@
-using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text.Json.Nodes;
-using Mattiverse.Core.Apps;
-using Mattiverse.Core.Catalog;
-using Mattiverse.Core.Data;
-using Mattiverse.Core.Docker;
-using Mattiverse.Core.Entities;
-using Mattiverse.Core.Security;
-using Microsoft.EntityFrameworkCore;
+using Mattiverse.Core.Engines;
 
 namespace Mattiverse.Core.Integrations;
 
 /// <summary>A route of the Matcad proxy as far as Mattiverse needs it.</summary>
-public sealed record MatcadRoute(long Id, string Host, string? Upstream);
+public sealed record MatcadRoute(long Id, string Host, string? Upstream, bool Wildcard, string? ManagedBy);
+
+/// <summary>A DNS provider of Matcad (the account its certificates are issued with).</summary>
+public sealed record MatcadProvider(long Id, string Name, string Type, string? ManagedBy);
 
 /// <summary>
-/// Client of the Matcad REST API (<c>/api/v1</c>, header <c>X-Api-Key</c>). The address and the key of the Matcad that
-/// Mattiverse installed are looked up from the installed app, so there is nothing to configure by hand.
+/// Client of the Matcad REST API. Matcad owns the routes, the certificates and the DNS providers; everything Mattiverse writes
+/// there carries <c>managedBy: mattiverse</c> so it shows in Matcad's own UI as coming from Mattiverse.
 /// </summary>
-public sealed class MatcadClient
+public sealed class MatcadClient : EngineClient
 {
-    private readonly MattiverseDbContext _db;
-    private readonly CatalogService _catalog;
-    private readonly ISecretProtector _protector;
-    private readonly DockerService _docker;
-    private readonly ComposeFiles _files;
-    private readonly IHttpClientFactory _http;
+    public const string ManagedBy = "mattiverse";
 
-    public MatcadClient(
-        MattiverseDbContext db,
-        CatalogService catalog,
-        ISecretProtector protector,
-        DockerService docker,
-        ComposeFiles files,
-        IHttpClientFactory http)
+    public MatcadClient(EngineLocator locator, IHttpClientFactory http)
+        : base(locator, http)
     {
-        _db = db;
-        _catalog = catalog;
-        _protector = protector;
-        _docker = docker;
-        _files = files;
-        _http = http;
     }
 
-    /// <summary>The installed Matcad, or <c>null</c> when none is installed.</summary>
-    public Task<InstalledApp?> FindAppAsync(CancellationToken ct = default)
-        => _db.InstalledApps.AsNoTracking()
-            .FirstOrDefaultAsync(a => a.CatalogId == "matcad" && a.Lifecycle == AppLifecycle.Installed, ct);
+    protected override string CatalogId => "matcad";
 
-    public async Task<bool> IsAvailableAsync(CancellationToken ct = default)
-        => await FindAppAsync(ct) is not null;
+    protected override string KeyVariable => "MATCAD_API_KEY";
 
-    /// <summary>Waits until the API answers (Caddy and Matcad need a few seconds after the start).</summary>
-    public async Task<bool> WaitReadyAsync(TimeSpan timeout, Action<string> log, CancellationToken ct = default)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        var attempt = 0;
-        while (DateTime.UtcNow < deadline)
-        {
-            ct.ThrowIfCancellationRequested();
-            try
-            {
-                using var request = await CreateRequestAsync(HttpMethod.Get, "status", ct);
-                using var response = await Client().SendAsync(request, ct);
-                if (response.IsSuccessStatusCode)
-                {
-                    return true;
-                }
+    protected override string DisplayName => "Matcad";
 
-                if (++attempt == 1)
-                {
-                    log($"Waiting for the Matcad API (HTTP {(int)response.StatusCode}) ...");
-                }
-            }
-            catch (HttpRequestException)
-            {
-                if (++attempt == 1)
-                {
-                    log("Waiting for the Matcad API to come up ...");
-                }
-            }
-            catch (TaskCanceledException) when (!ct.IsCancellationRequested)
-            {
-                // A single request timed out; try again.
-            }
+    public async Task<bool> IsAvailableAsync(CancellationToken ct = default) => await IsInstalledAsync(ct);
 
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
-        }
-
-        return false;
-    }
+    // ------------------------------------------------------------------ settings
 
     public async Task<string?> GetBaseDomainAsync(CancellationToken ct = default)
+        => (await GetAsync("settings", ct))?["baseDomain"]?.GetValue<string>();
+
+    /// <summary>Sets the base domain in Matcad's settings and marks Matcad's own setup wizard as done (all other settings stay as they are).</summary>
+    public async Task ConfigureAsync(string? baseDomain, CancellationToken ct = default)
     {
-        var settings = await GetSettingsAsync(ct);
-        return settings?["baseDomain"]?.GetValue<string>();
+        var settings = await GetAsync("settings", ct) as JsonObject ?? new JsonObject();
+        settings["baseDomain"] = baseDomain;
+        settings["setupCompleted"] = true;
+        await SendAsync(HttpMethod.Put, "settings", settings, null, ct);
     }
 
-    /// <summary>Sets the base domain in Matcad's settings (all other settings stay as they are).</summary>
-    public async Task SetBaseDomainAsync(string? baseDomain, CancellationToken ct = default)
-    {
-        var settings = await GetSettingsAsync(ct) ?? new JsonObject();
-        settings["baseDomain"] = baseDomain;
-        using var request = await CreateRequestAsync(HttpMethod.Put, "settings", ct);
-        request.Content = JsonContent.Create(settings);
-        using var response = await Client().SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "update the Matcad settings", ct);
-    }
+    // ------------------------------------------------------------------ routes
 
     public async Task<List<MatcadRoute>> ListRoutesAsync(CancellationToken ct = default)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Get, "routes/manual", ct);
-        using var response = await Client().SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "list the Matcad routes", ct);
-
         var routes = new List<MatcadRoute>();
-        var array = await response.Content.ReadFromJsonAsync<JsonArray>(ct) ?? [];
-        foreach (var node in array.OfType<JsonObject>())
+        foreach (var node in (await GetAsync("routes/manual", ct) as JsonArray ?? []).OfType<JsonObject>())
         {
             var id = node["id"]?.GetValue<long>();
             var host = node["host"]?.GetValue<string>();
             if (id is not null && !string.IsNullOrEmpty(host))
             {
-                routes.Add(new MatcadRoute(id.Value, host, node["upstream"]?.GetValue<string>()));
+                routes.Add(new MatcadRoute(
+                    id.Value,
+                    host,
+                    node["upstream"]?.GetValue<string>(),
+                    node["wildcard"]?.GetValue<bool>() ?? false,
+                    node["managedBy"]?.GetValue<string>()));
             }
         }
 
@@ -130,6 +68,7 @@ public sealed class MatcadClient
     }
 
     /// <summary>Creates the route for <paramref name="host"/> or updates the existing one (Matcad upserts by id, so it is looked up first).</summary>
+    /// <remarks>Matcad ignores a DNS provider on a single host; the provider belongs to the wildcard route, see <see cref="UpsertWildcardRouteAsync"/>.</remarks>
     public async Task UpsertRouteAsync(string host, string upstream, string name, CancellationToken ct = default)
     {
         var existing = (await ListRoutesAsync(ct)).FirstOrDefault(r => r.Host.Equals(host, StringComparison.OrdinalIgnoreCase));
@@ -141,90 +80,124 @@ public sealed class MatcadClient
             ["upstream"] = upstream,
             ["enabled"] = true,
             ["name"] = name,
+            ["managedBy"] = ManagedBy,
         };
         if (existing is not null)
         {
             body["id"] = existing.Id;
         }
 
-        using var request = await CreateRequestAsync(HttpMethod.Post, "routes", ct);
-        request.Content = JsonContent.Create(body);
-        using var response = await Client().SendAsync(request, ct);
-        await EnsureSuccessAsync(response, $"create the route for {host}", ct);
+        await SendAsync(HttpMethod.Post, "routes", body, null, ct);
+    }
+
+    /// <summary>
+    /// The route <c>*.&lt;domain&gt;</c> with the DNS provider: Matcad gets one wildcard certificate through the DNS challenge, and the routes of
+    /// the single apps below it are served from it (no open port 80 needed). What no app route matches is sent on to <paramref name="redirectUrl"/>.
+    /// </summary>
+    public async Task UpsertWildcardRouteAsync(string domain, long providerId, string redirectUrl, string name, CancellationToken ct = default)
+    {
+        var host = "*." + domain.Trim().Trim('.');
+        var existing = (await ListRoutesAsync(ct)).FirstOrDefault(r => r.Host.Equals(host, StringComparison.OrdinalIgnoreCase));
+        var body = new JsonObject
+        {
+            ["host"] = host,
+            ["wildcard"] = true,
+            ["providerId"] = providerId,
+            ["target"] = "redirect",
+            ["fallbackUrl"] = redirectUrl,
+            ["redirectPermanent"] = false,
+            ["enabled"] = true,
+            ["name"] = name,
+            ["managedBy"] = ManagedBy,
+        };
+        if (existing is not null)
+        {
+            body["id"] = existing.Id;
+        }
+
+        await SendAsync(HttpMethod.Post, "routes", body, null, ct);
     }
 
     public async Task DeleteRouteAsync(string host, CancellationToken ct = default)
     {
         var existing = (await ListRoutesAsync(ct)).FirstOrDefault(r => r.Host.Equals(host, StringComparison.OrdinalIgnoreCase));
-        if (existing is null)
+        if (existing is not null)
         {
-            return;
+            await SendAsync(HttpMethod.Delete, $"routes/{existing.Id}", null, null, ct);
         }
-
-        using var request = await CreateRequestAsync(HttpMethod.Delete, $"routes/{existing.Id}", ct);
-        using var response = await Client().SendAsync(request, ct);
-        await EnsureSuccessAsync(response, $"delete the route for {host}", ct);
     }
 
-    // ------------------------------------------------------------------ plumbing
-
-    private async Task<JsonObject?> GetSettingsAsync(CancellationToken ct)
+    /// <summary>
+    /// Removes the routes that Mattiverse created (<c>managedBy</c>) and does not want any more, like the ones of an old domain.
+    /// Routes the user made in Matcad are never touched. Returns the hosts that were removed.
+    /// </summary>
+    public async Task<List<string>> RemoveManagedExceptAsync(IReadOnlySet<string> wantedHosts, CancellationToken ct = default)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Get, "settings", ct);
-        using var response = await Client().SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "read the Matcad settings", ct);
-        return await response.Content.ReadFromJsonAsync<JsonObject>(ct);
-    }
-
-    private HttpClient Client()
-    {
-        var client = _http.CreateClient("matcad");
-        client.Timeout = TimeSpan.FromSeconds(15);
-        return client;
-    }
-
-    private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string path, CancellationToken ct)
-    {
-        var app = await FindAppAsync(ct) ?? throw new InvalidOperationException("Matcad is not installed.");
-        var catalog = _catalog.Get(app.CatalogId);
-        var variables = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
-        if (!variables.TryGetValue("MATCAD_API_KEY", out var apiKey) || string.IsNullOrEmpty(apiKey))
+        var removed = new List<string>();
+        foreach (var route in await ListRoutesAsync(ct))
         {
-            throw new InvalidOperationException("The Matcad API key is not available (the Data Protection keys were lost?).");
-        }
-
-        // Inside Docker the shared network resolves the container name; outside (local development) the host port is used.
-        var inDocker = await _docker.GetSelfContainerNameAsync(ct) is not null;
-        var baseUrl = inDocker
-            ? $"http://{_files.UiHost(app)}:{app.UiPort}"
-            : $"http://localhost:{app.HostPort}";
-
-        var request = new HttpRequestMessage(method, $"{baseUrl}/api/v1/{path}");
-        request.Headers.Add("X-Api-Key", apiKey);
-        return request;
-    }
-
-    private static async Task EnsureSuccessAsync(HttpResponseMessage response, string action, CancellationToken ct)
-    {
-        if (response.IsSuccessStatusCode)
-        {
-            return;
-        }
-
-        var detail = await response.Content.ReadAsStringAsync(ct);
-        try
-        {
-            using var doc = JsonDocument.Parse(detail);
-            if (doc.RootElement.TryGetProperty("error", out var error) || doc.RootElement.TryGetProperty("detail", out error))
+            if (route.ManagedBy == ManagedBy && !wantedHosts.Contains(route.Host))
             {
-                detail = error.GetString() ?? detail;
+                await SendAsync(HttpMethod.Delete, $"routes/{route.Id}", null, null, ct);
+                removed.Add(route.Host);
             }
         }
-        catch (JsonException)
+
+        return removed;
+    }
+
+    // ------------------------------------------------------------------ DNS providers (for the certificates)
+
+    public async Task<MatcadProvider?> FindProviderAsync(string name, CancellationToken ct = default)
+    {
+        foreach (var node in (await GetAsync("providers", ct) as JsonArray ?? []).OfType<JsonObject>())
         {
-            // Not JSON: keep the text.
+            if (string.Equals(node["name"]?.GetValue<string>(), name, StringComparison.OrdinalIgnoreCase) && node["id"]?.GetValue<long>() is { } id)
+            {
+                return new MatcadProvider(id, name, node["type"]?.GetValue<string>() ?? string.Empty, node["managedBy"]?.GetValue<string>());
+            }
         }
 
-        throw new InvalidOperationException($"Matcad could not {action} (HTTP {(int)response.StatusCode}): {detail}");
+        return null;
+    }
+
+    /// <summary>Creates or updates the provider with this name and returns its id.</summary>
+    public async Task<long> UpsertProviderAsync(string name, string type, IReadOnlyDictionary<string, string> credentials, CancellationToken ct = default)
+    {
+        var existing = await FindProviderAsync(name, ct);
+        var body = new JsonObject
+        {
+            ["name"] = name,
+            ["type"] = type,
+            ["credentials"] = JsonSerializer(credentials),
+            ["managedBy"] = ManagedBy,
+        };
+        if (existing is not null)
+        {
+            body["id"] = existing.Id;
+        }
+
+        var answer = await SendAsync(HttpMethod.Post, "providers", body, null, ct);
+        return answer?["id"]?.GetValue<long>() ?? (await FindProviderAsync(name, ct))?.Id
+            ?? throw new InvalidOperationException("Matcad did not return the id of the DNS provider.");
+    }
+
+    public async Task DeleteProviderAsync(string name, CancellationToken ct = default)
+    {
+        if (await FindProviderAsync(name, ct) is { } provider)
+        {
+            await SendAsync(HttpMethod.Delete, $"providers/{provider.Id}", null, null, ct);
+        }
+    }
+
+    private static JsonObject JsonSerializer(IReadOnlyDictionary<string, string> values)
+    {
+        var node = new JsonObject();
+        foreach (var (key, value) in values)
+        {
+            node[key] = value;
+        }
+
+        return node;
     }
 }

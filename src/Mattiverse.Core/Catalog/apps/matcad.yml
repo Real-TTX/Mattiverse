@@ -12,6 +12,7 @@ x-mattiverse:
   homepage: https://github.com/Real-TTX/Matcad
   recommended: true
   provision: matcad
+  core: true
   ui:
     service: matcad
     port: 4433
@@ -26,13 +27,19 @@ x-mattiverse:
       type: secret
       generate: true
       hidden: true
+    - key: MATCAD_ADMIN_PASSWORD
+      label: Admin password
+      type: secret
+      generate: true
+      help: The password of the user "admin" in Matcad. Leave empty to generate one.
   credentials:
     - label: Username
       value: admin
     - label: Password
-      value: admin
+      value: ${MATCAD_ADMIN_PASSWORD}
+      secret: true
     - label: Note
-      value: Matcad asks you to change this password on the first sign-in.
+      value: The routes of your apps are managed by Mattiverse and carry a "Managed by Mattiverse" badge in Matcad.
 
 services:
   caddy:
@@ -53,6 +60,7 @@ services:
       - caddy
     environment:
       Matcad__ApiKey: ${MATCAD_API_KEY}
+      MATCAD_ADMIN_PASSWORD: ${MATCAD_ADMIN_PASSWORD}
     volumes:
       - matcad-data:/data
       - caddy-logs:/caddy-logs

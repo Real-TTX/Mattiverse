@@ -58,7 +58,8 @@
         <a href="/Apps/Update?id=@app.Id" class="mat-btn @(Model.IsBusy ? "is-disabled" : "")"><icon name="arrow-up" /><span>Update</span></a>
         <a href="/Backups/Create?appId=@app.Id" class="mat-btn @(Model.IsBusy ? "is-disabled" : "")"><icon name="save" /><span>Back up</span></a>
     }
-    @if (isAdmin && app.Lifecycle != AppLifecycle.Removing)
+    @* MatDock, Matcad and Matddns are part of Mattiverse: only a failed install can be removed (to start over). *@
+    @if (isAdmin && app.Lifecycle != AppLifecycle.Removing && (!app.IsCore || app.Lifecycle == AppLifecycle.Failed))
     {
         <span class="mat-buttons__spacer"></span>
         <a href="/Apps/Uninstall?id=@app.Id" class="mat-btn mat-btn--danger @(Model.IsBusy && app.Lifecycle != AppLifecycle.Failed ? "is-disabled" : "")"><icon name="trash" /><span>Uninstall</span></a>
@@ -112,14 +113,14 @@
                             @foreach (var backup in Model.Backups)
                             {
                                 <tr>
-                                    <td class="nowrap">@Format.DateTimeLocal(backup.CreateDate) <span class="text-muted">· @Format.Ago(backup.CreateDate)</span></td>
+                                    <td class="nowrap">@Format.DateTimeLocal(backup.CreatedUtc) <span class="text-muted">· @Format.Ago(backup.CreatedUtc)</span></td>
                                     <td><span class="mat-badge">@backup.Kind</span></td>
                                     <td class="nowrap">@Format.Size(backup.SizeBytes)</td>
                                     <td><span class="pill pill--@(backup.Status == BackupStatus.Succeeded ? "online" : backup.Status == BackupStatus.Failed ? "offline" : "busy")">@backup.Status</span></td>
                                     <td class="actions">
                                         @if (backup.Status == BackupStatus.Succeeded)
                                         {
-                                            <a class="mat-btn mat-btn--sm" href="/Backups/Restore?id=@backup.Id"><icon name="restore" /><span>Restore</span></a>
+                                            <a class="mat-btn mat-btn--sm" asp-page="/Backups/Restore" asp-route-id="@backup.Id"><icon name="restore" /><span>Restore</span></a>
                                         }
                                     </td>
                                 </tr>
@@ -136,10 +137,23 @@
 
     case "files":
         <div class="stack">
-            <div class="alert alert--info" style="margin:0;"><icon name="info" /><span>These files live on the Mattiverse data volume in <code>apps/@app.Slug</code>. Mattiverse rewrites them on every update, so changes here are overwritten. Secret values are hidden.</span></div>
-            <div class="card"><div class="card__header"><icon name="file" /><span>docker-compose.yml</span></div><div class="card__body"><pre class="log">@Model.Files.Compose</pre></div></div>
-            <div class="card"><div class="card__header"><icon name="file" /><span>docker-compose.override.yml (generated)</span></div><div class="card__body"><pre class="log">@Model.Files.Override</pre></div></div>
-            <div class="card"><div class="card__header"><icon name="file" /><span>.env</span></div><div class="card__body"><pre class="log">@Model.Files.Env</pre></div></div>
+            @if (app.Engine == "matdock")
+            {
+                <div class="alert alert--info" style="margin:0;"><icon name="info" /><span>This stack lives in <strong>MatDock</strong>, and this is how MatDock has it now. Edit it there: Mattiverse keeps your changes when it updates the app. Secret values are hidden.</span></div>
+            }
+            else
+            {
+                <div class="alert alert--info" style="margin:0;"><icon name="info" /><span>These files live on the Mattiverse data volume in <code>apps/@app.Slug</code>; Mattiverse runs this stack itself. Secret values are hidden.</span></div>
+            }
+            @if (string.IsNullOrEmpty(Model.Files.Compose))
+            {
+                <div class="empty-state"><div><icon name="file" /></div><p>The stack could not be read. Is its engine running?</p></div>
+            }
+            else
+            {
+                <div class="card"><div class="card__header"><icon name="file" /><span>docker-compose.yml</span></div><div class="card__body"><pre class="log">@Model.Files.Compose</pre></div></div>
+                <div class="card"><div class="card__header"><icon name="file" /><span>.env</span></div><div class="card__body"><pre class="log">@Model.Files.Env</pre></div></div>
+            }
         </div>
         break;
 
@@ -237,6 +251,11 @@
                         }
                         <dt>Installed from</dt>
                         <dd>@(Model.Catalog?.Name ?? app.CatalogId) <span class="text-muted">· project <code>@app.ProjectName</code></span></dd>
+                        @foreach (var link in Model.EngineLinks)
+                        {
+                            <dt>@link.Label</dt>
+                            <dd><a href="@link.Url" target="_blank" rel="noopener">@link.Engine</a> <span class="text-muted">· marked "Managed by Mattiverse" there</span></dd>
+                        }
                         <dt>Installed</dt>
                         <dd>@Format.DateTimeLocal(app.CreateDate) <span class="text-muted">· @Format.Ago(app.CreateDate)</span></dd>
                         @if (isAdmin)

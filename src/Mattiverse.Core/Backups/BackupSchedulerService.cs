@@ -108,8 +108,9 @@ public sealed class BackupSchedulerService : BackgroundService
         var due = (await db.BackupSchedules.ToListAsync(ct)).Where(s => BackupScheduleCalculator.IsDue(s, now)).ToList();
         foreach (var schedule in due)
         {
+            // Only the apps that Mattiverse runs itself: the stacks of MatDock are backed up by MatDock's own schedules.
             var apps = await db.InstalledApps
-                .Where(a => a.Lifecycle == AppLifecycle.Installed && (schedule.AppId == null || a.Id == schedule.AppId))
+                .Where(a => a.Lifecycle == AppLifecycle.Installed && a.Engine == "local" && (schedule.AppId == null || a.Id == schedule.AppId))
                 .ToListAsync(ct);
 
             foreach (var app in apps)

@@ -18,6 +18,12 @@ public sealed class MattiverseOptions
     /// <summary>Name of the shared Docker network that connects the exposed services of all apps (and Mattiverse itself).</summary>
     public string NetworkName { get; set; } = "mattiverse";
 
+    /// <summary>
+    /// Optional subnet (CIDR) for the shared network, like <c>10.253.200.0/24</c>. Empty lets Docker choose, which fails once Docker's
+    /// default address pools are used up (many compose projects on one host).
+    /// </summary>
+    public string? NetworkSubnet { get; set; }
+
     /// <summary>Prefix of every compose project and container Mattiverse creates (<c>mattiverse-&lt;app&gt;</c>).</summary>
     public string ProjectPrefix { get; set; } = "mattiverse";
 

@@ -33,6 +33,9 @@ public sealed class SystemConfig
 
     public BackupDefaults Backups { get; set; } = new();
 
+    /// <summary>The DNS account of the domain (the credentials themselves are in <see cref="ProtectedSecrets"/> under <c>dns</c>).</summary>
+    public DnsSettings Dns { get; set; } = new();
+
     /// <summary>Default theme for new users: system, light or dark.</summary>
     public string DefaultTheme { get; set; } = "system";
 }
@@ -57,4 +60,17 @@ public sealed class BackupDefaults
 
     /// <summary>Stop the app's containers while its volumes are copied (consistent databases).</summary>
     public bool StopContainers { get; set; } = true;
+}
+
+/// <summary>Which DNS provider hosts the domain of the apps. The account is given to Matcad (certificates) and Matddns (records).</summary>
+public sealed class DnsSettings
+{
+    /// <summary><c>none</c>, <c>cloudflare</c>, <c>hetzner</c> or <c>netcup</c> (see <see cref="DnsProviders"/>).</summary>
+    public string Provider { get; set; } = "none";
+
+    /// <summary>The DNS zone at the provider when it is not the base domain itself (the zone <c>example.com</c> for the domain <c>apps.example.com</c>).</summary>
+    public string? Zone { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsConfigured => DnsProviders.Find(Provider) is not null;
 }

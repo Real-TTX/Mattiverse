@@ -1,74 +1,62 @@
-using System.Text;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
-using Mattiverse.Core.Docker;
 using Mattiverse.Core.Entities;
 
 namespace Mattiverse.Core.Apps;
 
 /// <summary>
-/// Writes the files of an installed app to <c>apps/&lt;slug&gt;/</c> on the data volume: the catalog's compose file
-/// (unchanged), a <c>.env</c> with the answers, and a generated <c>docker-compose.override.yml</c> that adds what only
-/// Mattiverse knows (container names, labels, the shared network and the host port of the UI).
+/// The files of an app: the rendered compose file and the <c>.env</c> with the answers of the install form. They are what the
+/// stack engine deploys, and what Mattiverse writes to <c>apps/&lt;slug&gt;/</c> on the data volume when it runs the stack itself.
 /// </summary>
 public sealed class ComposeFiles
 {
     public const string ComposeFile = "docker-compose.yml";
-    public const string OverrideFile = "docker-compose.override.yml";
     public const string EnvFile = ".env";
 
     private readonly AppPaths _paths;
-    private readonly MattiverseOptions _options;
+    private readonly ComposeRenderer _renderer;
 
-    public ComposeFiles(AppPaths paths, Microsoft.Extensions.Options.IOptions<MattiverseOptions> options)
+    public ComposeFiles(AppPaths paths, ComposeRenderer renderer)
     {
         _paths = paths;
-        _options = options.Value;
+        _renderer = renderer;
     }
 
     public string Folder(string slug) => _paths.AppFolder(slug);
 
-    public string ProjectName(string slug) => $"{_options.ProjectPrefix}-{slug}";
+    public string ProjectName(string slug) => _renderer.ProjectName(slug);
 
-    public string ContainerName(string slug, string service) => $"{_options.ProjectPrefix}-{slug}-{service}";
+    public string ContainerName(string slug, string service) => _renderer.ContainerName(slug, service);
 
-    /// <summary>Name by which other containers on the shared network reach the UI of an app.</summary>
-    public string UiHost(InstalledApp app) => ContainerName(app.Slug, app.UiService ?? string.Empty);
+    public string UiHost(InstalledApp app) => _renderer.UiHost(app);
 
-    public async Task WriteAsync(
-        InstalledApp app,
-        CatalogApp catalog,
-        IReadOnlyDictionary<string, string> variables,
-        string publicHost,
-        CancellationToken ct = default)
+    /// <summary>What an engine deploys for an app: the compose text and the <c>.env</c> text.</summary>
+    public StackSpec Build(InstalledApp app, CatalogApp catalog, IReadOnlyDictionary<string, string> variables, string publicHost)
+        => new(app.ProjectName, app.Slug, _renderer.Render(catalog, app), AppVariables.BuildEnvFile(BuiltIns(app, publicHost), variables));
+
+    public async Task WriteAsync(StackSpec spec, CancellationToken ct = default)
     {
-        var folder = Folder(app.Slug);
+        var folder = Folder(spec.Slug);
         Directory.CreateDirectory(folder);
-
-        await File.WriteAllTextAsync(Path.Combine(folder, ComposeFile), catalog.ComposeYaml, ct);
-        await File.WriteAllTextAsync(Path.Combine(folder, EnvFile), AppVariables.BuildEnvFile(BuiltIns(app, publicHost), variables), ct);
-        await File.WriteAllTextAsync(Path.Combine(folder, OverrideFile), BuildOverride(app, catalog), ct);
-    }
-
-    /// <summary>Writes already rendered files (restoring a backup) in the same layout.</summary>
-    public async Task WriteRawAsync(string slug, string compose, string env, string overrideYaml, CancellationToken ct = default)
-    {
-        var folder = Folder(slug);
-        Directory.CreateDirectory(folder);
-        await File.WriteAllTextAsync(Path.Combine(folder, ComposeFile), compose, ct);
-        await File.WriteAllTextAsync(Path.Combine(folder, EnvFile), env, ct);
-        await File.WriteAllTextAsync(Path.Combine(folder, OverrideFile), overrideYaml, ct);
+        await File.WriteAllTextAsync(Path.Combine(folder, ComposeFile), spec.Compose, ct);
+        await File.WriteAllTextAsync(Path.Combine(folder, EnvFile), spec.Env, ct);
     }
 
     public bool Exists(string slug) => File.Exists(Path.Combine(Folder(slug), ComposeFile));
 
-    public async Task<(string Compose, string Env, string Override)> ReadAsync(string slug, CancellationToken ct = default)
+    public async Task<StackSpec?> ReadAsync(string slug, string project, CancellationToken ct = default)
     {
         var folder = Folder(slug);
-        return (
-            await ReadOrEmptyAsync(Path.Combine(folder, ComposeFile), ct),
-            await ReadOrEmptyAsync(Path.Combine(folder, EnvFile), ct),
-            await ReadOrEmptyAsync(Path.Combine(folder, OverrideFile), ct));
+        if (!File.Exists(Path.Combine(folder, ComposeFile)))
+        {
+            return null;
+        }
+
+        return new StackSpec(
+            project,
+            slug,
+            await File.ReadAllTextAsync(Path.Combine(folder, ComposeFile), ct),
+            File.Exists(Path.Combine(folder, EnvFile)) ? await File.ReadAllTextAsync(Path.Combine(folder, EnvFile), ct) : string.Empty);
     }
 
     public void DeleteFolder(string slug)
@@ -80,9 +68,6 @@ public sealed class ComposeFiles
         }
     }
 
-    private static async Task<string> ReadOrEmptyAsync(string path, CancellationToken ct)
-        => File.Exists(path) ? await File.ReadAllTextAsync(path, ct) : string.Empty;
-
     /// <summary>Values every app can use as <c>${...}</c> in its compose file.</summary>
     private static Dictionary<string, string> BuiltIns(InstalledApp app, string publicHost) => new()
     {
@@ -91,47 +76,7 @@ public sealed class ComposeFiles
         ["MV_PUBLIC_HOST"] = publicHost,
         ["TZ"] = Environment.GetEnvironmentVariable("TZ") is { Length: > 0 } tz ? tz : "UTC",
     };
-
-    /// <summary>The generated override: names, labels, networks and the UI port for every service of the app.</summary>
-    public string BuildOverride(InstalledApp app, CatalogApp catalog)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("# Generated by Mattiverse. Do not edit: this file is rewritten on every install and update.");
-        sb.AppendLine("services:");
-
-        foreach (var service in catalog.ServiceNames)
-        {
-            var isUi = catalog.Ui?.Service == service;
-            var shared = isUi || catalog.Shared.Contains(service);
-
-            sb.Append("  ").Append(service).AppendLine(":");
-            sb.Append("    container_name: ").AppendLine(ContainerName(app.Slug, service));
-            sb.AppendLine("    labels:");
-            sb.AppendLine($"      {DockerService.ManagedLabel}: \"true\"");
-            sb.AppendLine($"      {DockerService.AppLabel}: \"{catalog.Id}\"");
-            sb.AppendLine($"      {DockerService.InstanceLabel}: \"{app.Slug}\"");
-            sb.AppendLine($"      {DockerService.ServiceLabel}: \"{service}\"");
-
-            if (shared)
-            {
-                sb.AppendLine("    networks:");
-                sb.AppendLine("      - default");
-                sb.AppendLine($"      - {_options.NetworkName}");
-            }
-
-            if (isUi && app.HostPort is { } hostPort && catalog.Ui is { } ui)
-            {
-                sb.AppendLine("    ports:");
-                sb.AppendLine($"      - \"{hostPort}:{ui.Port}\"");
-            }
-        }
-
-        sb.AppendLine("networks:");
-        sb.AppendLine($"  {_options.NetworkName}:");
-        sb.AppendLine($"    name: {_options.NetworkName}");
-        sb.AppendLine("    external: true");
-
-        // The files are read by Docker on Linux: always LF, whatever platform generated them.
-        return sb.ToString().ReplaceLineEndings("\n");
-    }
 }
+
+/// <summary>An app as a stack: the name of the compose project, the app's slug, the compose text and the <c>.env</c> text.</summary>
+public sealed record StackSpec(string Name, string Slug, string Compose, string Env);

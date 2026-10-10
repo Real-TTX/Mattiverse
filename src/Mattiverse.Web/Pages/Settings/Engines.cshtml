@@ -1,0 +1,107 @@
+@page
+@using Mattiverse.Core.Configuration
+@model Mattiverse.Web.Pages.Settings.EnginesModel
+@{
+    ViewData["Title"] = "Settings";
+    var dns = DnsProviders.Find(Model.Config.Dns.Provider);
+}
+
+<div class="page-head">
+    <div class="page-head__title">
+        <h1>Settings</h1>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert--success"><icon name="check-circle" /><span>@Model.StatusMessage</span></div>
+}
+
+<tab-bar model='SettingsTabs.Build("engines")' />
+
+<div class="stack" style="max-width:760px;">
+    <div class="card">
+        <div class="card__body">
+            <p style="margin:0;">
+                Mattiverse is the launcher on top of these three programs. Each one keeps its own part of the configuration, so you see
+                the stacks in MatDock, the routes in Matcad and the DNS records in Matddns, marked <em>Managed by Mattiverse</em>.
+            </p>
+        </div>
+    </div>
+
+    @foreach (var row in Model.Rows)
+    {
+        <div class="card">
+            <div class="card__body">
+                <div class="hero-head">
+                    <app-icon name="@row.Catalog.Name" icon="@row.Catalog.Icon" size="lg" />
+                    <div class="hero-head__text">
+                        <h3>@row.Catalog.Name</h3>
+                        <div class="text-muted">@row.Owns</div>
+                        @if (row.Status is { } status)
+                        {
+                            <div class="text-muted"><small>Version <code>@status.Version</code> · API v@(status.ApiVersion)</small></div>
+                        }
+                    </div>
+                    <div>
+                        @if (row.App is null)
+                        {
+                            <span class="pill pill--unknown">Not installed</span>
+                        }
+                        else if (row.App.Lifecycle != Mattiverse.Core.Entities.AppLifecycle.Installed)
+                        {
+                            <span class="pill pill--busy">@row.App.Lifecycle</span>
+                        }
+                        else if (row.Status is { ApiVersion: >= 1 })
+                        {
+                            <span class="pill pill--online">Connected</span>
+                        }
+                        else
+                        {
+                            <span class="pill pill--busy" title="It may still be starting, or this image is older than its API.">API not answering</span>
+                        }
+                    </div>
+                </div>
+                <div class="row-actions" style="margin-top:14px;">
+                    @if (row.App is null)
+                    {
+                        <a class="mat-btn mat-btn--sm mat-btn--primary" href="/Store/Install?id=@row.Catalog.Id"><icon name="plus" /><span>Install</span></a>
+                    }
+                    else
+                    {
+                        @if (row.OpenUrl is not null)
+                        {
+                            <a class="mat-btn mat-btn--sm mat-btn--primary" href="@row.OpenUrl" target="_blank" rel="noopener"><icon name="external" /><span>Open @row.Catalog.Name</span></a>
+                        }
+                        <a class="mat-btn mat-btn--sm" asp-page="/Apps/Details" asp-route-id="@row.App.Id"><icon name="info" /><span>Details</span></a>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card__header"><icon name="route" /><span>What Mattiverse hands over</span></div>
+        <div class="card__body">
+            <dl class="kv">
+                <dt>Apps are run by</dt><dd>@(Model.DeployedByMatDock ? "MatDock (new apps become stacks there)" : "Mattiverse itself, with docker compose, until MatDock answers")</dd>
+                <dt>Domain</dt><dd>@(string.IsNullOrEmpty(Model.Config.BaseDomain) ? "none: apps use their ports" : "*." + Model.Config.BaseDomain)</dd>
+                <dt>DNS provider</dt><dd>@(dns is null ? "none: certificates use the HTTP challenge and you manage DNS yourself" : dns.Name)</dd>
+            </dl>
+            <mat-form-buttons>
+                <form method="post" asp-page-handler="Reconnect" class="inline-form">
+                    <button type="submit" class="mat-btn mat-btn--primary"><icon name="refresh" /><span>Connect again</span></button>
+                </form>
+                <form method="post" asp-page-handler="Adopt" class="inline-form">
+                    <button type="submit" class="mat-btn"><icon name="restore" /><span>Look for apps in MatDock</span></button>
+                </form>
+                <a href="/Wizard" class="mat-btn mat-btn--ghost"><icon name="sparkles" /><span>Run the setup wizard</span></a>
+            </mat-form-buttons>
+        </div>
+    </div>
+
+    @if (Model.Config.WizardCompleted)
+    {
+        <p class="text-muted" style="margin:0;">Last run of the wizard: @(Model.Config.WizardCompletedAt is { } at ? Format.DateTimeLocal(at) : "unknown").</p>
+    }
+</div>

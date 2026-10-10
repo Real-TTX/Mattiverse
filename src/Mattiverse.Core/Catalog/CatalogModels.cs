@@ -39,6 +39,9 @@ public sealed class CatalogApp
     /// <summary>Offered first in the setup wizard.</summary>
     public bool Recommended { get; set; }
 
+    /// <summary>An engine (MatDock, Matcad, Matddns): installed by the setup wizard as part of Mattiverse and not removable from the app list.</summary>
+    public bool Core { get; set; }
+
     /// <summary>Short notes shown on the install page (limits, hints).</summary>
     public List<string> Notes { get; set; } = new();
 

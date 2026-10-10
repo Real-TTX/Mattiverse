@@ -1,23 +1,22 @@
 using System.ComponentModel.DataAnnotations;
 using Mattiverse.Core.Apps;
+using Mattiverse.Core.Backups;
 using Mattiverse.Core.Configuration;
-using Mattiverse.Core.Data;
 using Mattiverse.Core.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
 
 namespace Mattiverse.Web.Pages.Backups;
 
 public class ScheduleEditModel : PageModel
 {
-    private readonly MattiverseDbContext _db;
+    private readonly BackupHub _backups;
     private readonly AppService _apps;
     private readonly SystemConfigService _config;
 
-    public ScheduleEditModel(MattiverseDbContext db, AppService apps, SystemConfigService config)
+    public ScheduleEditModel(BackupHub backups, AppService apps, SystemConfigService config)
     {
-        _db = db;
+        _backups = backups;
         _apps = apps;
         _config = config;
     }
@@ -27,17 +26,22 @@ public class ScheduleEditModel : PageModel
 
     public List<InstalledApp> Apps { get; private set; } = new();
 
-    public bool IsEdit => Input.Id is > 0;
+    /// <summary>The engine that keeps an existing schedule, for the label on the form.</summary>
+    public string? Engine { get; private set; }
+
+    public bool IsEdit => !string.IsNullOrEmpty(Input.Id);
 
     public class InputModel
     {
-        public long? Id { get; set; }
+        /// <summary><c>&lt;engine&gt;:&lt;id&gt;</c> of an existing schedule; empty for a new one.</summary>
+        public string? Id { get; set; }
 
         [Required(ErrorMessage = "Please enter a name.")]
         [StringLength(200)]
         public string Name { get; set; } = "Nightly backup";
 
-        public long? AppId { get; set; }
+        /// <summary>The slug of the app to back up, or empty for all apps.</summary>
+        public string? AppSlug { get; set; }
 
         public BackupFrequency Frequency { get; set; } = BackupFrequency.Daily;
 
@@ -54,22 +58,23 @@ public class ScheduleEditModel : PageModel
         public bool Enabled { get; set; } = true;
     }
 
-    public async Task<IActionResult> OnGetAsync(long? id)
+    public async Task<IActionResult> OnGetAsync(string? id)
     {
         await LoadAppsAsync();
-        if (id is > 0)
+        if (!string.IsNullOrEmpty(id))
         {
-            var schedule = await _db.BackupSchedules.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, HttpContext.RequestAborted);
+            var schedule = await _backups.GetScheduleAsync(id, HttpContext.RequestAborted);
             if (schedule is null)
             {
                 return NotFound();
             }
 
+            Engine = schedule.Engine;
             Input = new InputModel
             {
                 Id = schedule.Id,
                 Name = schedule.Name,
-                AppId = schedule.AppId,
+                AppSlug = schedule.AppSlug,
                 Frequency = schedule.Frequency,
                 Time = TimeSpan.FromMinutes(schedule.MinuteOfDay).ToString(@"hh\:mm"),
                 Weekday = schedule.Weekday,
@@ -101,43 +106,40 @@ public class ScheduleEditModel : PageModel
             return Page();
         }
 
-        BackupSchedule schedule;
-        if (IsEdit)
+        var appSlug = string.IsNullOrEmpty(Input.AppSlug) ? null : Input.AppSlug;
+        var app = Apps.FirstOrDefault(a => a.Slug == appSlug);
+        try
         {
-            var existing = await _db.BackupSchedules.FirstOrDefaultAsync(s => s.Id == Input.Id, HttpContext.RequestAborted);
-            if (existing is null)
-            {
-                return NotFound();
-            }
-
-            schedule = existing;
+            await _backups.SaveScheduleAsync(
+                new ScheduleInput
+                {
+                    Id = Input.Id,
+                    Name = Input.Name.Trim(),
+                    AppSlug = appSlug,
+                    Frequency = Input.Frequency,
+                    MinuteOfDay = (int)time.TotalMinutes,
+                    Weekday = Input.Weekday,
+                    Retention = Input.Retention,
+                    StopContainers = Input.StopContainers,
+                    Enabled = Input.Enabled,
+                },
+                app?.Engine,
+                HttpContext.RequestAborted);
         }
-        else
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
         {
-            schedule = new BackupSchedule();
-            _db.BackupSchedules.Add(schedule);
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return Page();
         }
-
-        schedule.Name = Input.Name.Trim();
-        schedule.AppId = Input.AppId;
-        schedule.Frequency = Input.Frequency;
-        schedule.MinuteOfDay = (int)time.TotalMinutes;
-        schedule.Weekday = Input.Weekday;
-        schedule.Retention = Input.Retention;
-        schedule.StopContainers = Input.StopContainers;
-        schedule.Enabled = Input.Enabled;
-        await _db.SaveChangesAsync(HttpContext.RequestAborted);
 
         return RedirectToPage("/Backups/Index", new { tab = "schedules" });
     }
 
     public async Task<IActionResult> OnPostDeleteAsync()
     {
-        var schedule = await _db.BackupSchedules.FirstOrDefaultAsync(s => s.Id == Input.Id, HttpContext.RequestAborted);
-        if (schedule is not null)
+        if (!string.IsNullOrEmpty(Input.Id))
         {
-            _db.BackupSchedules.Remove(schedule);
-            await _db.SaveChangesAsync(HttpContext.RequestAborted);
+            await _backups.DeleteScheduleAsync(Input.Id, HttpContext.RequestAborted);
         }
 
         return RedirectToPage("/Backups/Index", new { tab = "schedules" });

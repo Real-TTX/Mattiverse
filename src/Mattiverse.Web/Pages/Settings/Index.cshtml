@@ -18,6 +18,8 @@
 <tab-bar model='SettingsTabs.Build("general")' />
 
 <form method="post" class="mat-form stack" style="max-width:760px;">
+    <div asp-validation-summary="ModelOnly" class="mat-validation"></div>
+
     <div class="card">
         <div class="card__header"><icon name="globe" /><span>Addresses</span></div>
         <div class="card__body">
@@ -28,10 +30,17 @@
                 <mat-field label="Address of this machine" asp-for="Input.PublicHost" hint="How you reach this host, like nas.local or 192.168.1.20. Empty: whatever the browser used.">
                     <input asp-for="Input.PublicHost" class="mat-input" placeholder="nas.local" />
                 </mat-field>
-                <mat-field label="Domain for your apps" asp-for="Input.BaseDomain" hint="With a reverse proxy every app gets app.example.com. Empty: apps use their port.">
+                <mat-field label="Domain for your apps" asp-for="Input.BaseDomain" hint="Every app gets app.example.com, with a certificate from Matcad. Empty: apps use their port.">
                     <input asp-for="Input.BaseDomain" class="mat-input" placeholder="example.com" />
                 </mat-field>
             </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__header"><icon name="route" /><span>DNS account</span></div>
+        <div class="card__body">
+            <partial name="_DnsFields" model="Model.Dns" />
         </div>
     </div>
 

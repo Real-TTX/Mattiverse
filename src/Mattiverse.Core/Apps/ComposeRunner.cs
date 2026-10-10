@@ -2,7 +2,7 @@ using Mattiverse.Core.Docker;
 
 namespace Mattiverse.Core.Apps;
 
-/// <summary>Runs <c>docker compose</c> for one app folder (the compose file, the generated override and the <c>.env</c>).</summary>
+/// <summary>Runs <c>docker compose</c> for one app folder (the compose file and the <c>.env</c> next to it).</summary>
 public sealed class ComposeRunner
 {
     private readonly DockerCli _cli;
@@ -43,11 +43,6 @@ public sealed class ComposeRunner
             "--project-directory", folder,
             "-f", Path.Combine(folder, ComposeFiles.ComposeFile),
         };
-
-        if (File.Exists(Path.Combine(folder, ComposeFiles.OverrideFile)))
-        {
-            args.AddRange(["-f", Path.Combine(folder, ComposeFiles.OverrideFile)]);
-        }
 
         args.AddRange(subcommand);
         return args;

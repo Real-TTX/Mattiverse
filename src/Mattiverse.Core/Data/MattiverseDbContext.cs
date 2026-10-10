@@ -73,6 +73,8 @@ public class MattiverseDbContext : DbContext
             e.Property(x => x.UiPath).HasMaxLength(200);
             e.Property(x => x.Lifecycle).HasConversion<int>();
             e.Property(x => x.StatusMessage).HasMaxLength(1000);
+            e.Property(x => x.Engine).HasMaxLength(16).IsRequired();
+            e.Property(x => x.ComposeSha).HasMaxLength(64);
             // The slug is the compose project key and the folder name; reusable after a soft delete.
             e.HasIndex(x => x.Slug).IsUnique().HasFilter("\"UpdateState\" <> 0");
             e.HasIndex(x => x.CatalogId);

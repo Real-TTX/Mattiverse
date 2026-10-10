@@ -11,11 +11,18 @@ x-mattiverse:
   icon: matddns.svg
   homepage: https://github.com/Real-TTX/Matddns
   recommended: true
+  provision: matddns
+  core: true
   ui:
     service: matddns
     port: 8080
     hostPort: 4060
   variables:
+    - key: MATDDNS_API_KEY
+      label: API key
+      type: secret
+      generate: true
+      hidden: true
     - key: ADMIN_PASSWORD
       label: Admin password
       type: secret
@@ -31,8 +38,8 @@ x-mattiverse:
     - label: Password
       value: ${ADMIN_PASSWORD}
       secret: true
-    - label: Next step
-      value: Add a source (where your IP comes from), a domain (where it is written) and a rule that connects them.
+    - label: Note
+      value: Mattiverse adds the source, the DNS records of your apps and the rules itself. They carry a "Managed by Mattiverse" badge.
 
 services:
   matddns:
@@ -41,6 +48,7 @@ services:
     environment:
       TZ: ${TIMEZONE:-Europe/Berlin}
       MATDDNS_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      MATDDNS_API_KEY: ${MATDDNS_API_KEY}
       MATDDNS_FORWARDED_HEADERS: "true"
     volumes:
       - matddns-data:/data

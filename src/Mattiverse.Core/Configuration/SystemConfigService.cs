@@ -1,13 +1,21 @@
+using System.Security.Cryptography;
+using System.Text.Json;
+using Mattiverse.Core.Security;
+
 namespace Mattiverse.Core.Configuration;
 
 /// <summary>Typed access to <c>config/system.json</c>.</summary>
 public sealed class SystemConfigService
 {
-    private readonly JsonConfigStore _store;
+    private const string DnsSecretKey = "dns";
 
-    public SystemConfigService(JsonConfigStore store)
+    private readonly JsonConfigStore _store;
+    private readonly ISecretProtector _protector;
+
+    public SystemConfigService(JsonConfigStore store, ISecretProtector protector)
     {
         _store = store;
+        _protector = protector;
     }
 
     public Task<SystemConfig> GetAsync(CancellationToken ct = default)
@@ -15,4 +23,61 @@ public sealed class SystemConfigService
 
     public Task UpdateAsync(Action<SystemConfig> change, CancellationToken ct = default)
         => _store.UpdateAsync(SystemConfig.FileName, change, ct);
+
+    /// <summary>The credentials of the DNS account, keyed by <see cref="DnsField.Key"/>; empty when none are stored.</summary>
+    public async Task<Dictionary<string, string>> GetDnsCredentialsAsync(CancellationToken ct = default)
+    {
+        var config = await GetAsync(ct);
+        if (!config.ProtectedSecrets.TryGetValue(DnsSecretKey, out var protectedJson) || string.IsNullOrEmpty(protectedJson))
+        {
+            return new Dictionary<string, string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(_protector.Unprotect(protectedJson)) ?? new Dictionary<string, string>();
+        }
+        catch (CryptographicException)
+        {
+            // The key ring was lost: the credentials cannot be read any more and have to be entered again.
+            return new Dictionary<string, string>();
+        }
+    }
+
+    /// <summary>
+    /// Saves the DNS account. A credential that is left empty keeps the stored value (the form never shows secrets), and <c>none</c> removes
+    /// the credentials.
+    /// </summary>
+    public async Task SetDnsAsync(string provider, string? zone, IReadOnlyDictionary<string, string?> credentials, CancellationToken ct = default)
+    {
+        var known = DnsProviders.Find(provider);
+
+        // The stored values belong to the provider that is set now; a different provider starts from nothing (its "apiToken" is another token).
+        var sameProvider = string.Equals((await GetAsync(ct)).Dns.Provider, known?.Id, StringComparison.OrdinalIgnoreCase);
+        var merged = known is null || !sameProvider ? new Dictionary<string, string>() : await GetDnsCredentialsAsync(ct);
+        if (known is not null)
+        {
+            foreach (var field in known.Fields)
+            {
+                if (credentials.TryGetValue(field.Key, out var value) && !string.IsNullOrWhiteSpace(value))
+                {
+                    merged[field.Key] = value.Trim();
+                }
+            }
+        }
+
+        await UpdateAsync(c =>
+        {
+            c.Dns.Provider = known?.Id ?? "none";
+            c.Dns.Zone = string.IsNullOrWhiteSpace(zone) ? null : zone.Trim().ToLowerInvariant();
+            if (known is null || merged.Count == 0)
+            {
+                c.ProtectedSecrets.Remove(DnsSecretKey);
+            }
+            else
+            {
+                c.ProtectedSecrets[DnsSecretKey] = _protector.Protect(JsonSerializer.Serialize(merged));
+            }
+        }, ct);
+    }
 }

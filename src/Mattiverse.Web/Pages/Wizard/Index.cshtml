@@ -1,8 +1,9 @@
 @page
+@using Mattiverse.Core.Engines
 @model Mattiverse.Web.Pages.Wizard.IndexModel
 @{
     ViewData["Title"] = "Setup";
-    var steps = 3 + 3; // welcome, addresses, 3 questions, review
+    var steps = 5; // welcome, addresses, engines, DNS, review
 }
 
 <form method="post" class="wizard" data-wizard>
@@ -21,8 +22,8 @@
             <img src="~/img/logo.svg" width="96" height="96" alt="" />
             <h1>@(Model.AlreadyCompleted ? "Set up Mattiverse again" : "Welcome to Mattiverse")</h1>
             <p>
-                Mattiverse installs, updates and backs up your Docker apps, and connects them: a reverse proxy for domains and HTTPS,
-                a DynDNS client for your changing home IP, and a Docker manager for the rest. Three questions, then it does the work.
+                Mattiverse is the launcher on top of three programs: MatDock runs your apps, Matcad gives them addresses and HTTPS, and
+                Matddns keeps your DNS on your home IP. Their settings live in their own screens, so you can see and change what Mattiverse set up.
             </p>
         </div>
 
@@ -61,7 +62,7 @@
                     <mat-field label="Address of this machine" asp-for="PublicHost" hint="How you reach this host from your devices, like nas.local or 192.168.1.20.">
                         <input asp-for="PublicHost" class="mat-input" placeholder="nas.local" />
                     </mat-field>
-                    <mat-field label="Domain for your apps" asp-for="BaseDomain" hint="With a reverse proxy, every app gets its own address below this domain, like mail.example.com. Leave empty to use ports.">
+                    <mat-field label="Domain for your apps" asp-for="BaseDomain" hint="Every app gets its own address below this domain, like mail.example.com, with a certificate. Leave empty to use ports.">
                         <input asp-for="BaseDomain" class="mat-input" placeholder="example.com" />
                     </mat-field>
                 </div>
@@ -75,57 +76,80 @@
         </div>
     </section>
 
-    @* ---------------------------------------------------------------- 3-5. the three questions *@
-    @foreach (var question in Model.Questions)
-    {
-        <section class="wizard__panel" data-step>
-            <div class="wizard__hero">
-                <h1>Which @question.Title.ToLowerInvariant()?</h1>
-                <p>@question.Description</p>
-            </div>
+    @* ---------------------------------------------------------------- 3. the engines *@
+    <section class="wizard__panel" data-step>
+        <div class="wizard__hero">
+            <h1>The engines</h1>
+            <p>MatDock is needed for everything else. Matcad and Matddns are what a domain needs; skip one if something else on this machine already does its job.</p>
+        </div>
 
-            <div class="choice-grid">
-                @foreach (var choice in question.Choices)
-                {
-                    var app = choice.App;
-                    <label class="choice">
-                        <input type="radio" name="@question.Field" value="@app.Id" checked="@(question.Selected == app.Id)" />
-                        <app-icon name="@app.Name" icon="@app.Icon" size="lg" />
-                        <span class="choice__body">
-                            <span class="choice__title"><span>@app.Name</span>
-                                @if (choice.Installed is not null) { <span class="pill pill--online">Installed</span> }
-                                else if (app.Recommended) { <span class="mat-badge">Recommended</span> }
-                            </span>
-                            <span class="choice__text">@app.Tagline</span>
-                            @foreach (var conflict in choice.Conflicts)
-                            {
-                                <span class="choice__text" style="color:var(--warning);">Port @conflict.Port is used by <code>@conflict.Container</code>.</span>
-                            }
-                        </span>
-                        <span class="choice__check"><icon name="check" /></span>
-                    </label>
-                }
-
-                <label class="choice">
-                    <input type="radio" name="@question.Field" value="" checked="@(string.IsNullOrEmpty(question.Selected))" />
-                    <span class="app-icon app-icon--lg" style="display:grid;place-items:center;font-size:1.7rem;color:var(--text-muted);"><icon name="x" /></span>
+        <div class="choice-grid">
+            @foreach (var card in Model.Engines)
+            {
+                var app = card.App;
+                var locked = card.Required || card.Installed is not null;
+                <label class="choice" data-engine="@app.Id">
+                    @if (app.Id == EngineIds.Matcad)
+                    {
+                        <input asp-for="InstallMatcad" type="checkbox" disabled="@locked" />
+                    }
+                    else if (app.Id == EngineIds.Matddns)
+                    {
+                        <input asp-for="InstallMatddns" type="checkbox" disabled="@locked" />
+                    }
+                    else
+                    {
+                        <input type="checkbox" checked disabled />
+                    }
+                    <app-icon name="@app.Name" icon="@app.Icon" size="lg" />
                     <span class="choice__body">
-                        <span class="choice__title"><span>None</span></span>
-                        <span class="choice__text">I already have one, or I do not need it.</span>
+                        <span class="choice__title"><span>@app.Name</span>
+                            @if (card.Installed is not null) { <span class="pill pill--online">Installed</span> }
+                            else if (card.Required) { <span class="mat-badge">Required</span> }
+                        </span>
+                        <span class="choice__text">@card.Owns</span>
+                        @foreach (var conflict in card.Conflicts)
+                        {
+                            <span class="choice__text" style="color:var(--warning);">Port @conflict.Port is used by <code>@conflict.Container</code>.</span>
+                        }
                     </span>
                     <span class="choice__check"><icon name="check" /></span>
                 </label>
-            </div>
+            }
+        </div>
+        <p class="text-muted" style="text-align:center;margin:16px 0 0;">Other tools, like Nginx Proxy Manager or Portainer, are in the store as plain apps.</p>
 
-            <div class="wizard__nav">
-                <button type="button" class="mat-btn mat-btn--ghost" data-prev><icon name="chevron-left" /><span>Back</span></button>
-                <span class="mat-buttons__spacer"></span>
-                <button type="button" class="mat-btn mat-btn--primary" data-next><span>Next</span><icon name="chevron-right" /></button>
-            </div>
-        </section>
-    }
+        <div class="wizard__nav">
+            <button type="button" class="mat-btn mat-btn--ghost" data-prev><icon name="chevron-left" /><span>Back</span></button>
+            <span class="mat-buttons__spacer"></span>
+            <button type="button" class="mat-btn mat-btn--primary" data-next><span>Next</span><icon name="chevron-right" /></button>
+        </div>
+    </section>
 
-    @* ---------------------------------------------------------------- 6. review *@
+    @* ---------------------------------------------------------------- 4. DNS account *@
+    <section class="wizard__panel" data-step>
+        <div class="wizard__hero">
+            <h1>Where is your domain hosted?</h1>
+            <p>
+                With the account of your DNS provider, Matcad gets certificates without opening a port and Matddns keeps the address of
+                every app on your home IP. Without it, you can add these things in Matcad and Matddns yourself.
+            </p>
+        </div>
+
+        <div class="card" style="max-width:640px;margin:0 auto;">
+            <div class="card__body">
+                <partial name="_DnsFields" model="Model.Dns" />
+            </div>
+        </div>
+
+        <div class="wizard__nav">
+            <button type="button" class="mat-btn mat-btn--ghost" data-prev><icon name="chevron-left" /><span>Back</span></button>
+            <span class="mat-buttons__spacer"></span>
+            <button type="button" class="mat-btn mat-btn--primary" data-next><span>Next</span><icon name="chevron-right" /></button>
+        </div>
+    </section>
+
+    @* ---------------------------------------------------------------- 5. review *@
     <section class="wizard__panel" data-step>
         <div class="wizard__hero">
             <h1>Ready to go</h1>

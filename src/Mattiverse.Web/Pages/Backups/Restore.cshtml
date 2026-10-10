@@ -16,8 +16,9 @@
         <div class="card__header"><icon name="save" /><span>The backup</span></div>
         <div class="card__body">
             <dl class="kv">
-                <dt>Created</dt><dd>@Format.DateTimeLocal(backup.CreateDate) <span class="text-muted">· @Format.Ago(backup.CreateDate)</span></dd>
+                <dt>Created</dt><dd>@Format.DateTimeLocal(backup.CreatedUtc) <span class="text-muted">· @Format.Ago(backup.CreatedUtc)</span></dd>
                 <dt>Kind</dt><dd><span class="mat-badge">@backup.Kind</span> @backup.Note</dd>
+                <dt>Kept by</dt><dd>@Mattiverse.Web.Pages.Backups.IndexModel.EngineLabel(backup.Engine)</dd>
                 <dt>Content</dt><dd>@backup.VolumeCount volume@(backup.VolumeCount == 1 ? "" : "s"), @Format.Size(backup.SizeBytes)</dd>
                 <dt>Copy</dt><dd>@(backup.Consistent ? "Taken while the app was stopped (consistent)." : "Taken from the running app (a live copy).")</dd>
             </dl>

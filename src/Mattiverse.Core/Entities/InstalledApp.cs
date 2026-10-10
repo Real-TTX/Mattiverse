@@ -58,4 +58,13 @@ public class InstalledApp : AuditableEntity
     public DateTime? LastBackupAt { get; set; }
 
     public DateTime? LastUpdatedAt { get; set; }
+
+    /// <summary>The engine that runs the stack: <c>matdock</c> (the stack lives in MatDock) or <c>local</c> (Mattiverse runs <c>docker compose</c> itself).</summary>
+    public string Engine { get; set; } = "local";
+
+    /// <summary>SHA-256 of the compose file Mattiverse deployed. When the stack in the engine no longer matches it, the user changed it there and an update keeps it.</summary>
+    public string? ComposeSha { get; set; }
+
+    /// <summary>One of the engines (MatDock, Matcad, Matddns): part of Mattiverse, not removed from the app list.</summary>
+    public bool IsCore { get; set; }
 }

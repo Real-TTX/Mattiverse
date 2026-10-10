@@ -10,7 +10,7 @@ public static class SettingsTabs
         Tabs =
         [
             new TabItem { Title = "General", Href = "/Settings", Icon = "settings", Active = active == "general" },
-            new TabItem { Title = "Setup", Href = "/Settings/Setup", Icon = "sparkles", Active = active == "setup" },
+            new TabItem { Title = "Engines", Href = "/Settings/Engines", Icon = "sparkles", Active = active == "engines" },
             new TabItem { Title = "System", Href = "/Settings/System", Icon = "server", Active = active == "system" },
         ],
     };

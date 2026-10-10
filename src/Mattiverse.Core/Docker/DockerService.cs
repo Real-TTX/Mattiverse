@@ -80,10 +80,20 @@ public sealed partial class DockerService
         var inspect = await _cli.RunAsync(["network", "inspect", name, "--format", "{{.Id}}"], ct: ct);
         if (!inspect.Success)
         {
-            var create = await _cli.RunAsync(["network", "create", "--label", $"{ManagedLabel}=true", name], ct: ct);
+            var arguments = new List<string> { "network", "create", "--label", $"{ManagedLabel}=true" };
+            if (!string.IsNullOrWhiteSpace(_options.NetworkSubnet))
+            {
+                arguments.AddRange(["--subnet", _options.NetworkSubnet.Trim()]);
+            }
+
+            arguments.Add(name);
+            var create = await _cli.RunAsync(arguments, ct: ct);
             if (!create.Success && !create.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"Could not create the Docker network '{name}': {create.Message}");
+                var hint = create.Message.Contains("pool", StringComparison.OrdinalIgnoreCase)
+                    ? " Docker has run out of network addresses: set Mattiverse__NetworkSubnet (like 10.253.200.0/24) or free unused networks with 'docker network prune'."
+                    : string.Empty;
+                throw new InvalidOperationException($"Could not create the Docker network '{name}': {create.Message}{hint}");
             }
         }
 

@@ -1,6 +1,5 @@
 using Mattiverse.Core.Apps;
 using Mattiverse.Core.Backups;
-using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Data;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Integrations;
@@ -29,17 +28,30 @@ public static class AppJobs
         {
             var app = await ctx.Services.GetRequiredService<AppService>().GetAsync(appId, ctx.Cancellation)
                 ?? throw new InvalidOperationException("The app does not exist (any more).");
-            await ctx.Services.GetRequiredService<BackupService>().RunBackupAsync(app, kind, stopContainers, note, ctx.Log, ctx.Cancellation);
+            await ctx.Services.GetRequiredService<BackupHub>().RunAsync(app, kind, stopContainers, note, ctx.Log, ctx.Cancellation);
         };
 
-    /// <summary>Gives Mattiverse and every installed app their route on the reverse proxy (after the base domain changed, for example).</summary>
-    public static Func<JobContext, Task> PublishRoutes()
-        => ctx => ctx.Services.GetRequiredService<ProxyPublisher>().PublishAllAsync(ctx.Log, ctx.Cancellation);
+    /// <summary>Brings Matcad (base domain, DNS account, a route per app) and Matddns (the DNS records) in line with the settings.</summary>
+    public static Func<JobContext, Task> ConnectEngines()
+        => async ctx =>
+        {
+            await ctx.Services.GetRequiredService<ProxyPublisher>().PublishAllAsync(ctx.Log, ctx.Cancellation);
+            await ctx.Services.GetRequiredService<DnsPublisher>().PublishAllAsync(ctx.Log, null, ctx.Cancellation);
+        };
 
-    public static Func<JobContext, Task> Restore(long backupId, bool backupCurrentFirst)
-        => ctx => ctx.Services.GetRequiredService<BackupService>().RestoreAsync(backupId, backupCurrentFirst, ctx.Log, ctx.Cancellation);
+    public static Func<JobContext, Task> Restore(string backupId, bool backupCurrentFirst)
+        => async ctx =>
+        {
+            await ctx.Services.GetRequiredService<BackupHub>().RestoreAsync(backupId, backupCurrentFirst, ctx.Log, ctx.Cancellation);
 
-    /// <summary>A run of a backup schedule for one app: backup, retention, and the result on the schedule.</summary>
+            // The restore may have re-created a stack that Mattiverse forgot (an uninstalled app): take it back, and give it its route and record again.
+            if (await ctx.Services.GetRequiredService<AppReconciler>().ReconcileAsync(ctx.Log, ctx.Cancellation) > 0)
+            {
+                await ConnectEngines()(ctx);
+            }
+        };
+
+    /// <summary>A run of a backup schedule of Mattiverse's own runner for one app: backup, retention, and the result on the schedule.</summary>
     public static Func<JobContext, Task> ScheduledBackup(long appId, long scheduleId)
         => async ctx =>
         {

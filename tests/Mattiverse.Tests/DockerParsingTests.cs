@@ -1,5 +1,6 @@
 using Mattiverse.Core.Apps;
 using Mattiverse.Core.Docker;
+using Mattiverse.Core.Engines;
 
 namespace Mattiverse.Tests;
 
@@ -78,8 +79,8 @@ public class DockerParsingTests
     [InlineData("Bind for 0.0.0.0:80 failed: port is already allocated", "host port is already in use")]
     [InlineData("pull access denied for foo, repository does not exist", "private or does not exist")]
     public void Hint_ExplainsKnownDockerErrors(string output, string expected)
-        => Assert.Contains(expected, AppService.Hint(output));
+        => Assert.Contains(expected, ComposeSteps.Hint(output));
 
     [Fact]
-    public void Hint_IsEmptyForUnknownErrors() => Assert.Equal(string.Empty, AppService.Hint("something else broke"));
+    public void Hint_IsEmptyForUnknownErrors() => Assert.Equal(string.Empty, ComposeSteps.Hint("something else broke"));
 }

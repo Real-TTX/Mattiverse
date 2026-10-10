@@ -34,6 +34,11 @@ public class UninstallModel : PageModel
             return NotFound();
         }
 
+        if (IsProtected(app))
+        {
+            return RedirectToPage("/Apps/Details", new { id });
+        }
+
         App = app;
         return Page();
     }
@@ -46,6 +51,11 @@ public class UninstallModel : PageModel
             return NotFound();
         }
 
+        if (IsProtected(app))
+        {
+            return RedirectToPage("/Apps/Details", new { id });
+        }
+
         var jobId = await _jobs.EnqueueAsync(
             JobKind.Uninstall,
             $"Uninstall {app.Name}",
@@ -54,4 +64,7 @@ public class UninstallModel : PageModel
             HttpContext.RequestAborted);
         return RedirectToPage("/Jobs/Details", new { id = jobId });
     }
+
+    /// <summary>MatDock, Matcad and Matddns are part of Mattiverse and stay; only a failed install can be removed to start over.</summary>
+    private static bool IsProtected(InstalledApp app) => app.IsCore && app.Lifecycle != AppLifecycle.Failed;
 }

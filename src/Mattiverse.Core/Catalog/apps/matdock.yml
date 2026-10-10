@@ -11,26 +11,33 @@ x-mattiverse:
   icon: matdock.svg
   homepage: https://github.com/Real-TTX/MatDock
   recommended: true
+  provision: matdock
+  core: true
   ui:
     service: matdock
     port: 4455
     hostPort: 4455
   variables:
+    - key: MATDOCK_API_KEY
+      label: API key
+      type: secret
+      generate: true
+      hidden: true
     - key: ADMIN_PASSWORD
       label: Admin password
       type: secret
       generate: true
       help: The initial password of the user "admin" (MatDock asks to change it on the first sign-in). Leave empty to generate one.
   notes:
-    - MatDock sees the containers of Mattiverse apps as "discovered" stacks (the compose project label is set).
+    - Mattiverse deploys, updates and backs up its apps as stacks in MatDock. You see them there with a "Managed by Mattiverse" badge and can change them.
   credentials:
     - label: Username
       value: admin
     - label: Password
       value: ${ADMIN_PASSWORD}
       secret: true
-    - label: Next step
-      value: Add the local Docker engine under Environments (connection type "Local").
+    - label: Note
+      value: The local Docker engine is added automatically under Environments.
 
 services:
   matdock:
@@ -42,6 +49,8 @@ services:
       MatDock__Admin__Seed: "true"
       MatDock__Admin__Username: admin
       MatDock__Admin__Password: ${ADMIN_PASSWORD}
+      MatDock__Api__Key: ${MATDOCK_API_KEY}
+      MatDock__Environments__EnsureLocal: "true"
     volumes:
       - matdock-data:/data
       - /var/run/docker.sock:/var/run/docker.sock

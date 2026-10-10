@@ -1,4 +1,5 @@
 using Mattiverse.Core.Apps;
+using Mattiverse.Core.Backups;
 using Mattiverse.Core.Data;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Jobs;
@@ -11,17 +12,17 @@ namespace Mattiverse.Web.Pages.Backups;
 public class RestoreModel : PageModel
 {
     private readonly MattiverseDbContext _db;
-    private readonly AppService _apps;
+    private readonly BackupHub _backups;
     private readonly JobService _jobs;
 
-    public RestoreModel(MattiverseDbContext db, AppService apps, JobService jobs)
+    public RestoreModel(MattiverseDbContext db, BackupHub backups, JobService jobs)
     {
         _db = db;
-        _apps = apps;
+        _backups = backups;
         _jobs = jobs;
     }
 
-    public Backup Backup { get; private set; } = null!;
+    public BackupItem Backup { get; private set; } = null!;
 
     /// <summary>The app as it exists now; <c>null</c> when it was uninstalled (the restore re-creates it).</summary>
     public InstalledApp? App { get; private set; }
@@ -29,10 +30,10 @@ public class RestoreModel : PageModel
     [BindProperty]
     public bool BackupFirst { get; set; } = true;
 
-    public async Task<IActionResult> OnGetAsync(long id)
+    public async Task<IActionResult> OnGetAsync(string id)
         => await LoadAsync(id) ? Page() : NotFound();
 
-    public async Task<IActionResult> OnPostAsync(long id)
+    public async Task<IActionResult> OnPostAsync(string id)
     {
         if (!await LoadAsync(id))
         {
@@ -48,10 +49,10 @@ public class RestoreModel : PageModel
         return RedirectToPage("/Jobs/Details", new { id = jobId });
     }
 
-    private async Task<bool> LoadAsync(long id)
+    private async Task<bool> LoadAsync(string id)
     {
-        var backup = await _db.Backups.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id && b.Status == BackupStatus.Succeeded, HttpContext.RequestAborted);
-        if (backup is null)
+        var backup = await _backups.GetAsync(id, HttpContext.RequestAborted);
+        if (backup is null || backup.Status != BackupStatus.Succeeded)
         {
             return false;
         }
@@ -61,5 +62,5 @@ public class RestoreModel : PageModel
         return true;
     }
 
-    private static string Stamp(Backup backup) => backup.CreateDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+    private static string Stamp(BackupItem backup) => backup.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 }

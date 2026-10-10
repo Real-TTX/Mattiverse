@@ -1,9 +1,12 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using Mattiverse.Core.Backups;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Data;
 using Mattiverse.Core.Docker;
+using Mattiverse.Core.Engines;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Integrations;
 using Mattiverse.Core.Security;
@@ -24,19 +27,21 @@ public sealed record PrepareResult(InstalledApp? App, IReadOnlyList<string> Erro
 /// <summary>
 /// Installs, updates, removes and controls the apps. Each operation is split the way the UI needs it: the quick part that
 /// validates input and records the app runs in the web request; the slow Docker part (<c>Run...Async</c>) runs as a background job.
+/// The stack itself lives in an engine (MatDock, or Mattiverse's own compose runner), see <see cref="IStackEngine"/>.
 /// </summary>
 public sealed partial class AppService
 {
     private readonly MattiverseDbContext _db;
     private readonly CatalogService _catalog;
     private readonly ComposeFiles _files;
-    private readonly ComposeRunner _compose;
     private readonly DockerService _docker;
     private readonly PortPlanner _ports;
     private readonly ISecretProtector _protector;
     private readonly SystemConfigService _config;
     private readonly ProxyPublisher _proxy;
-    private readonly BackupService _backups;
+    private readonly DnsPublisher _dns;
+    private readonly StackEngines _engines;
+    private readonly BackupHub _backups;
     private readonly IEnumerable<IAppProvisioner> _provisioners;
     private readonly ILogger<AppService> _logger;
 
@@ -44,25 +49,27 @@ public sealed partial class AppService
         MattiverseDbContext db,
         CatalogService catalog,
         ComposeFiles files,
-        ComposeRunner compose,
         DockerService docker,
         PortPlanner ports,
         ISecretProtector protector,
         SystemConfigService config,
         ProxyPublisher proxy,
-        BackupService backups,
+        DnsPublisher dns,
+        StackEngines engines,
+        BackupHub backups,
         IEnumerable<IAppProvisioner> provisioners,
         ILogger<AppService> logger)
     {
         _db = db;
         _catalog = catalog;
         _files = files;
-        _compose = compose;
         _docker = docker;
         _ports = ports;
         _protector = protector;
         _config = config;
         _proxy = proxy;
+        _dns = dns;
+        _engines = engines;
         _backups = backups;
         _provisioners = provisioners;
         _logger = logger;
@@ -91,9 +98,13 @@ public sealed partial class AppService
     public async Task<RuntimeInfo> GetRuntimeAsync(string slug, CancellationToken ct = default)
         => DockerService.Summarize(await _docker.ListContainersAsync(slug, ct));
 
+    /// <summary>The stack as its engine has it now (compose and env), for the Files tab.</summary>
+    public Task<StackSpec?> ReadStackAsync(InstalledApp app, CancellationToken ct = default)
+        => _engines.For(app).ReadAsync(app, ct);
+
     // ------------------------------------------------------------------ install
 
-    /// <summary>Validates the form, records the app (state "installing") and writes its files. The containers are started by <see cref="RunInstallAsync"/>.</summary>
+    /// <summary>Validates the form and records the app (state "installing"). The stack is deployed by <see cref="RunInstallAsync"/>.</summary>
     public async Task<PrepareResult> PrepareInstallAsync(InstallRequest request, CancellationToken ct = default)
     {
         var catalog = _catalog.Get(request.CatalogId);
@@ -115,7 +126,6 @@ public sealed partial class AppService
             return new PrepareResult(null, errors, []);
         }
 
-        var config = await _config.GetAsync(ct);
         var name = string.IsNullOrWhiteSpace(request.Name)
             ? (slug == catalog.Id ? catalog.Name : $"{catalog.Name} ({slug})")
             : request.Name.Trim();
@@ -126,6 +136,7 @@ public sealed partial class AppService
             CatalogId = catalog.Id,
             Name = name,
             Role = catalog.Role,
+            IsCore = catalog.Core,
             ProjectName = _files.ProjectName(slug!),
             UiService = catalog.Ui?.Service,
             UiPort = catalog.Ui?.Port,
@@ -139,13 +150,12 @@ public sealed partial class AppService
 
         _db.InstalledApps.Add(app);
         await _db.SaveChangesAsync(ct);
-        await _files.WriteAsync(app, catalog, variables, config.PublicHost ?? "localhost", ct);
 
         var conflicts = await _ports.FindConflictsAsync(catalog, variables, app.ProjectName, ct);
         return new PrepareResult(app, [], conflicts);
     }
 
-    /// <summary>Pulls the images, starts the app, waits until it runs and sets it up (the job part of an install).</summary>
+    /// <summary>Deploys the stack, waits until it runs and sets it up (the job part of an install).</summary>
     public async Task RunInstallAsync(long appId, Action<string> log, CancellationToken ct = default)
     {
         var app = await RequireAsync(appId, ct);
@@ -155,17 +165,21 @@ public sealed partial class AppService
         {
             await _docker.EnsureNetworkAsync(ct);
 
-            var variables = await RefreshFilesAsync(app, catalog, ct);
+            // Chosen now, not when the install was started: the engines are installed one after the other by the wizard.
+            var engine = await _engines.ChooseForNewAsync(catalog, ct);
+            app.Engine = engine.Id;
+            await _db.SaveChangesAsync(ct);
+            log(engine.Id == "matdock" ? "MatDock runs this app." : "Mattiverse runs this app itself (docker compose).");
+
+            var (spec, variables) = await BuildSpecAsync(app, catalog, ct);
             foreach (var conflict in await _ports.FindConflictsAsync(catalog, variables, app.ProjectName, ct))
             {
                 log($"Warning: host port {conflict.Port}/{conflict.Protocol} is already used by '{conflict.Container}'; the start may fail.");
             }
 
-            await ComposeStepAsync(app.Slug, ["config", "--quiet"], "The compose file is invalid", log, ct);
-            log("Pulling the images ...");
-            await ComposeStepAsync(app.Slug, ["pull"], "The images could not be pulled (a private image needs 'docker login' on the host)", log, ct);
-            log("Starting the app ...");
-            await ComposeStepAsync(app.Slug, ["up", "-d", "--remove-orphans"], "The app could not be started", log, ct);
+            await engine.DeployAsync(spec, log, ct);
+            app.ComposeSha = await StoredHashAsync(engine, app, spec, ct);
+            await _db.SaveChangesAsync(ct);
 
             await WaitUntilRunningAsync(app.Slug, log, ct);
 
@@ -188,8 +202,9 @@ public sealed partial class AppService
     // ------------------------------------------------------------------ update
 
     /// <summary>
-    /// Updates an app: optional backup first, the compose files are re-written from the current catalog entry, the images are
-    /// pulled and the containers are only re-created when an image actually changed.
+    /// Updates an app: optional backup first, then the engine pulls the images and re-creates the containers only when something changed.
+    /// A newer catalog entry is applied too, unless the user changed the stack in the engine (in MatDock, for example): then their
+    /// version is kept.
     /// </summary>
     public async Task RunUpdateAsync(long appId, bool backupFirst, Action<string> log, CancellationToken ct = default)
     {
@@ -200,34 +215,32 @@ public sealed partial class AppService
         if (backupFirst)
         {
             log("Backing up before the update ...");
-            await _backups.RunBackupAsync(app, BackupKind.PreUpdate, config.Backups.StopContainers, "Before an update", log, ct);
+            await _backups.RunAsync(app, BackupKind.PreUpdate, config.Backups.StopContainers, "Before an update", log, ct);
         }
 
-        await RefreshFilesAsync(app, catalog, ct);
-
         await _docker.EnsureNetworkAsync(ct);
-        var images = await _compose.GetImagesAsync(app.Slug, ct);
-        var before = await ImageIdsAsync(images, ct);
+        var engine = _engines.For(app);
+        var (spec, _) = await BuildSpecAsync(app, catalog, ct);
 
-        log("Pulling the images ...");
-        await ComposeStepAsync(app.Slug, ["pull"], "The images could not be pulled", log, ct);
-        var after = await ImageIdsAsync(images, ct);
+        var current = await engine.ReadAsync(app, ct);
+        var customized = current is not null && app.ComposeSha is not null && ComposeHash.Of(current.Compose) != app.ComposeSha;
+        if (customized)
+        {
+            log($"The stack was changed in {(engine.Id == "matdock" ? "MatDock" : "its files")} since Mattiverse deployed it: the update keeps your version.");
+        }
 
-        var changed = images.Where(i => before.GetValueOrDefault(i) != after.GetValueOrDefault(i)).ToList();
-        var runtime = await GetRuntimeAsync(app.Slug, ct);
-        if (changed.Count == 0 && runtime.State == RuntimeState.Running)
+        var changed = await engine.UpdateAsync(app, customized ? null : spec, log, ct);
+        if (!changed)
         {
             log("Already up to date: no newer images.");
             return;
         }
 
-        foreach (var image in changed)
+        if (!customized)
         {
-            log($"New image: {image}");
+            app.ComposeSha = await StoredHashAsync(engine, app, spec, ct);
         }
 
-        log("Re-creating the containers ...");
-        await ComposeStepAsync(app.Slug, ["up", "-d", "--remove-orphans"], "The app could not be started", log, ct);
         await WaitUntilRunningAsync(app.Slug, log, ct);
 
         app.LastUpdatedAt = DateTime.UtcNow;
@@ -237,70 +250,33 @@ public sealed partial class AppService
         log($"{app.Name} is up to date.");
     }
 
-    /// <summary>
-    /// Writes the compose files of an app again from its current catalog entry. Keeps the answers the user gave and fills
-    /// in what is new (a newer catalog entry can add a variable such as a database password), so fixes to a catalog entry
-    /// reach apps that were installed earlier.
-    /// </summary>
-    private async Task<Dictionary<string, string>> RefreshFilesAsync(InstalledApp app, CatalogApp catalog, CancellationToken ct)
-    {
-        var errors = new List<string>();
-        var existing = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
-        var variables = AppVariables.Resolve(catalog, new Dictionary<string, string?>(), existing, errors);
-        if (errors.Count > 0)
-        {
-            throw new InvalidOperationException(string.Join(' ', errors));
-        }
-
-        var config = await _config.GetAsync(ct);
-        app.VariablesJson = AppVariables.Serialize(catalog, variables, _protector);
-        await _files.WriteAsync(app, catalog, variables, config.PublicHost ?? "localhost", ct);
-        await _db.SaveChangesAsync(ct);
-        return variables;
-    }
-
-    private async Task<Dictionary<string, string?>> ImageIdsAsync(IEnumerable<string> images, CancellationToken ct)
-    {
-        var ids = new Dictionary<string, string?>();
-        foreach (var image in images)
-        {
-            ids[image] = await _docker.GetImageIdAsync(image, ct);
-        }
-
-        return ids;
-    }
-
     // ------------------------------------------------------------------ uninstall
 
     public async Task RunUninstallAsync(long appId, bool deleteData, bool backupFirst, Action<string> log, CancellationToken ct = default)
     {
         var app = await RequireAsync(appId, ct);
-        var config = await _config.GetAsync(ct);
+        if (app.IsCore)
+        {
+            throw new InvalidOperationException($"{app.Name} is part of Mattiverse and cannot be removed here.");
+        }
 
+        var config = await _config.GetAsync(ct);
         app.Lifecycle = AppLifecycle.Removing;
         await _db.SaveChangesAsync(ct);
 
         try
         {
-            if (backupFirst && _files.Exists(app.Slug))
+            if (backupFirst)
             {
                 log("Saving a final backup ...");
-                await _backups.RunBackupAsync(app, BackupKind.Manual, config.Backups.StopContainers, "Final backup before the uninstall", log, ct);
+                await _backups.RunAsync(app, BackupKind.Manual, config.Backups.StopContainers, "Final backup before the uninstall", log, ct);
             }
 
             await _proxy.UnpublishAsync(app, log, ct);
+            await _dns.PublishAllAsync(log, excludeSlug: app.Slug, ct);
 
-            if (_files.Exists(app.Slug))
-            {
-                log(deleteData ? "Removing the containers and the data ..." : "Removing the containers (the data is kept) ...");
-                var down = deleteData ? new[] { "down", "--remove-orphans", "--volumes" } : new[] { "down", "--remove-orphans" };
-                await ComposeStepAsync(app.Slug, down, "The app could not be removed", log, ct);
-            }
-
-            if (deleteData)
-            {
-                _files.DeleteFolder(app.Slug);
-            }
+            log(deleteData ? "Removing the containers and the data ..." : "Removing the containers (the data is kept) ...");
+            await _engines.For(app).RemoveAsync(app, deleteData, log, ct);
 
             var shares = await _db.ShareLinks.Where(s => s.AppId == app.Id).ToListAsync(ct);
             _db.ShareLinks.RemoveRange(shares);
@@ -322,17 +298,41 @@ public sealed partial class AppService
     /// <summary>Runs <c>start</c>, <c>stop</c> or <c>restart</c> on all containers of the app.</summary>
     public async Task RunLifecycleAsync(long appId, string command, Action<string> log, CancellationToken ct = default)
     {
-        if (command is not ("start" or "stop" or "restart"))
+        if (!Enum.TryParse<StackAction>(command, ignoreCase: true, out var action))
         {
             throw new ArgumentException("Unknown command: " + command, nameof(command));
         }
 
         var app = await RequireAsync(appId, ct);
-        await ComposeStepAsync(app.Slug, [command], $"Could not {command} the app", log, ct);
-        log(command switch { "start" => "Started.", "stop" => "Stopped.", _ => "Restarted." });
+        await _engines.For(app).ControlAsync(app, action, log, ct);
+        log(action switch { StackAction.Start => "Started.", StackAction.Stop => "Stopped.", _ => "Restarted." });
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /// <summary>
+    /// What the engine deploys for an app, from its current catalog entry. Keeps the answers the user gave and fills in what is new (a
+    /// newer catalog entry can add a variable such as a database password), so fixes to a catalog entry reach apps that were installed earlier.
+    /// </summary>
+    private async Task<(StackSpec Spec, Dictionary<string, string> Variables)> BuildSpecAsync(InstalledApp app, CatalogApp catalog, CancellationToken ct)
+    {
+        var errors = new List<string>();
+        var existing = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
+        var variables = AppVariables.Resolve(catalog, new Dictionary<string, string?>(), existing, errors);
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(string.Join(' ', errors));
+        }
+
+        var config = await _config.GetAsync(ct);
+        app.VariablesJson = AppVariables.Serialize(catalog, variables, _protector);
+        await _db.SaveChangesAsync(ct);
+        return (_files.Build(app, catalog, variables, config.PublicHost ?? "localhost"), variables);
+    }
+
+    /// <summary>The hash of the compose text as the engine stores it (an engine may re-format the YAML), falling back to what was sent.</summary>
+    private static async Task<string> StoredHashAsync(IStackEngine engine, InstalledApp app, StackSpec sent, CancellationToken ct)
+        => ComposeHash.Of((await engine.ReadAsync(app, ct) ?? sent).Compose);
 
     private async Task ProvisionAsync(InstalledApp app, CatalogApp catalog, Action<string> log, CancellationToken ct)
     {
@@ -345,10 +345,13 @@ public sealed partial class AppService
                 await provisioner.ProvisionAsync(app, catalog, log, ct);
             }
 
-            // An app that is not a proxy itself gets its route right away when a proxy with a base domain exists.
+            // An app that is not a proxy itself gets its route and its DNS record right away when the engines exist.
             if (catalog.Role != AppRoles.Proxy)
             {
-                await _proxy.PublishAsync(app, log, ct);
+                if (await _proxy.PublishAsync(app, log, ct) is not null)
+                {
+                    await _dns.PublishAllAsync(log, null, ct);
+                }
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -357,52 +360,6 @@ public sealed partial class AppService
             _logger.LogWarning(ex, "Provisioning {Slug} failed.", app.Slug);
             log($"Warning: the follow-up setup failed: {ex.Message}");
         }
-    }
-
-    private async Task ComposeStepAsync(string slug, IEnumerable<string> subcommand, string failureMessage, Action<string> log, CancellationToken ct)
-    {
-        var args = subcommand.ToList();
-        var tail = new Queue<string>();
-        var exit = await _compose.StreamAsync(slug, args, line =>
-        {
-            log(line);
-            tail.Enqueue(line);
-            if (tail.Count > 6)
-            {
-                tail.Dequeue();
-            }
-        }, ct);
-
-        if (exit != 0)
-        {
-            // The last distinct lines say what Docker complained about; the hint (if there is one) comes first so it is never cut off.
-            var lines = tail.Select(l => l.Trim()).Where(l => l.Length > 0).Distinct().TakeLast(3).ToList();
-            var detail = string.Join(" | ", lines);
-            throw new InvalidOperationException($"{failureMessage}.{Hint(detail)} Docker said (docker compose {args[0]}, exit code {exit}): {detail}");
-        }
-    }
-
-    /// <summary>Explains the Docker errors that users cannot be expected to know how to fix.</summary>
-    public static string Hint(string dockerOutput)
-    {
-        if (dockerOutput.Contains("address pools have been fully subnetted", StringComparison.OrdinalIgnoreCase))
-        {
-            return " Hint: Docker has run out of network addresses. Remove networks you do not use ('docker network prune') or enlarge 'default-address-pools' in the Docker daemon settings.";
-        }
-
-        if (dockerOutput.Contains("port is already allocated", StringComparison.OrdinalIgnoreCase) ||
-            dockerOutput.Contains("address already in use", StringComparison.OrdinalIgnoreCase))
-        {
-            return " Hint: a host port is already in use. Stop whatever uses it, or change the port in the install form (Advanced).";
-        }
-
-        if (dockerOutput.Contains("pull access denied", StringComparison.OrdinalIgnoreCase) ||
-            dockerOutput.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
-        {
-            return " Hint: the image is private or does not exist. For a private image run 'docker login' on the host.";
-        }
-
-        return string.Empty;
     }
 
     /// <summary>
@@ -476,4 +433,37 @@ public sealed partial class AppService
 
     [GeneratedRegex("[^a-z0-9]+")]
     private static partial Regex SlugCleanup();
+}
+
+/// <summary>
+/// A hash of what a compose text <em>says</em>: comments, quoting, indentation, line endings and the order of the keys do not count, so that
+/// "did anyone change this stack" is not fooled by an engine that stores the YAML in its own format. A text that is not valid YAML is
+/// hashed as it is.
+/// </summary>
+public static class ComposeHash
+{
+    private static readonly YamlDotNet.Serialization.IDeserializer Reader = new YamlDotNet.Serialization.DeserializerBuilder().Build();
+    private static readonly YamlDotNet.Serialization.ISerializer Writer = new YamlDotNet.Serialization.SerializerBuilder().JsonCompatible().Build();
+
+    public static string Of(string compose)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical(compose))));
+
+    private static string Canonical(string compose)
+    {
+        try
+        {
+            return Writer.Serialize(Sort(Reader.Deserialize<object>(compose)));
+        }
+        catch (YamlDotNet.Core.YamlException)
+        {
+            return compose.ReplaceLineEndings("\n").TrimEnd();
+        }
+    }
+
+    private static object? Sort(object? node) => node switch
+    {
+        IDictionary<object, object> map => map.OrderBy(kv => kv.Key.ToString(), StringComparer.Ordinal).ToDictionary(kv => kv.Key.ToString()!, kv => Sort(kv.Value)),
+        IList<object> list => list.Select(Sort).ToList(),
+        _ => node,
+    };
 }

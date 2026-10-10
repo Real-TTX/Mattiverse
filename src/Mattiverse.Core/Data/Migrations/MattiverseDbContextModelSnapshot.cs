@@ -163,6 +163,10 @@ namespace Mattiverse.Core.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ComposeSha")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreateDate")
                         .HasColumnType("TEXT");
 
@@ -172,7 +176,15 @@ namespace Mattiverse.Core.Data.Migrations
                     b.Property<string>("CredentialsJson")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Engine")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("HostPort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsCore")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastBackupAt")

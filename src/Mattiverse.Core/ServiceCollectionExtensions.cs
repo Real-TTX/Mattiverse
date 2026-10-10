@@ -4,6 +4,7 @@ using Mattiverse.Core.Backups;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Docker;
+using Mattiverse.Core.Engines;
 using Mattiverse.Core.Integrations;
 using Mattiverse.Core.Jobs;
 using Mattiverse.Core.Security;
@@ -37,15 +38,36 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthService>();
         services.AddScoped<SessionService>();
         services.AddScoped<UserService>();
+
+        // Apps and the engines that run them.
+        services.AddScoped<ComposeRenderer>();
         services.AddScoped<ComposeFiles>();
         services.AddScoped<ComposeRunner>();
         services.AddScoped<PortPlanner>();
+        services.AddScoped<EngineLocator>();
+        services.AddScoped<MatDockClient>();
+        services.AddScoped<LocalComposeEngine>();
+        services.AddScoped<MatDockEngine>();
+        services.AddScoped<StackEngines>();
         services.AddScoped<AppService>();
+        services.AddScoped<AppReconciler>();
+
+        // Backups: MatDock keeps those of its stacks, Mattiverse's own runner those of the rest.
         services.AddScoped<BackupService>();
+        services.AddScoped<IBackupProvider, LocalBackupProvider>();
+        services.AddScoped<IBackupProvider, MatDockBackupProvider>();
+        services.AddScoped<BackupHub>();
+
         services.AddScoped<JobService>();
+
+        // Matcad (routes, certificates) and Matddns (DNS records).
         services.AddScoped<MatcadClient>();
+        services.AddScoped<MatddnsClient>();
         services.AddScoped<ProxyPublisher>();
+        services.AddScoped<DnsPublisher>();
+        services.AddScoped<IAppProvisioner, MatDockProvisioner>();
         services.AddScoped<IAppProvisioner, MatcadProvisioner>();
+        services.AddScoped<IAppProvisioner, MatddnsProvisioner>();
 
         return services;
     }

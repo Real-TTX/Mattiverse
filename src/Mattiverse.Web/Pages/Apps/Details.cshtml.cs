@@ -1,7 +1,10 @@
 using Mattiverse.Core.Apps;
+using Mattiverse.Core.Backups;
 using Mattiverse.Core.Catalog;
+using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Data;
 using Mattiverse.Core.Docker;
+using Mattiverse.Core.Engines;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Jobs;
 using Mattiverse.Core.Security;
@@ -19,29 +22,35 @@ public class DetailsModel : PageModel
     private readonly CatalogService _catalog;
     private readonly DockerService _docker;
     private readonly MattiverseDbContext _db;
-    private readonly ComposeFiles _files;
+    private readonly ComposeRenderer _names;
+    private readonly BackupHub _hub;
     private readonly JobService _jobs;
     private readonly ISecretProtector _protector;
     private readonly AppUrls _urls;
+    private readonly SystemConfigService _config;
 
     public DetailsModel(
         AppService apps,
         CatalogService catalog,
         DockerService docker,
         MattiverseDbContext db,
-        ComposeFiles files,
+        ComposeRenderer names,
+        BackupHub hub,
         JobService jobs,
         ISecretProtector protector,
-        AppUrls urls)
+        AppUrls urls,
+        SystemConfigService config)
     {
         _apps = apps;
         _catalog = catalog;
         _docker = docker;
         _db = db;
-        _files = files;
+        _names = names;
+        _hub = hub;
         _jobs = jobs;
         _protector = protector;
         _urls = urls;
+        _config = config;
     }
 
     [BindProperty(SupportsGet = true)]
@@ -63,11 +72,16 @@ public class DetailsModel : PageModel
     public string InternalAddress { get; private set; } = string.Empty;
     public Job? ActiveJob { get; private set; }
 
+    /// <summary>Where the configuration of this app lives: the stack in MatDock, the route in Matcad, the DNS record in Matddns.</summary>
+    public List<EngineLink> EngineLinks { get; private set; } = new();
+
+    public sealed record EngineLink(string Label, string Engine, string Url);
+
     public List<CredentialLine> Credentials { get; private set; } = new();
-    public List<Backup> Backups { get; private set; } = new();
+    public List<BackupItem> Backups { get; private set; } = new();
     public List<ShareLink> Shares { get; private set; } = new();
     public string LogText { get; private set; } = string.Empty;
-    public (string Compose, string Env, string Override) Files { get; private set; }
+    public (string Compose, string Env) Files { get; private set; }
 
     [TempData] public string? StatusMessage { get; set; }
 
@@ -117,11 +131,11 @@ public class DetailsModel : PageModel
                 LogText = container is null ? "The app has no containers." : await _docker.GetLogsAsync(container.Name, 400, ct);
                 break;
             case "backups" when User.IsAdmin():
-                Backups = await _db.Backups.AsNoTracking().Where(b => b.AppSlug == App.Slug).OrderByDescending(b => b.CreateDate).Take(50).ToListAsync(ct);
+                Backups = (await _hub.ListAsync(ct)).Where(b => b.AppSlug == App.Slug).Take(50).ToList();
                 break;
             case "files" when User.IsAdmin():
-                var (compose, env, overrideYaml) = await _files.ReadAsync(App.Slug, ct);
-                Files = (compose, MaskSecrets(env), overrideYaml);
+                var stack = await _apps.ReadStackAsync(App, ct);
+                Files = stack is null ? (string.Empty, string.Empty) : (stack.Compose, MaskSecrets(stack.Env));
                 break;
             case "sharing" when User.IsAdmin():
                 Shares = await _db.ShareLinks.AsNoTracking().Where(s => s.AppId == App.Id).OrderByDescending(s => s.CreateDate).ToListAsync(ct);
@@ -211,9 +225,51 @@ public class DetailsModel : PageModel
         Runtime = DockerService.Summarize(Containers);
         Status = AppStatus.Of(app, Runtime);
         OpenUrl = await _urls.OpenUrlAsync(app, Request, ct);
-        InternalAddress = app.UiService is null ? string.Empty : $"{_files.UiHost(app)}:{app.UiPort}";
+        InternalAddress = app.UiService is null ? string.Empty : $"{_names.UiHost(app)}:{app.UiPort}";
         ActiveJob = await _jobs.GetActiveAsync(app.Id, ct);
+        if (User.IsAdmin())
+        {
+            EngineLinks = await FindEngineLinksAsync(app, ct);
+        }
+
         return true;
+    }
+
+    /// <summary>
+    /// The engines keep the configuration of the app: this links to where it can be seen and changed. The pages of the engines are
+    /// the lists (stacks, routes, domains); what Mattiverse wrote there is marked "Managed by Mattiverse".
+    /// </summary>
+    private async Task<List<EngineLink>> FindEngineLinksAsync(InstalledApp app, CancellationToken ct)
+    {
+        var ids = EngineIds.All.ToArray();
+        var engines = await _db.InstalledApps.AsNoTracking()
+            .Where(a => ids.Contains(a.CatalogId) && a.Lifecycle == AppLifecycle.Installed)
+            .ToListAsync(ct);
+
+        async Task<string?> UrlAsync(string engineId, string path)
+        {
+            var engine = engines.FirstOrDefault(a => a.CatalogId == engineId);
+            var url = engine is null ? null : await _urls.OpenUrlAsync(engine, Request, ct);
+            return url is null ? null : url.TrimEnd('/') + path;
+        }
+
+        var links = new List<EngineLink>();
+        if (app.Engine == EngineIds.MatDock && await UrlAsync(EngineIds.MatDock, "/Stacks") is { } stacks)
+        {
+            links.Add(new EngineLink("Stack", "MatDock", stacks));
+        }
+
+        if (!string.IsNullOrEmpty(app.PublicUrl) && await UrlAsync(EngineIds.Matcad, "/Routes") is { } routes)
+        {
+            links.Add(new EngineLink("Route and certificate", "Matcad", routes));
+        }
+
+        if (!string.IsNullOrEmpty(app.PublicUrl) && (await _config.GetAsync(ct)).Dns.IsConfigured && await UrlAsync(EngineIds.Matddns, "/Domains") is { } domains)
+        {
+            links.Add(new EngineLink("DNS record", "Matddns", domains));
+        }
+
+        return links;
     }
 
     /// <summary>The <c>.env</c> of an app holds its secrets; the page shows the keys and hides the values of secret variables.</summary>

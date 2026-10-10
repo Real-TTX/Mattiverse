@@ -18,7 +18,7 @@ public sealed class BackupManifest
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    public int FormatVersion { get; set; } = 1;
+    public int FormatVersion { get; set; } = 2;
 
     public DateTime CreatedUtc { get; set; }
 
@@ -45,12 +45,11 @@ public sealed class BackupManifest
     /// <summary>Were the containers stopped while the volumes were copied?</summary>
     public bool Consistent { get; set; }
 
-    /// <summary>The three files of the app at the time of the backup (the <c>.env</c> holds the secrets: protect the backup folder).</summary>
+    /// <summary>The two files of the app at the time of the backup (the <c>.env</c> holds the secrets: protect the backup folder).</summary>
     public string Compose { get; set; } = string.Empty;
 
     public string Env { get; set; } = string.Empty;
 
-    public string Override { get; set; } = string.Empty;
 
     public List<ManifestService> Services { get; set; } = new();
 

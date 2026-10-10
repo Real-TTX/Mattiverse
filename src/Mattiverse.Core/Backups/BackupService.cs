@@ -172,7 +172,7 @@ public sealed class BackupService
 
     private async Task<BackupManifest> BuildManifestAsync(InstalledApp app, List<ContainerInfo> containers, bool consistent, CancellationToken ct)
     {
-        var (compose, env, overrideYaml) = await _files.ReadAsync(app.Slug, ct);
+        var spec = await _files.ReadAsync(app.Slug, app.ProjectName, ct);
         var manifest = new BackupManifest
         {
             CreatedUtc = DateTime.UtcNow,
@@ -187,9 +187,8 @@ public sealed class BackupService
             HostPort = app.HostPort,
             UiPath = app.UiPath,
             Consistent = consistent,
-            Compose = compose,
-            Env = env,
-            Override = overrideYaml,
+            Compose = spec?.Compose ?? string.Empty,
+            Env = spec?.Env ?? string.Empty,
         };
 
         foreach (var container in containers)
@@ -253,7 +252,7 @@ public sealed class BackupService
                 await EnsureComposeAsync(app.Slug, ["down", "--remove-orphans"], log, ct);
             }
 
-            await _files.WriteRawAsync(app.Slug, manifest.Compose, manifest.Env, manifest.Override, ct);
+            await _files.WriteAsync(new StackSpec(app.ProjectName, app.Slug, manifest.Compose, manifest.Env), ct);
 
             foreach (var volume in manifest.Volumes)
             {
