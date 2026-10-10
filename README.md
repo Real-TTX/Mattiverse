@@ -7,9 +7,10 @@
 **Install, update and back up your Docker apps. One launcher for the whole Mat universe.**
 
 A home screen for your Docker host: pick an app in the store, Mattiverse installs it, gives it a
-domain, keeps it up to date and backs it up. It connects your reverse proxy ([Matcad](https://github.com/Real-TTX/Matcad)),
-your DynDNS client ([Matddns](https://github.com/Real-TTX/Matddns)) and your Docker manager
-([MatDock](https://github.com/Real-TTX/MatDock)) with the rest. One container, one volume, no cloud.
+domain, keeps it up to date and backs it up. It is the friendly layer on top of three programs that do the real work and
+keep their own part of the configuration: [MatDock](https://github.com/Real-TTX/MatDock) (stacks, backups),
+[Matcad](https://github.com/Real-TTX/Matcad) (addresses, HTTPS) and [Matddns](https://github.com/Real-TTX/Matddns) (DNS records).
+Open one of them and you see what Mattiverse set up there.
 
 </div>
 
@@ -21,12 +22,12 @@ your DynDNS client ([Matddns](https://github.com/Real-TTX/Matddns)) and your Doc
 
 Self-hosting usually means a terminal, a pile of `docker-compose.yml` files and a browser full of
 `:8080` tabs. Mattiverse is a calm layer on top: a launcher that looks like a phone, a **store** with
-one-click installs, a **setup wizard** that asks three questions (which reverse proxy, which DynDNS
-client, which Docker management) and wires the answers together, and **backups** you can actually restore.
+one-click installs, a **setup wizard** that asks for your domain and DNS account once and wires the engines together,
+and **backups** you can actually restore.
 
 It is the small, mobile-friendly sibling to **MatOS**. Where MatOS is a desktop with windows, Mattiverse
-shows one app at a time, like a website or a phone. Everything it creates is a plain `docker compose` stack, so
-you can always take over with `docker compose` or [MatDock](https://github.com/Real-TTX/MatDock).
+shows one app at a time, like a website or a phone. Every app is a plain `docker compose` stack in MatDock: you can edit
+it there, and Mattiverse keeps your change when it updates the app.
 
 ## At a glance
 
@@ -39,10 +40,10 @@ you can always take over with `docker compose` or [MatDock](https://github.com/R
   is a drawer
 
 **Setup wizard** (first start, and again whenever you like)
-- Which **reverse proxy**? Matcad or Nginx Proxy Manager
-- Which **DynDNS client**? Matddns
-- Which **advanced Docker management**? MatDock or Portainer
-- Optional **domain** for your apps: with Matcad every app gets `app.example.com` automatically
+- Installs the three **engines**: MatDock (required), Matcad and Matddns (skip one if something else on the host does its job)
+- Your **domain** and your **DNS provider** (Cloudflare, Hetzner, Netcup), asked once: Matcad gets one wildcard certificate through the
+  DNS challenge and a route `app.example.com` per app, Matddns keeps the DNS records on your home IP
+- Everything the wizard created carries a **Managed by Mattiverse** badge in the engine
 
 **Store**
 - Catalog of your Mat apps (MatMail, MatFile, MatPaper, MatPlay, MatSplit, Matmon, MatCMS, Matdo, MatBu,
@@ -53,8 +54,9 @@ you can always take over with `docker compose` or [MatDock](https://github.com/R
 **Operations**
 - **Install, update, start, stop, restart, uninstall**: every long task is a job with a **live log**
 - **Update** pulls newer images, re-creates only what changed, and backs up first if you want
-- **Backups**: compose files + settings + all volumes, optionally with the app stopped (consistent databases),
-  **schedules with retention**, restore even after the app was uninstalled, download as `.tar`
+- **Backups** are MatDock's: compose + `.env` + all volumes, optionally with the app stopped (consistent databases),
+  **schedules with retention**, restore even after the app was uninstalled, download as `.tar`. They show up in MatDock too
+- If you **change a stack in MatDock**, the next update keeps your version
 - **Shared links** let someone without an account open one app
 
 **Users**
@@ -65,12 +67,19 @@ you can always take over with `docker compose` or [MatDock](https://github.com/R
 
 ### The store and the setup wizard
 
-| Store | Setup wizard |
-|---|---|
-| ![Store](docs/images/store.png) | ![Setup wizard: which reverse proxy](docs/images/wizard.png) |
+| Store | Wizard: the engines | Wizard: domain and DNS |
+|---|---|---|
+| ![Store](docs/images/store.png) | ![Setup wizard: the three engines](docs/images/wizard.png) | ![Setup wizard: the DNS account](docs/images/wizard-dns.png) |
 
-The wizard warns when a port it needs is taken (here: another proxy holds 80 and 443) and leaves
-alone what is installed already.
+The wizard warns when a port it needs is taken (for example when another proxy holds 80 and 443) and leaves
+alone what is installed already. The DNS account is asked once and handed to Matcad and Matddns.
+
+### The engines
+
+![Settings, Engines: MatDock, Matcad and Matddns with their state](docs/images/engines.png)
+
+The *Engines* tab shows which engine answers, opens it, and hands the domain and the DNS account over again (*Connect again*).
+Each app page links to where its stack, route and DNS record live in the engines.
 
 ### Apps, installs with a live log
 
@@ -86,6 +95,7 @@ Buttons read from positive to negative: **Open, Stop, Restart, Update, Back up**
 |---|---|
 | ![Backup history](docs/images/backups.png) | ![Backup schedules](docs/images/backup-schedules.png) |
 
+One list for all backups: those MatDock made (badge *MatDock*, also visible in MatDock) next to those of Mattiverse's own runner.
 Every list has its toolbar (search, filters, sort) on top, its actions below and pagination directly under the table.
 
 ### Light theme and phone
@@ -142,7 +152,8 @@ setup wizard. An update is `docker compose pull && docker compose up -d`; everyt
 |---|---|---|
 | `Mattiverse__DataPath` | `/data` | Data folder: database, settings, compose files, backups |
 | `Mattiverse__SessionLifetimeDays` | `30` | How long a sign-in stays valid |
-| `Mattiverse__NetworkName` | `mattiverse` | Shared Docker network of the reverse proxy and the apps' UIs |
+| `Mattiverse__NetworkName` | `mattiverse` | Shared Docker network of the engines and the apps' UIs |
+| `Mattiverse__NetworkSubnet` | – | Subnet (like `10.253.200.0/24`) for that network, if Docker's default address pools are used up |
 | `Mattiverse__HostPortRangeStart` / `End` | `8100` / `8999` | Pool for app ports when the preferred port is taken |
 | `Mattiverse__Admin__Seed` | `false` | Create the admin from `__Username` / `__Password` (headless installs; the password must be changed at the first sign-in) |
 | `Mattiverse__DockerHost` | – | Use another Docker endpoint than the mounted socket |
@@ -153,25 +164,26 @@ setup wizard. An update is `docker compose pull && docker compose up -d`; everyt
 
 ```
 /data
-├─ mattiverse.db        SQLite: users, sessions, apps, jobs, backups, schedules, shared links
-├─ config/system.json   JSON: name, domain, the wizard's choices
+├─ mattiverse.db        SQLite: users, sessions, apps, jobs, shared links (and the backups of apps Mattiverse runs itself)
+├─ config/system.json   JSON: name, domain, DNS provider, the wizard's choices
 ├─ dataprotection-keys/ keys for the cookies and the secrets (so sessions survive restarts)
 ├─ catalog/             your own app definitions (*.yml)
-├─ apps/<app>/          docker-compose.yml, docker-compose.override.yml (generated), .env
-└─ backups/<app>/<stamp>/   manifest.json + one .tar.gz per volume
+└─ apps/<app>/          only for stacks Mattiverse runs itself (MatDock, and apps while MatDock is not up): docker-compose.yml, .env
 ```
 
-- An app is a **compose project** named `mattiverse-<app>`. Mattiverse writes the catalog's compose file, a `.env` with
-  your answers and a small generated override (container names, labels, the shared network, the host port of the UI).
-  Every container carries the compose project label, so **MatDock** and `docker compose ls` see the stacks too.
+- An app is a **compose project** named `mattiverse-<app>`. Mattiverse renders the catalog entry into one compose file (container
+  names, labels, the shared network, the host port of the UI, an `x-matdock` block) plus a `.env` with your answers and creates it as a
+  **stack in MatDock** through MatDock's REST API. The stack is yours to edit there; an update keeps your version.
+- Status, containers and logs are read straight from Docker, so the launcher stays correct when an engine is down.
 - Containers of an app are only attached to the **shared network** `mattiverse` when they must be reachable by
   the proxy (the UI service); databases stay private to their stack.
-- With **Matcad** and a domain, every install creates the route `<app>.<domain>` through Matcad's REST API;
-  uninstalling removes it again. Mattiverse itself gets a route too.
-- **Backups** copy each volume with a throw-away `busybox` container (`tar` over the socket) and store the compose
-  files and the image digests in the manifest, so a backup is restorable on a fresh Mattiverse.
-- The design decisions (why backups live here and not in MatDock, where the compose files are, how this relates to
-  MatOS) are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- With a domain, every install creates the route `<app>.<domain>` in **Matcad** and the record in **Matddns**; uninstalling removes both.
+  Mattiverse itself gets a route too. With a DNS account Matcad issues one wildcard certificate through the DNS challenge.
+- **Backups** are made by MatDock (a bundle of volumes, compose and `.env`) and listed in MatDock too; the apps that Mattiverse runs itself
+  are backed up by Mattiverse's own runner. One page shows both.
+- Without an engine's API (an older image, or not installed yet) Mattiverse falls back to its own `docker compose` runner, so nothing stops working.
+- The design decisions (what the engines own, where the compose files are, how this relates to MatOS) are in
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); the contract with the engines is [docs/ENGINES.md](docs/ENGINES.md).
 
 ## Roles
 
@@ -216,12 +228,13 @@ GitHub Action, which also builds the multi-arch image (`amd64`, `arm64`).
 |---|---|
 | Launcher, store, wizard, themes, mobile layout | ✅ |
 | Install / update / uninstall / start / stop with live logs | ✅ |
-| Backups: manual, scheduled, retention, restore, download | ✅ |
+| Backups: manual, scheduled, retention, restore, download (MatDock's, merged with Mattiverse's own) | ✅ |
 | Local users, roles, persistent sessions, shared links | ✅ |
-| Matcad routes per app, base domain | ✅ |
+| Apps as MatDock stacks, routes in Matcad, DNS records in Matddns, domain and DNS account asked once | ✅ |
+| Stack edited in MatDock survives an update | ✅ |
 | Microsoft Entra ID sign-in | planned (the login is already behind `AuthService` / `SessionService`) |
-| Remote backup targets (SMB, off-site) | use MatDock for now ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)) |
-| Provisioning Matddns sources and MatDock environments | needs small changes there ([docs/INTEGRATION.md](docs/INTEGRATION.md)) |
+| Remote backup targets (SMB, off-site) | MatDock's backup targets |
+| The engine APIs | on the `mattiverse-integration` branches of MatDock, Matcad and Matddns; they reach the released images with the next release of each ([docs/INTEGRATION.md](docs/INTEGRATION.md)) |
 
 ## License
 

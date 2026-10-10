@@ -2,93 +2,102 @@
 
 This page records the questions that shaped Mattiverse and the answers, so they do not have to be argued again.
 
-## What Mattiverse is, and how it relates to MatOS and MatDock
+## What Mattiverse is: a layer on top of three engines
+
+Mattiverse is **not** a second Docker manager with its own copy of everything. It is the thin, friendly layer on top of three programs
+that each **own** one part of the configuration:
+
+| Engine | Owns | Mattiverse adds |
+|---|---|---|
+| **MatDock** | stacks (compose + env), containers, backups, schedules, updates | the store, one-click installs, the launcher |
+| **Matcad** | routes, certificates, DNS providers for certificates, logins | a route `app.example.com` for every app |
+| **Matddns** | sources of the IP, DNS records, rules | the DNS record `app.example.com` for every app |
+
+Mattiverse itself keeps what no engine knows: users, roles and sessions, shared links, the catalog, the wizard's choices, which catalog
+entry an app came from, and where it sits on the home screen. Everything else lives in the engines and **is visible and editable there**: open
+MatDock and the apps are stacks marked *Managed by Mattiverse*, open Matcad and they are routes, open Matddns and they are records.
+
+The three are **fixed parts** of Mattiverse (the wizard installs them; they cannot be uninstalled from Mattiverse except a failed install, to start over).
+Other tools in the store (Nginx Proxy Manager, Portainer, ...) are plain apps without deep integration. The contract between Mattiverse and the
+engines is [ENGINES.md](ENGINES.md).
 
 | | Mattiverse | MatOS | MatDock |
 |---|---|---|---|
 | Idea | A launcher: one app at a time, like a phone | A desktop in the browser: windows, taskbar | A Docker manager for many hosts over SSH |
-| Strength | Installing, updating and backing up the Mat apps, the setup wizard, mobile | Rich desktop, file explorer, task manager | Stacks, volumes, terminal, many hosts |
-| Where it stops | No file explorer, no terminal, one host | Compose files live in `/tmp`, backups miss the compose file | No API, no catalog |
+| Strength | Installing the Mat apps, the setup wizard, mobile | Rich desktop, file explorer, task manager | Stacks, volumes, backups, terminal, many hosts |
 
-Mattiverse takes the good ideas of MatOS (an app is a compose file with a metadata block, containers carry labels,
-whole-app backups) and fixes the weak spots: the compose files are **persistent**, a backup contains **everything
-needed to restore** and databases can be copied **consistently**. MatDock stays the tool for the advanced cases.
+## How an app is installed, updated and removed
+
+1. The page validates the form and records the app (`InstalledApp`, state *installing*); a **job** does the rest (see below).
+2. `ComposeRenderer` turns the catalog entry into **one compose file**: the entry's services plus what only Mattiverse knows (container
+   names, labels, the shared network, the published port of the UI) and an `x-matdock` block, so MatDock's launchpad shows the stack as an app.
+   Next to it a `.env` with the answers of the form.
+3. `StackEngines` picks the engine that **runs** the stack: **MatDock** once its API answers (`apiVersion >= 1`), else Mattiverse's own
+   `docker compose` runner (`LocalComposeEngine`). MatDock itself is always deployed by the local runner, because nothing can deploy it before it exists.
+   The app remembers its engine (`InstalledApp.Engine`).
+4. The stack is created in MatDock (`PUT /stacks/mattiverse-<app>`, `managedBy: mattiverse`) and deployed; the output of MatDock's operation is
+   forwarded to the job's log.
+5. The provisioners and publishers then connect it: the route in Matcad, the record in Matddns.
+
+**Reading is not going through the engines.** Status, containers and logs always come straight from Docker (every container carries the
+labels `mattiverse.managed`, `mattiverse.app`, `mattiverse.instance`, `mattiverse.service`), so the launcher stays correct and fast even
+when an engine is down. Only *changes* go through an engine.
+
+**The user may change the stack in MatDock.** Mattiverse stores a semantic hash of the compose it deployed (`ComposeSha`: parsed YAML, key order
+and formatting do not matter). An update compares it with the stack as MatDock has it now; if they differ the update **keeps the user's version**
+(pull and re-create, no rewrite) and says so in the log. In the Files tab the app shows the stack as its engine has it.
+
+**Without an engine API** (an older released image, or MatDock not installed yet) everything keeps working through the local runner; the
+Engines tab in the settings says which engine is connected.
+
+**After a lost database or a restore in MatDock**, `AppReconciler` takes the stacks that MatDock holds with `managedBy: mattiverse` back as apps:
+the stack carries everything (catalog block, compose, variables).
+
+## Domain and DNS
+
+The wizard asks **once** for the domain of the apps and the account of the DNS provider (Cloudflare, Hetzner, Netcup: the providers that both Matcad and
+Matddns support). The credentials are stored protected (Data Protection) and handed to both engines:
+
+- **Matcad** gets the provider and a wildcard route `*.domain` with it: one certificate through the DNS challenge, no open port 80 needed. Every
+  app gets a route `app.domain` served from that certificate. Without a DNS account only the single routes exist (HTTP challenge).
+- **Matddns** gets a source *public IP*, a domain group with a record for every app and a rule per record, so the record follows the home IP.
+
+When the domain or the account changes, or from the Engines tab (*Connect again*), the job `ConnectEngines` brings both in line again and removes what
+Mattiverse created earlier and does not want any more (routes of an old domain).
+
+## Where are the backups?
+
+**In MatDock**, which owns backups and schedules: a bundle of all volumes, the compose and the `.env`, with retention. They show up in MatDock's
+backup and schedule lists and are started from Mattiverse's *Backups* page (`BackupHub`, ids `matdock:<id>`).
+
+The apps that Mattiverse runs itself (MatDock, and everything while MatDock does not answer yet) are backed up by Mattiverse's own runner
+(`LocalBackupProvider`, ids `local:<id>`): each volume is copied with a throw-away `busybox` container, the manifest keeps the compose files, the
+variables and the image digests, so a local backup restores into a fresh Mattiverse. The two lists are merged on one page; an *All apps* schedule runs
+in MatDock, a schedule for an app runs where the app runs.
+
+- **Consistent by default.** Containers are stopped while the volumes are copied and started again afterwards, whatever happens. A live copy is
+  possible and marked as such.
+- **Restore** first backs up the current state (switchable) and re-creates the app even when it was uninstalled.
+- **Download** as a `.tar` to copy a backup off the host. Remote targets (SMB, NAS) are MatDock's backup targets.
+- Limits: backups contain secrets (the `.env`), so protect the location like the volumes; no encryption.
 
 ## Where are the compose files?
 
-**On the Mattiverse data volume, one folder per app:** `/data/apps/<app>/`.
+Of the stacks that MatDock runs: **in MatDock** (below its data volume), one text per stack, which is what the user sees and edits there.
+Of the stacks that Mattiverse runs itself: on the Mattiverse data volume, `/data/apps/<app>/` with `docker-compose.yml` (the rendered file) and
+`.env`, so `docker compose -p mattiverse-<app> -f ... up -d` works by hand.
 
-```
-docker-compose.yml            the catalog entry, unchanged (its x-mattiverse block is ignored by compose)
-.env                          the answers of the install form and a few values Mattiverse adds (MV_SLUG, TZ, ...)
-docker-compose.override.yml   generated: container names, labels, shared network, the published port of the UI
-```
-
-Why not the database, or `/tmp` as MatOS does: files on the volume survive an update of Mattiverse (`pull && up -d`), are
-easy to read and back up, and `docker compose -p mattiverse-<app> -f ... up -d` works by hand if Mattiverse is ever not
-available. The database only stores what the UI needs (names, ports, state, credentials).
-
-**Compatibility with MatDock and the other tools:** every container has the label
-`com.docker.compose.project=mattiverse-<app>`, so MatDock lists the stacks as *discovered* and can start, stop and
-restart them. Adopting a stack in MatDock reads the compose file from the host path in the label; that path is inside the
-Mattiverse volume, so adoption needs MatDock to read it through the volume (see [INTEGRATION.md](INTEGRATION.md)).
-Catalog entries are valid compose files, so MatDock's own *Apps* feature (a template is a compose text) can import
-them as they are.
-
-**Rule for catalog entries:** use named volumes, not relative bind mounts. Mattiverse runs `docker compose` inside its
-container, so a relative path would resolve inside that container and not on the host.
-
-## Where are the backups: Mattiverse or MatDock?
-
-**Integrated in Mattiverse**, with MatDock as the tool for the advanced cases.
-
-Reasons:
-- **MatDock has no API.** It cannot be driven from outside today; every MatDock feature is a page with a cookie login.
-  Delegating backups would first need a new `/api/v1` there.
-- The wizard promises that Mattiverse alone can install **and back up**. Having to set up a second tool for the second
-  half would break that.
-- What is needed for the simple case is small: copy the volumes, keep the compose files, restore.
-
-What a backup is (`/data/backups/<app>/<timestamp>/`):
-
-```
-manifest.json         app, catalog entry, the three compose files, services with image digests, volume list
-volumes/<volume>.tar.gz
-```
-
-- **Consistent by default.** The containers are stopped while the volumes are copied and started again afterwards, whatever
-  happens (a `finally`). Databases (PostgreSQL in MatMail, MatPaper, Matdo) are therefore consistent without
-  dump tooling. A live copy is possible and marked as such in the list.
-- **Restorable anywhere.** The manifest holds the compose files and the variables, so a backup restores into a fresh
-  Mattiverse (the app is re-created) and keeps working after the app was uninstalled. A restore first backs up the
-  current state (switchable).
-- **Schedules** are daily or weekly with a retention count (only *scheduled* backups are pruned, never manual ones).
-- **Download** as a `.tar` to copy a backup off the host. Remote targets (SMB, NAS) are what MatDock already does: mount
-  the share at `/data/backups` or use MatDock's backup targets for the volumes.
-
-Limits that are on purpose for now: the backup folder contains secrets (the `.env`), so protect it like the
-volume; images are recorded by digest but not exported; there is no encryption.
+**Rule for catalog entries:** use named volumes, not relative bind mounts. `docker compose` runs inside a container (Mattiverse's or MatDock's), so a relative
+path would resolve inside that container and not on the host.
 
 ## Where does the catalog live?
 
-**In Mattiverse** (`src/Mattiverse.Core/Catalog/apps/*.yml`, embedded, plus `/data/catalog/*.yml`). A catalog entry is a
-compose file with an `x-mattiverse` block ([CATALOG.md](CATALOG.md)): data, not code. MatOS keeps its catalog in C#
-code, which makes every new app a release; here it is a file. A user file with the same `id` replaces the built-in entry.
+**In Mattiverse** (`src/Mattiverse.Core/catalog/apps/*.yml`, embedded, plus `/data/catalog/*.yml`). A catalog entry is a compose file with an
+`x-mattiverse` block ([CATALOG.md](CATALOG.md)): data, not code. MatOS keeps its catalog in C# code, which makes every new app a release; here it is a file.
+A user file with the same `id` replaces the built-in entry. The three engines carry `core: true` and a `provision` key that names what connects them.
 
-## Reverse proxy, DynDNS, Docker management
-
-The wizard asks for three **roles**; every catalog entry has a `role` (`proxy`, `ddns`, `docker`, `app`).
-
-- **Reverse proxy.** With **Matcad**, Mattiverse calls its REST API (`X-Api-Key`, generated per install and kept
-  encrypted with the apps' variables): sets the base domain, creates a route `<app>.<domain>` →
-  `http://mattiverse-<app>-<ui service>:<port>` for each app and removes it on uninstall. Other proxies are installed but
-  routes are manual.
-- **DynDNS.** Matddns is installed with a generated admin password. It has no management API yet, so its
-  sources and rules are set up in its own UI ([INTEGRATION.md](INTEGRATION.md)).
-- **Docker management.** MatDock is installed with a generated admin password (`MatDock__Admin__Seed`).
-
-All of them share the Docker network `mattiverse` with Mattiverse itself (it attaches itself on start), so Mattiverse and
-the proxy reach the apps by container name (`mattiverse-<app>-<service>`).
+All apps and engines share the Docker network `mattiverse` with Mattiverse itself (it attaches itself on start), so they reach each other by container name
+(`mattiverse-<app>-<service>`). If Docker's address pools are used up, `Mattiverse__NetworkSubnet` gives the network an explicit subnet.
 
 ## How a long task runs
 
@@ -109,6 +118,8 @@ being installed.
   admin pages are listed in `Program.cs`.
 - Microsoft Entra ID: the sign-in is isolated in `AuthService` and `SessionService`; adding an OpenID Connect scheme
   next to the cookie and mapping the claims to `User` is the planned step.
+- The engines' API keys are generated by Mattiverse when it installs them, stored with the app's variables (protected) and sent as `X-Api-Key`.
+  An engine without a key answers `503`, so its API is never open.
 
 ## Database conventions
 
@@ -119,6 +130,7 @@ SQLite (`mattiverse.db`) holds the logic, JSON (`config/system.json`) the config
 - Every row has `CreateDate`, `CreateUserId`, `UpdateDate`, `UpdateUserId` and `UpdateState` (0 deleted, 1 created, 2 updated).
   `Remove` becomes a soft delete and a global query filter hides deleted rows; unique indexes ignore deleted rows.
 - Schema changes are EF Core migrations (`src/Mattiverse.Core/Data/Migrations`), applied at start.
+- `Backup` and `BackupSchedule` only hold the backups and schedules of Mattiverse's own runner; those of MatDock live in MatDock.
 
 ## UI conventions
 
@@ -136,4 +148,5 @@ SQLite (`mattiverse.db`) holds the logic, JSON (`config/system.json`) the config
 
 - **No `mssql-server` / `pgadmin` service.** The project template names them; with SQLite neither is needed. The release
   stack is the single service `mattiverse`; the dev stack adds a SQLite web viewer.
-- No multi-host management (that is MatDock), no file explorer or terminal (MatOS / MatDock), no remote backup targets yet.
+- No multi-host management (that is MatDock), no file explorer or terminal (MatOS / MatDock).
+- No deep integration of alternatives (Nginx Proxy Manager, Portainer): they are installed as plain apps.
