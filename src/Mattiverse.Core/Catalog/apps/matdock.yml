@@ -1,0 +1,50 @@
+# MatDock – Docker manager for servers (the advanced Docker management).
+x-mattiverse:
+  id: matdock
+  name: MatDock
+  tagline: Advanced Docker management
+  description: >-
+    Stacks, containers, volumes, live logs, a web terminal and scheduled backups across many hosts over SSH.
+    Use it where Mattiverse stops: managing other servers, migrating volumes and backups to a NAS.
+  category: Infrastructure
+  role: docker
+  icon: matdock.svg
+  homepage: https://github.com/Real-TTX/MatDock
+  recommended: true
+  ui:
+    service: matdock
+    port: 4455
+    hostPort: 4455
+  variables:
+    - key: ADMIN_PASSWORD
+      label: Admin password
+      type: secret
+      generate: true
+      help: The initial password of the user "admin" (MatDock asks to change it on the first sign-in). Leave empty to generate one.
+  notes:
+    - MatDock sees the containers of Mattiverse apps as "discovered" stacks (the compose project label is set).
+  credentials:
+    - label: Username
+      value: admin
+    - label: Password
+      value: ${ADMIN_PASSWORD}
+      secret: true
+    - label: Next step
+      value: Add the local Docker engine under Environments (connection type "Local").
+
+services:
+  matdock:
+    # MatDock publishes :release (and version tags) but no :latest.
+    image: ghcr.io/real-ttx/matdock:release
+    restart: unless-stopped
+    environment:
+      MatDock__DataPath: /data
+      MatDock__Admin__Seed: "true"
+      MatDock__Admin__Username: admin
+      MatDock__Admin__Password: ${ADMIN_PASSWORD}
+    volumes:
+      - matdock-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  matdock-data:

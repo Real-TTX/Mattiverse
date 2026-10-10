@@ -1,0 +1,47 @@
+# MatSplit – shared expenses for trips and flats.
+x-mattiverse:
+  id: matsplit
+  name: MatSplit
+  tagline: Shared expenses for trips and flats
+  description: Track who paid what in a group, attach receipts with the camera and settle up with a click. Guests join through a link.
+  category: Fun
+  role: app
+  icon: matsplit.svg
+  homepage: https://github.com/Real-TTX/MatSplit
+  ui:
+    service: matsplit
+    port: 8080
+    hostPort: 4774
+  variables:
+    - key: TIMEZONE
+      label: Time zone
+      default: Europe/Berlin
+      advanced: true
+  credentials:
+    - label: Username
+      value: admin
+    - label: Password
+      value: admin
+    - label: Note
+      value: Change this password after the first sign-in.
+
+services:
+  matsplit:
+    image: ghcr.io/real-ttx/matsplit:latest
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      MATSPLIT_DATA_DIR: /data
+      TZ: ${TIMEZONE:-Europe/Berlin}
+    volumes:
+      - matsplit-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  matsplit-data:

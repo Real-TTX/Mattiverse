@@ -1,0 +1,31 @@
+# MatPlay – scorekeeper for game nights.
+x-mattiverse:
+  id: matplay
+  name: MatPlay
+  tagline: Scorekeeper for game nights
+  description: Keep the score of card and board games, with player statistics and history. Works offline as an installed web app.
+  category: Fun
+  role: app
+  icon: matplay.svg
+  homepage: https://github.com/Real-TTX/MatPlay
+  ui:
+    service: matplay
+    port: 8080
+    hostPort: 4664
+  credentials:
+    - label: Username
+      value: admin
+    - label: Password
+      value: admin
+    - label: Note
+      value: MatPlay asks you to change this password on the first sign-in.
+
+services:
+  matplay:
+    image: ghcr.io/real-ttx/matplay:latest
+    restart: unless-stopped
+    volumes:
+      - matplay-data:/data
+
+volumes:
+  matplay-data:

@@ -1,0 +1,45 @@
+# Mattiverse – development stack: builds the image from the source in this folder.
+# The only other service is a SQLite web viewer (the SQLite counterpart of pgAdmin).
+#   ./scripts/redeploy.ps1            (rebuilds the container and redeploys the stack)
+#   docker compose -f docker-compose.dev.yml up -d --build
+#
+# Web:        http://localhost:8020      (MATTIVERSE_PORT changes the host port)
+# SQLite web: http://localhost:8021      (MATTIVERSE_DB_PORT changes the host port)
+name: mattiverse-dev
+
+services:
+  mattiverse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        Channel: ${MATTIVERSE_CHANNEL:-local}
+        BuildNumber: ${MATTIVERSE_BUILD_NUMBER:-0}
+        BuildDate: ${MATTIVERSE_BUILD_DATE:-}
+    image: mattiverse:dev
+    container_name: mattiverse-dev
+    restart: unless-stopped
+    ports:
+      - "${MATTIVERSE_PORT:-8020}:8020"
+    environment:
+      # Development seeds a ready-to-use account (tester / Tester123!) so testing never touches the real admin.
+      ASPNETCORE_ENVIRONMENT: Development
+    volumes:
+      - mattiverse-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  sqlite-web:
+    image: coleifer/sqlite-web:latest
+    container_name: mattiverse-dev-sqlite-web
+    restart: unless-stopped
+    depends_on:
+      - mattiverse
+    ports:
+      - "${MATTIVERSE_DB_PORT:-8021}:8080"
+    environment:
+      SQLITE_DATABASE: /data/mattiverse.db
+    volumes:
+      - mattiverse-data:/data
+
+volumes:
+  mattiverse-data:

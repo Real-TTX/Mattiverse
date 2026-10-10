@@ -1,0 +1,58 @@
+# Matddns – universal DynDNS updater.
+x-mattiverse:
+  id: matddns
+  name: Matddns
+  tagline: DynDNS client with failover
+  description: >-
+    Keeps your DNS records in sync with your current IP. Pulls the IP from many sources (public IP, UniFi, FRITZ!Box, ...),
+    writes it to Cloudflare, Netcup, Hetzner, GoDaddy or any DynDNS provider and fails over to the next reachable source.
+  category: Infrastructure
+  role: ddns
+  icon: matddns.svg
+  homepage: https://github.com/Real-TTX/Matddns
+  recommended: true
+  ui:
+    service: matddns
+    port: 8080
+    hostPort: 4060
+  variables:
+    - key: ADMIN_PASSWORD
+      label: Admin password
+      type: secret
+      generate: true
+      help: The password of the user "admin". Leave empty to generate one.
+    - key: TIMEZONE
+      label: Time zone
+      default: Europe/Berlin
+      advanced: true
+  credentials:
+    - label: Username
+      value: admin
+    - label: Password
+      value: ${ADMIN_PASSWORD}
+      secret: true
+    - label: Next step
+      value: Add a source (where your IP comes from), a domain (where it is written) and a rule that connects them.
+
+services:
+  matddns:
+    image: ghcr.io/real-ttx/matddns:latest
+    restart: unless-stopped
+    environment:
+      TZ: ${TIMEZONE:-Europe/Berlin}
+      MATDDNS_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      MATDDNS_FORWARDED_HEADERS: "true"
+    volumes:
+      - matddns-data:/data
+    # Lets the non-root user send ICMP for the "ping" failover check.
+    sysctls:
+      - net.ipv4.ping_group_range=0 2147483647
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  matddns-data:

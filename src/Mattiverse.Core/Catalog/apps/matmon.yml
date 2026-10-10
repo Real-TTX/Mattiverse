@@ -1,0 +1,47 @@
+# Matmon – monitoring.
+x-mattiverse:
+  id: matmon
+  name: Matmon
+  tagline: Monitoring for your services
+  description: Sensors, status pages and alerts for the services in your network, with remote probes for other sites.
+  category: Monitoring
+  role: app
+  icon: matmon.svg
+  homepage: https://github.com/Real-TTX/Matmon
+  ui:
+    service: matmon
+    port: 8099
+    hostPort: 8099
+  variables:
+    - key: ADMIN_PASSWORD
+      label: Admin password
+      type: secret
+      generate: true
+      help: The password of the user "admin". Leave empty to generate one.
+    - key: TIMEZONE
+      label: Time zone
+      default: Europe/Berlin
+      advanced: true
+  credentials:
+    - label: Username
+      value: admin
+    - label: Password
+      value: ${ADMIN_PASSWORD}
+      secret: true
+
+services:
+  matmon:
+    image: ghcr.io/real-ttx/matmon:latest
+    restart: unless-stopped
+    environment:
+      TZ: ${TIMEZONE:-Europe/Berlin}
+      Matmon__Auth__Username: admin
+      Matmon__Auth__Password: ${ADMIN_PASSWORD}
+    volumes:
+      - matmon-data:/app/data
+    extra_hosts:
+      # Lets sensors reach services on the Docker host through host.docker.internal.
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  matmon-data:

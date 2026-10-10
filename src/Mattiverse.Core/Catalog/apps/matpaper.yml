@@ -1,0 +1,43 @@
+# MatPaper – document management.
+x-mattiverse:
+  id: matpaper
+  name: MatPaper
+  tagline: Document management system
+  description: Scan or upload documents, let them be recognised and filed, and find them again in seconds.
+  category: Files
+  role: app
+  icon: matpaper.svg
+  homepage: https://github.com/Real-TTX/MatPaper
+  ui:
+    service: matpaper
+    port: 8080
+    hostPort: 4994
+  notes:
+    - The PostgreSQL database is only reachable inside the stack, so its default password is not exposed.
+  credentials:
+    - label: First sign-in
+      value: MatPaper walks you through creating the administrator.
+
+services:
+  matpaper:
+    image: ghcr.io/real-ttx/matpaper:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+    volumes:
+      - matpaper-data:/data
+      - matpaper-storage:/storage
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: matpaper
+      POSTGRES_DB: matpaper
+    volumes:
+      - matpaper-db:/var/lib/postgresql/data
+
+volumes:
+  matpaper-data:
+  matpaper-storage:
+  matpaper-db:

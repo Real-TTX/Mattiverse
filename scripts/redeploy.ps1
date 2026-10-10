@@ -1,0 +1,49 @@
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Rebuilds the Mattiverse container and redeploys the dev stack (the project's live-reload / test workflow).
+.DESCRIPTION
+    Always rebuilds the image from the current source and recreates the container; the data volume stays.
+    The version of a local build is "local-<builddate>".
+.PARAMETER Fresh
+    Also deletes the data volume first (clean start, the setup wizard appears again).
+.PARAMETER Port
+    Host port of the web interface (default 8020).
+.EXAMPLE
+    ./scripts/redeploy.ps1
+.EXAMPLE
+    ./scripts/redeploy.ps1 -Fresh -Port 8120
+#>
+param(
+    [switch]$Fresh,
+    [int]$Port = 8020
+)
+
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $PSScriptRoot
+Push-Location $root
+try {
+    $env:MATTIVERSE_CHANNEL = 'local'
+    $env:MATTIVERSE_BUILD_DATE = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+    $env:MATTIVERSE_PORT = "$Port"
+
+    $compose = @('compose', '-f', 'docker-compose.dev.yml')
+
+    # Windows PowerShell 5.1 turns the progress lines docker writes to stderr into errors; judge by the exit code instead.
+    $ErrorActionPreference = 'Continue'
+
+    if ($Fresh) {
+        Write-Host 'Removing the stack and its volume ...' -ForegroundColor Yellow
+        docker @compose down -v
+    }
+
+    docker @compose up -d --build --remove-orphans
+    if ($LASTEXITCODE -ne 0) { throw 'docker compose failed.' }
+
+    Write-Host ''
+    Write-Host "Mattiverse local-$($env:MATTIVERSE_BUILD_DATE) is running on http://localhost:$Port" -ForegroundColor Green
+    Write-Host 'Dev login: tester / Tester123!   |   SQLite web: http://localhost:8021' -ForegroundColor DarkGray
+}
+finally {
+    Pop-Location
+}

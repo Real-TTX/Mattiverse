@@ -1,0 +1,63 @@
+# Matcad – reverse proxy (Caddy) with a web UI.
+x-mattiverse:
+  id: matcad
+  name: Matcad
+  tagline: Reverse proxy with automatic HTTPS
+  description: >-
+    Routes your domains to your apps, issues Let's Encrypt certificates (wildcards too, through DNS providers)
+    and can protect apps with a login. Mattiverse creates a route for every app you install.
+  category: Infrastructure
+  role: proxy
+  icon: matcad.svg
+  homepage: https://github.com/Real-TTX/Matcad
+  recommended: true
+  provision: matcad
+  ui:
+    service: matcad
+    port: 4433
+    hostPort: 4433
+  shared: [caddy]
+  notes:
+    - Needs the host ports 80 and 443. Stop any other web server or proxy that uses them first.
+    - Keep the Matcad UI (port 4433) off the public internet.
+  variables:
+    - key: MATCAD_API_KEY
+      label: API key
+      type: secret
+      generate: true
+      hidden: true
+  credentials:
+    - label: Username
+      value: admin
+    - label: Password
+      value: admin
+    - label: Note
+      value: Matcad asks you to change this password on the first sign-in.
+
+services:
+  caddy:
+    image: ghcr.io/real-ttx/matcad-caddy:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-logs:/caddy-logs
+
+  matcad:
+    image: ghcr.io/real-ttx/matcad:latest
+    restart: unless-stopped
+    depends_on:
+      - caddy
+    environment:
+      Matcad__ApiKey: ${MATCAD_API_KEY}
+    volumes:
+      - matcad-data:/data
+      - caddy-logs:/caddy-logs
+
+volumes:
+  matcad-data:
+  caddy-data:
+  caddy-logs:

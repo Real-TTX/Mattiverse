@@ -1,0 +1,49 @@
+# MatBu – backup and sync for files and Docker volumes.
+x-mattiverse:
+  id: matbu
+  name: MatBu
+  tagline: Backup and sync
+  description: Scheduled backups and file sync between hosts, with a worker that can also back up Docker volumes.
+  category: Tools
+  role: app
+  icon: matbu.svg
+  homepage: https://github.com/Real-TTX/MatBu
+  ui:
+    service: matbu
+    port: 9293
+    hostPort: 9293
+  notes:
+    - MatBu gets read-only access to the Docker socket to find the volumes it can back up.
+  credentials:
+    - label: Username
+      value: admin
+    - label: Password
+      value: admin
+    - label: Note
+      value: Change this password after the first sign-in.
+
+services:
+  matbu:
+    image: ghcr.io/real-ttx/matbu:latest
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      MATBU_DATA_PATH: /data
+      MATBU_TRUST_FORWARD_HEADERS: "true"
+    volumes:
+      - matbu-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  matbu-worker:
+    image: ghcr.io/real-ttx/matbu:latest
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      MATBU_DATA_PATH: /data
+      MATBU_DOCKER_WORKER: "true"
+    volumes:
+      - matbu-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+volumes:
+  matbu-data:

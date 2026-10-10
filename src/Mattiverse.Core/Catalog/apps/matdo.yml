@@ -1,0 +1,63 @@
+# Matdo – tasks and projects.
+x-mattiverse:
+  id: matdo
+  name: Matdo
+  tagline: Tasks and projects
+  description: A fast task manager with projects, labels, due dates and shared lists.
+  category: Productivity
+  role: app
+  icon: matdo.svg
+  homepage: https://github.com/Real-TTX/Matdo
+  ui:
+    service: web
+    port: 6006
+    hostPort: 6006
+  variables:
+    - key: DB_PASSWORD
+      label: Database password
+      type: secret
+      generate: true
+      hidden: true
+    - key: TIMEZONE
+      label: Time zone
+      default: Europe/Berlin
+      advanced: true
+  credentials:
+    - label: First sign-in
+      value: Matdo walks you through creating the first account.
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: matdo
+      POSTGRES_USER: matdo
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: ${TIMEZONE:-Europe/Berlin}
+    volumes:
+      - matdo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matdo -d matdo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    image: ghcr.io/real-ttx/matdo:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:6006
+      ConnectionStrings__Postgres: "Host=db;Port=5432;Database=matdo;Username=matdo;Password=${DB_PASSWORD}"
+      Matdo__ConfigDir: /data/config
+      TZ: ${TIMEZONE:-Europe/Berlin}
+    volumes:
+      - matdo-config:/data
+
+volumes:
+  matdo-pgdata:
+  matdo-config:

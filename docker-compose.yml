@@ -1,0 +1,26 @@
+# Mattiverse – release stack: as simple as it gets, one service and one data volume.
+#   docker compose up -d
+#
+# Or without Compose, a single command:
+#   docker run -d --name mattiverse --restart unless-stopped -p 8020:8020 \
+#     -v mattiverse-data:/data -v /var/run/docker.sock:/var/run/docker.sock \
+#     ghcr.io/real-ttx/mattiverse:latest
+#
+# Web: http://localhost:8020  (the first start opens the setup wizard)
+name: mattiverse
+
+services:
+  mattiverse:
+    image: ghcr.io/real-ttx/mattiverse:latest
+    container_name: mattiverse
+    restart: unless-stopped
+    ports:
+      - "${MATTIVERSE_PORT:-8020}:8020"
+    volumes:
+      # Database, config, session keys, the compose files of all installed apps and the backups.
+      - mattiverse-data:/data
+      # Mattiverse installs, updates and backs up the apps through the Docker engine.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  mattiverse-data:
