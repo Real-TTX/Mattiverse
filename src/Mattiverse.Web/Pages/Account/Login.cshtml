@@ -1,0 +1,43 @@
+@page
+@model Mattiverse.Web.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<div class="login">
+    <div class="login__brand">
+        <img src="~/img/logo.svg" alt="Mattiverse" />
+        <span class="name">Mattiverse</span>
+        <span class="tagline">Your apps. Your universe.</span>
+    </div>
+
+    <div class="card">
+        <div class="card__body">
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="alert alert--error"><icon name="x-circle" /><span>@Model.ErrorMessage</span></div>
+            }
+
+            <form method="post" class="mat-form">
+                <input type="hidden" asp-for="ReturnUrl" />
+
+                <mat-field label="Username" asp-for="Input.Username">
+                    <input asp-for="Input.Username" class="mat-input" autocomplete="username" autofocus />
+                </mat-field>
+
+                <mat-field label="Password" asp-for="Input.Password">
+                    <input asp-for="Input.Password" type="password" class="mat-input" autocomplete="current-password" />
+                </mat-field>
+
+                <label class="mat-check">
+                    <input asp-for="Input.RememberMe" type="checkbox" />
+                    <span>Stay signed in</span>
+                </label>
+
+                <button type="submit" class="mat-btn mat-btn--primary">
+                    <icon name="login" /><span>Sign in</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>

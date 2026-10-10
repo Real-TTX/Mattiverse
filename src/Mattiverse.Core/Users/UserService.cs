@@ -96,6 +96,25 @@ public sealed class UserService
         return true;
     }
 
+    /// <summary>Stores the preferred theme (<c>system</c>, <c>light</c> or <c>dark</c>) of a user. Returns the user, or <c>null</c> if it does not exist.</summary>
+    public async Task<User?> SetThemeAsync(long id, string theme, CancellationToken ct = default)
+    {
+        if (theme is not ("system" or "light" or "dark"))
+        {
+            throw new ArgumentException("Unknown theme: " + theme, nameof(theme));
+        }
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+        if (user is null)
+        {
+            return null;
+        }
+
+        user.Theme = theme;
+        await _db.SaveChangesAsync(ct);
+        return user;
+    }
+
     public Task<int> CountAsync(CancellationToken ct = default)
         => _db.Users.CountAsync(ct);
 }

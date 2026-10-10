@@ -1,0 +1,58 @@
+@page
+@model Mattiverse.Web.Pages.Settings.IndexModel
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="page-head">
+    <div class="page-head__title">
+        <h1>Settings</h1>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert--success"><icon name="check-circle" /><span>@Model.StatusMessage</span></div>
+}
+
+<tab-bar model='SettingsTabs.Build("general")' />
+
+<form method="post" class="mat-form stack" style="max-width:760px;">
+    <div class="card">
+        <div class="card__header"><icon name="globe" /><span>Addresses</span></div>
+        <div class="card__body">
+            <div class="form-grid">
+                <mat-field label="Name" asp-for="Input.InstanceName" hint="Shown on the home screen and in the browser tab.">
+                    <input asp-for="Input.InstanceName" class="mat-input" />
+                </mat-field>
+                <mat-field label="Address of this machine" asp-for="Input.PublicHost" hint="How you reach this host, like nas.local or 192.168.1.20. Empty: whatever the browser used.">
+                    <input asp-for="Input.PublicHost" class="mat-input" placeholder="nas.local" />
+                </mat-field>
+                <mat-field label="Domain for your apps" asp-for="Input.BaseDomain" hint="With a reverse proxy every app gets app.example.com. Empty: apps use their port.">
+                    <input asp-for="Input.BaseDomain" class="mat-input" placeholder="example.com" />
+                </mat-field>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__header"><icon name="save" /><span>Backup defaults</span></div>
+        <div class="card__body">
+            <div class="form-grid">
+                <mat-field label="Keep the newest" asp-for="Input.BackupRetention" hint="For new schedules.">
+                    <input asp-for="Input.BackupRetention" type="number" min="1" max="365" class="mat-input" />
+                </mat-field>
+                <div>
+                    <label class="mat-switch" style="margin-top:28px;">
+                        <input asp-for="Input.BackupStopContainers" type="checkbox" />
+                        <span>Stop apps while their data is copied</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <mat-form-buttons>
+        <button type="submit" class="mat-btn mat-btn--primary"><icon name="save" /><span>Save</span></button>
+    </mat-form-buttons>
+</form>

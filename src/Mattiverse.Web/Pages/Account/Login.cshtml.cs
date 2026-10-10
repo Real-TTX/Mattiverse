@@ -1,0 +1,88 @@
+using System.ComponentModel.DataAnnotations;
+using Mattiverse.Core.Auth;
+using Mattiverse.Web.Infrastructure;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace Mattiverse.Web.Pages.Account;
+
+[AllowAnonymous]
+public class LoginModel : PageModel
+{
+    private readonly AuthService _authService;
+    private readonly SessionService _sessionService;
+
+    public LoginModel(AuthService authService, SessionService sessionService)
+    {
+        _authService = authService;
+        _sessionService = sessionService;
+    }
+
+    [BindProperty]
+    public InputModel Input { get; set; } = new();
+
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
+    public string? ErrorMessage { get; private set; }
+
+    public class InputModel
+    {
+        [Required(ErrorMessage = "Please enter your username.")]
+        [Display(Name = "Username")]
+        public string Username { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please enter your password.")]
+        [DataType(DataType.Password)]
+        [Display(Name = "Password")]
+        public string Password { get; set; } = string.Empty;
+
+        [Display(Name = "Stay signed in")]
+        public bool RememberMe { get; set; } = true;
+    }
+
+    public IActionResult OnGet()
+    {
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return LocalRedirect(SafeReturnUrl());
+        }
+
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostAsync()
+    {
+        if (!ModelState.IsValid)
+        {
+            return Page();
+        }
+
+        var result = await _authService.AuthenticateAsync(Input.Username, Input.Password, HttpContext.RequestAborted);
+        if (!result.Succeeded || result.User is null)
+        {
+            ErrorMessage = result.Error ?? "Sign-in failed.";
+            return Page();
+        }
+
+        var session = await _sessionService.CreateAsync(
+            result.User.Id,
+            Request.Headers.UserAgent.ToString(),
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            HttpContext.RequestAborted);
+
+        var principal = PrincipalFactory.Build(result.User, session.Token);
+        await HttpContext.SignInAsync(
+            AuthConstants.CookieScheme,
+            principal,
+            new AuthenticationProperties { IsPersistent = Input.RememberMe });
+
+        // Forced password change lands on the profile page via the guard middleware.
+        return LocalRedirect(SafeReturnUrl());
+    }
+
+    private string SafeReturnUrl()
+        => !string.IsNullOrEmpty(ReturnUrl) && Url.IsLocalUrl(ReturnUrl) ? ReturnUrl : "/";
+}

@@ -43,3 +43,11 @@ services:
 
 volumes:
   mattiverse-data:
+
+# An explicit subnet: on a machine with many stacks Docker can run out of its default address pools
+# ("all predefined address pools have been fully subnetted"). Override with MATTIVERSE_DEV_SUBNET if this range collides.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${MATTIVERSE_DEV_SUBNET:-10.253.90.0/24}

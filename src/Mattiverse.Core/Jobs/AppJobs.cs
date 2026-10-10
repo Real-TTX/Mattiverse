@@ -3,6 +3,7 @@ using Mattiverse.Core.Backups;
 using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Data;
 using Mattiverse.Core.Entities;
+using Mattiverse.Core.Integrations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -30,6 +31,10 @@ public static class AppJobs
                 ?? throw new InvalidOperationException("The app does not exist (any more).");
             await ctx.Services.GetRequiredService<BackupService>().RunBackupAsync(app, kind, stopContainers, note, ctx.Log, ctx.Cancellation);
         };
+
+    /// <summary>Gives Mattiverse and every installed app their route on the reverse proxy (after the base domain changed, for example).</summary>
+    public static Func<JobContext, Task> PublishRoutes()
+        => ctx => ctx.Services.GetRequiredService<ProxyPublisher>().PublishAllAsync(ctx.Log, ctx.Cancellation);
 
     public static Func<JobContext, Task> Restore(long backupId, bool backupCurrentFirst)
         => ctx => ctx.Services.GetRequiredService<BackupService>().RestoreAsync(backupId, backupCurrentFirst, ctx.Log, ctx.Cancellation);

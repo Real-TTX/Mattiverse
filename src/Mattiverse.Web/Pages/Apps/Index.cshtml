@@ -1,0 +1,111 @@
+@page
+@model Mattiverse.Web.Pages.Apps.IndexModel
+@{
+    ViewData["Title"] = "Apps";
+    var isAdmin = User.IsAdmin();
+}
+
+<div class="page-head">
+    <div class="page-head__title">
+        <h1>Apps</h1>
+    </div>
+</div>
+
+<div @(Model.Busy ? "data-autorefresh=4000" : "")>
+<mat-table>
+    <mat-table-toolbar>
+        <form method="get" class="js-autosubmit">
+            <div class="search">
+                <icon name="search" />
+                <input type="search" name="Q" value="@Model.Q" class="mat-input" placeholder="Search apps…" aria-label="Search apps" />
+            </div>
+            <div class="toolbar-field">
+                <label for="status">Status</label>
+                <select id="status" name="Status" class="mat-select">
+                    <option value="">All</option>
+                    <option value="running" selected="@(Model.Status == "running")">Running</option>
+                    <option value="stopped" selected="@(Model.Status == "stopped")">Stopped</option>
+                    <option value="attention" selected="@(Model.Status == "attention")">Needs attention</option>
+                </select>
+            </div>
+            <div class="toolbar-field">
+                <label for="sort">Sort</label>
+                <select id="sort" name="SortKey" class="mat-select">
+                    <option value="NameAsc" selected="@(Model.SortKey == "NameAsc")">A–Z: Name</option>
+                    <option value="NameDesc" selected="@(Model.SortKey == "NameDesc")">Z–A: Name</option>
+                    <option value="Status" selected="@(Model.SortKey == "Status")">Status</option>
+                    <option value="Newest" selected="@(Model.SortKey == "Newest")">Newest first</option>
+                </select>
+            </div>
+        </form>
+    </mat-table-toolbar>
+
+    <mat-table-body>
+        @if (Model.Items.Count == 0)
+        {
+            <div class="empty-state"><div><icon name="apps" /></div><p>No apps found.</p></div>
+        }
+        else
+        {
+            <table class="data">
+                <thead>
+                    <tr><th>App</th><th>Status</th><th>Address</th><th>Last backup</th><th class="actions"></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Items)
+                    {
+                        var app = row.App;
+                        <tr>
+                            <td>
+                                <div class="name-cell">
+                                    <app-icon name="@app.Name" icon="@row.Icon" />
+                                    <span>
+                                        <a href="/Apps/Details?id=@app.Id"><strong>@app.Name</strong></a>
+                                        <small>@row.Kind</small>
+                                    </span>
+                                </div>
+                            </td>
+                            <td><partial name="_StatusPill" model="row.Status" /></td>
+                            <td class="text-muted">
+                                @if (!string.IsNullOrEmpty(app.PublicUrl))
+                                {
+                                    <span>@app.PublicUrl.Replace("https://", "").Replace("http://", "")</span>
+                                }
+                                else if (app.HostPort is { } port)
+                                {
+                                    <span>port @port</span>
+                                }
+                                else
+                                {
+                                    <span>–</span>
+                                }
+                            </td>
+                            <td class="text-muted nowrap">@(app.LastBackupAt is { } backup ? Format.Ago(backup) : "never")</td>
+                            <td class="actions">
+                                <div class="row-actions">
+                                    @if (app.Lifecycle == AppLifecycle.Installed && app.UiService is not null)
+                                    {
+                                        <a class="mat-btn mat-btn--sm mat-btn--icon mat-btn--primary" href="/Apps/Open?id=@app.Id" title="Open"><icon name="external" /></a>
+                                    }
+                                    <a class="mat-btn mat-btn--sm mat-btn--icon mat-btn--ghost" href="/Apps/Details?id=@app.Id" title="Details"><icon name="info" /></a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </mat-table-body>
+
+    <mat-table-pagination>
+        <pagination model="Model.Pagination" />
+    </mat-table-pagination>
+
+    @if (isAdmin)
+    {
+        <mat-table-actions>
+            <a href="/Store" class="mat-btn mat-btn--primary"><icon name="plus" /><span>Install app</span></a>
+        </mat-table-actions>
+    }
+</mat-table>
+</div>

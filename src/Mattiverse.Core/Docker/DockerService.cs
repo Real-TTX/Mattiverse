@@ -143,13 +143,20 @@ public sealed partial class DockerService
             return [];
         }
 
-        return result.StdOut
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(line => line.Split('\t'))
+        return ParseContainers(result.StdOut);
+    }
+
+    /// <summary>
+    /// Reads the tab separated output of <c>docker ps</c>. The last field (the ports) is empty for a stopped container, so a
+    /// line must not be trimmed: that would drop the trailing tab and with it the whole container.
+    /// </summary>
+    public static List<ContainerInfo> ParseContainers(string output)
+        => output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.TrimEnd('\r').Split('\t'))
             .Where(p => p.Length >= 8)
             .Select(p => new ContainerInfo(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]))
             .ToList();
-    }
 
     /// <summary>Summarizes the containers of one app as a single state.</summary>
     public static RuntimeInfo Summarize(IReadOnlyCollection<ContainerInfo> containers)

@@ -1,0 +1,80 @@
+@page
+@model Mattiverse.Web.Pages.Backups.ScheduleEditModel
+@{
+    ViewData["Title"] = Model.IsEdit ? "Edit schedule" : "New schedule";
+}
+
+<div class="page-head">
+    <div class="page-head__title">
+        <h1>@ViewData["Title"]</h1>
+    </div>
+</div>
+
+<div class="card" style="max-width:720px;">
+    <div class="card__body">
+        <form method="post" class="mat-form">
+            <input type="hidden" asp-for="Input.Id" />
+
+            <div class="form-grid">
+                <mat-field label="Name" asp-for="Input.Name">
+                    <input asp-for="Input.Name" class="mat-input" />
+                </mat-field>
+
+                <mat-field label="Apps" asp-for="Input.AppId">
+                    <select asp-for="Input.AppId" class="mat-select">
+                        <option value="">All apps</option>
+                        @foreach (var app in Model.Apps)
+                        {
+                            <option value="@app.Id" selected="@(Model.Input.AppId == app.Id)">@app.Name</option>
+                        }
+                    </select>
+                </mat-field>
+
+                <mat-field label="Repeat" asp-for="Input.Frequency">
+                    <select asp-for="Input.Frequency" class="mat-select">
+                        <option value="Daily">Every day</option>
+                        <option value="Weekly">Every week</option>
+                    </select>
+                </mat-field>
+
+                <div data-show-if="#Input_Frequency" data-show-value="Weekly" @(Model.Input.Frequency == BackupFrequency.Weekly ? "" : "hidden")>
+                    <mat-field label="On" asp-for="Input.Weekday">
+                        <select asp-for="Input.Weekday" class="mat-select">
+                            @foreach (var day in Enum.GetValues<DayOfWeek>())
+                            {
+                                <option value="@day">@day</option>
+                            }
+                        </select>
+                    </mat-field>
+                </div>
+
+                <mat-field label="At" asp-for="Input.Time" hint="Time of day on the Mattiverse host.">
+                    <input asp-for="Input.Time" type="time" class="mat-input" />
+                </mat-field>
+
+                <mat-field label="Keep the newest" asp-for="Input.Retention" hint="Older scheduled backups of an app are deleted.">
+                    <input asp-for="Input.Retention" type="number" min="1" max="365" class="mat-input" />
+                </mat-field>
+            </div>
+
+            <label class="mat-switch">
+                <input asp-for="Input.StopContainers" type="checkbox" />
+                <span>Stop the app while its data is copied (consistent databases)</span>
+            </label>
+            <label class="mat-switch">
+                <input asp-for="Input.Enabled" type="checkbox" />
+                <span>Schedule is on</span>
+            </label>
+
+            <mat-form-buttons>
+                <button type="submit" class="mat-btn mat-btn--primary"><icon name="save" /><span>Save</span></button>
+                <a href="/Backups?tab=schedules" class="mat-btn mat-btn--ghost"><icon name="back" /><span>Back</span></a>
+                @if (Model.IsEdit)
+                {
+                    <span class="mat-buttons__spacer"></span>
+                    <button type="submit" asp-page-handler="Delete" formnovalidate class="mat-btn mat-btn--danger"><icon name="trash" /><span>Delete</span></button>
+                }
+            </mat-form-buttons>
+        </form>
+    </div>
+</div>

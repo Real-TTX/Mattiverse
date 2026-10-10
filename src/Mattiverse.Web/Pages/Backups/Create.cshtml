@@ -1,0 +1,51 @@
+@page
+@model Mattiverse.Web.Pages.Backups.CreateModel
+@{
+    ViewData["Title"] = "New backup";
+}
+
+<div class="page-head">
+    <div class="page-head__title">
+        <h1>New backup</h1>
+    </div>
+</div>
+
+<div class="card" style="max-width:640px;">
+    <div class="card__body">
+        @if (Model.Apps.Count == 0)
+        {
+            <div class="empty-state"><div><icon name="apps" /></div><p>There is no app to back up yet.</p></div>
+        }
+        else
+        {
+            <form method="post" class="mat-form">
+                <mat-field label="App" asp-for="AppId">
+                    <select asp-for="AppId" class="mat-select">
+                        <option value="">Choose an app …</option>
+                        @foreach (var app in Model.Apps)
+                        {
+                            <option value="@app.Id" selected="@(Model.AppId == app.Id)">@app.Name</option>
+                        }
+                    </select>
+                </mat-field>
+
+                <label class="mat-switch">
+                    <input asp-for="StopContainers" type="checkbox" />
+                    <span>Stop the app while its data is copied (consistent databases)</span>
+                </label>
+                <div class="text-muted" style="font-size:.85rem;margin-top:-6px;">
+                    The app is down for the duration of the copy and started again afterwards. Without it, the copy is taken from the running app.
+                </div>
+
+                <mat-field label="Note" asp-for="Note" hint="Optional, shown in the list.">
+                    <input asp-for="Note" class="mat-input" />
+                </mat-field>
+
+                <mat-form-buttons>
+                    <button type="submit" class="mat-btn mat-btn--primary"><icon name="save" /><span>Back up</span></button>
+                    <a href="/Backups" class="mat-btn mat-btn--ghost"><icon name="back" /><span>Back</span></a>
+                </mat-form-buttons>
+            </form>
+        }
+    </div>
+</div>

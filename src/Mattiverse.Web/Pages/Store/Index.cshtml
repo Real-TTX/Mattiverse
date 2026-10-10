@@ -1,0 +1,101 @@
+@page
+@model Mattiverse.Web.Pages.Store.IndexModel
+@{
+    ViewData["Title"] = "Store";
+}
+
+<div class="page-head">
+    <div class="page-head__title">
+        <h1>Store</h1>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert--success"><icon name="check-circle" /><span>@Model.StatusMessage</span></div>
+}
+
+<mat-table>
+    <mat-table-toolbar>
+        <form method="get" class="js-autosubmit">
+            <div class="search">
+                <icon name="search" />
+                <input type="search" name="Q" value="@Model.Q" class="mat-input" placeholder="Search apps…" aria-label="Search apps" />
+            </div>
+            <div class="toolbar-field">
+                <label for="category">Category</label>
+                <select id="category" name="Category" class="mat-select">
+                    <option value="">All</option>
+                    @foreach (var category in Model.Categories)
+                    {
+                        <option value="@category" selected="@(string.Equals(Model.Category, category, StringComparison.OrdinalIgnoreCase))">@category</option>
+                    }
+                </select>
+            </div>
+            <div class="toolbar-field">
+                <label for="sort">Sort</label>
+                <select id="sort" name="SortKey" class="mat-select">
+                    <option value="NameAsc" selected="@(Model.SortKey == "NameAsc")">A–Z: Name</option>
+                    <option value="NameDesc" selected="@(Model.SortKey == "NameDesc")">Z–A: Name</option>
+                    <option value="Category" selected="@(Model.SortKey == "Category")">Category</option>
+                </select>
+            </div>
+        </form>
+    </mat-table-toolbar>
+
+    <mat-table-body>
+        @if (Model.Items.Count == 0)
+        {
+            <div class="empty-state"><div><icon name="store" /></div><p>No app matches your search.</p></div>
+        }
+        else
+        {
+            <div class="store-grid">
+                @foreach (var app in Model.Items)
+                {
+                    var installed = Model.InstalledCounts.GetValueOrDefault(app.Id);
+                    <a class="store-card" href="/Store/Install?id=@app.Id">
+                        <app-icon name="@app.Name" icon="@app.Icon" size="lg" />
+                        <span class="store-card__body">
+                            <span class="store-card__name">
+                                @app.Name
+                                @if (app.Recommended)
+                                {
+                                    <span class="mat-badge">Recommended</span>
+                                }
+                            </span>
+                            <span class="store-card__tagline">@app.Tagline</span>
+                            <span class="store-card__meta">
+                                <span class="mat-badge">@app.Category</span>
+                                @if (installed > 0)
+                                {
+                                    <span class="pill pill--online">Installed@(installed > 1 ? $" ×{installed}" : "")</span>
+                                }
+                                @if (!app.BuiltIn)
+                                {
+                                    <span class="pill pill--unknown">Custom</span>
+                                }
+                            </span>
+                        </span>
+                    </a>
+                }
+            </div>
+        }
+    </mat-table-body>
+
+    <mat-table-pagination>
+        <pagination model="Model.Pagination" />
+    </mat-table-pagination>
+
+    <mat-table-actions>
+        <form method="post" asp-page-handler="Reload" class="inline-form">
+            <button type="submit" class="mat-btn mat-btn--ghost" title="Pick up files you added to /data/catalog">
+                <icon name="refresh" /><span>Reload catalog</span>
+            </button>
+        </form>
+    </mat-table-actions>
+</mat-table>
+
+<p class="text-muted" style="margin-top:14px;font-size:.88rem;">
+    Missing an app? An app is a compose file with an <code>x-mattiverse</code> block: drop it into <code>/data/catalog</code> and reload the catalog.
+</p>

@@ -155,7 +155,7 @@ public sealed partial class AppService
         {
             await _docker.EnsureNetworkAsync(ct);
 
-            var variables = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
+            var variables = await RefreshFilesAsync(app, catalog, ct);
             foreach (var conflict in await _ports.FindConflictsAsync(catalog, variables, app.ProjectName, ct))
             {
                 log($"Warning: host port {conflict.Port}/{conflict.Protocol} is already used by '{conflict.Container}'; the start may fail.");
@@ -203,18 +203,7 @@ public sealed partial class AppService
             await _backups.RunBackupAsync(app, BackupKind.PreUpdate, config.Backups.StopContainers, "Before an update", log, ct);
         }
 
-        // New catalog versions can add variables (a database password): keep the answers, fill in what is new.
-        var errors = new List<string>();
-        var existing = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
-        var variables = AppVariables.Resolve(catalog, new Dictionary<string, string?>(), existing, errors);
-        if (errors.Count > 0)
-        {
-            throw new InvalidOperationException(string.Join(' ', errors));
-        }
-
-        app.VariablesJson = AppVariables.Serialize(catalog, variables, _protector);
-        await _files.WriteAsync(app, catalog, variables, config.PublicHost ?? "localhost", ct);
-        await _db.SaveChangesAsync(ct);
+        await RefreshFilesAsync(app, catalog, ct);
 
         await _docker.EnsureNetworkAsync(ct);
         var images = await _compose.GetImagesAsync(app.Slug, ct);
@@ -246,6 +235,28 @@ public sealed partial class AppService
         app.StatusMessage = null;
         await _db.SaveChangesAsync(ct);
         log($"{app.Name} is up to date.");
+    }
+
+    /// <summary>
+    /// Writes the compose files of an app again from its current catalog entry. Keeps the answers the user gave and fills
+    /// in what is new (a newer catalog entry can add a variable such as a database password), so fixes to a catalog entry
+    /// reach apps that were installed earlier.
+    /// </summary>
+    private async Task<Dictionary<string, string>> RefreshFilesAsync(InstalledApp app, CatalogApp catalog, CancellationToken ct)
+    {
+        var errors = new List<string>();
+        var existing = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
+        var variables = AppVariables.Resolve(catalog, new Dictionary<string, string?>(), existing, errors);
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(string.Join(' ', errors));
+        }
+
+        var config = await _config.GetAsync(ct);
+        app.VariablesJson = AppVariables.Serialize(catalog, variables, _protector);
+        await _files.WriteAsync(app, catalog, variables, config.PublicHost ?? "localhost", ct);
+        await _db.SaveChangesAsync(ct);
+        return variables;
     }
 
     private async Task<Dictionary<string, string?>> ImageIdsAsync(IEnumerable<string> images, CancellationToken ct)
@@ -364,9 +375,34 @@ public sealed partial class AppService
 
         if (exit != 0)
         {
-            var detail = string.Join(" | ", tail.Where(l => !string.IsNullOrWhiteSpace(l)));
-            throw new InvalidOperationException($"{failureMessage} (docker compose {args[0]} exit code {exit}): {detail}");
+            // The last distinct lines say what Docker complained about; the hint (if there is one) comes first so it is never cut off.
+            var lines = tail.Select(l => l.Trim()).Where(l => l.Length > 0).Distinct().TakeLast(3).ToList();
+            var detail = string.Join(" | ", lines);
+            throw new InvalidOperationException($"{failureMessage}.{Hint(detail)} Docker said (docker compose {args[0]}, exit code {exit}): {detail}");
         }
+    }
+
+    /// <summary>Explains the Docker errors that users cannot be expected to know how to fix.</summary>
+    public static string Hint(string dockerOutput)
+    {
+        if (dockerOutput.Contains("address pools have been fully subnetted", StringComparison.OrdinalIgnoreCase))
+        {
+            return " Hint: Docker has run out of network addresses. Remove networks you do not use ('docker network prune') or enlarge 'default-address-pools' in the Docker daemon settings.";
+        }
+
+        if (dockerOutput.Contains("port is already allocated", StringComparison.OrdinalIgnoreCase) ||
+            dockerOutput.Contains("address already in use", StringComparison.OrdinalIgnoreCase))
+        {
+            return " Hint: a host port is already in use. Stop whatever uses it, or change the port in the install form (Advanced).";
+        }
+
+        if (dockerOutput.Contains("pull access denied", StringComparison.OrdinalIgnoreCase) ||
+            dockerOutput.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
+        {
+            return " Hint: the image is private or does not exist. For a private image run 'docker login' on the host.";
+        }
+
+        return string.Empty;
     }
 
     /// <summary>

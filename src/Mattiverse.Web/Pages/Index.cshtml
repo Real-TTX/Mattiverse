@@ -1,0 +1,127 @@
+@page
+@model Mattiverse.Web.Pages.IndexModel
+@{
+    ViewData["Title"] = "Home";
+    var isAdmin = User.IsAdmin();
+}
+
+<div class="launcher" @(Model.Busy ? "data-autorefresh=4000" : "")>
+    <div class="launcher__hero">
+        <div>
+            <div class="launcher__time" data-clock>--:--</div>
+            <div class="launcher__date" data-clock-date></div>
+            <div class="launcher__greeting" data-greeting="@User.GetDisplayName()">Hello, @User.GetDisplayName()</div>
+        </div>
+        @if (Model.Tiles.Count > 4)
+        {
+            <div class="search launcher__search">
+                <icon name="search" />
+                <input type="search" class="mat-input" placeholder="Search apps…" data-tile-filter aria-label="Search apps" />
+            </div>
+        }
+    </div>
+
+    @if (!Model.Engine.Available)
+    {
+        <div class="alert alert--error">
+            <icon name="x-circle" />
+            <span>
+                Mattiverse cannot reach Docker (@Model.Engine.Error). Start the container with the Docker socket:
+                <code>-v /var/run/docker.sock:/var/run/docker.sock</code>
+            </span>
+        </div>
+    }
+
+    @if (isAdmin && !Model.Config.WizardCompleted)
+    {
+        <div class="alert alert--info">
+            <icon name="sparkles" />
+            <span>
+                Mattiverse is not set up yet. <a href="/Wizard"><strong>Run the setup wizard</strong></a> to choose your reverse proxy, DynDNS client and Docker management.
+            </span>
+        </div>
+    }
+
+    <div class="widgets">
+        <a class="widget" href="/Apps">
+            <span class="widget__icon"><icon name="apps" /></span>
+            <span>
+                <span class="widget__value">@Model.Running<span class="text-muted" style="font-weight:500;"> / @Model.Tiles.Count</span></span><br />
+                <span class="widget__label">apps running</span>
+            </span>
+        </a>
+        @if (isAdmin)
+        {
+            <a class="widget" href="/Backups">
+                <span class="widget__icon"><icon name="save" /></span>
+                <span>
+                    <span class="widget__value">@(Model.LastBackup is { } last ? Format.Ago(last) : "never")</span><br />
+                    <span class="widget__label">last backup</span>
+                </span>
+            </a>
+            <a class="widget" href="/Jobs">
+                <span class="widget__icon"><icon name="activity" /></span>
+                <span>
+                    <span class="widget__value">@(Model.ActiveJobs == 0 ? "All quiet" : $"{Model.ActiveJobs} running")</span><br />
+                    <span class="widget__label">activity</span>
+                </span>
+            </a>
+        }
+        @if (Model.Engine.Available)
+        {
+            <div class="widget">
+                <span class="widget__icon"><icon name="whale" /></span>
+                <span>
+                    <span class="widget__value">@Model.Engine.ContainersRunning containers</span><br />
+                    <span class="widget__label">Docker @Model.Engine.Version</span>
+                </span>
+            </div>
+        }
+    </div>
+
+    @if (Model.Tiles.Count > 0)
+    {
+        <div class="section-title">Your apps</div>
+        <div class="tiles">
+            @foreach (var tile in Model.Tiles)
+            {
+                <a class="tile" href="@tile.Href" data-name="@tile.App.Name.ToLowerInvariant()" title="@tile.App.Name · @tile.Status.Text">
+                    <span class="tile__dot tile__dot--@tile.Status.Css"></span>
+                    <app-icon name="@tile.App.Name" icon="@Model.IconOf(tile.App)" />
+                    <span class="tile__label">@tile.App.Name</span>
+                </a>
+            }
+        </div>
+    }
+    else if (isAdmin)
+    {
+        <div class="card">
+            <div class="card__body empty-state">
+                <div><icon name="rocket" /></div>
+                <h2>Install your first app</h2>
+                <p>The store has your Mat apps and a few more, installed with one click.</p>
+                <a class="mat-btn mat-btn--primary" href="/Store"><icon name="store" /><span>Open the store</span></a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card"><div class="card__body empty-state"><div><icon name="apps" /></div><p>No apps yet. Ask an administrator to install some.</p></div></div>
+    }
+
+    <div class="section-title">Mattiverse</div>
+    <div class="tiles">
+        @if (isAdmin)
+        {
+            <a class="tile tile--system" href="/Store"><span class="app-icon"><icon name="store" /></span><span class="tile__label">Store</span></a>
+        }
+        <a class="tile tile--system" href="/Apps"><span class="app-icon"><icon name="apps" /></span><span class="tile__label">Apps</span></a>
+        @if (isAdmin)
+        {
+            <a class="tile tile--system" href="/Backups"><span class="app-icon"><icon name="save" /></span><span class="tile__label">Backups</span></a>
+            <a class="tile tile--system" href="/Jobs"><span class="app-icon"><icon name="activity" /></span><span class="tile__label">Activity</span></a>
+            <a class="tile tile--system" href="/Users"><span class="app-icon"><icon name="users" /></span><span class="tile__label">Users</span></a>
+            <a class="tile tile--system" href="/Settings"><span class="app-icon"><icon name="settings" /></span><span class="tile__label">Settings</span></a>
+        }
+    </div>
+</div>

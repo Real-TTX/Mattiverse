@@ -1,0 +1,39 @@
+@page
+@model Mattiverse.Web.Pages.Apps.UninstallModel
+@{
+    ViewData["Title"] = $"Uninstall {Model.App.Name}";
+}
+
+<div class="page-head">
+    <div class="page-head__title">
+        <h1>Uninstall @Model.App.Name</h1>
+    </div>
+</div>
+
+<div class="card" style="max-width:640px;">
+    <div class="card__body">
+        <p>
+            The containers of the app are stopped and removed. By default its <strong>data is kept</strong> in the Docker volumes,
+            so installing the app again picks it up where it was.
+        </p>
+        <form method="post" asp-route-id="@Model.App.Id" class="mat-form">
+            <label class="mat-switch">
+                <input asp-for="DeleteData" type="checkbox" />
+                <span>Also delete the data (the volumes)</span>
+            </label>
+
+            <div data-show-if="#DeleteData" data-show-value="true" hidden>
+                <div class="alert alert--warning" style="margin-bottom:12px;"><icon name="alert" /><span>The data of the app is deleted for good.</span></div>
+                <label class="mat-switch">
+                    <input asp-for="BackupFirst" type="checkbox" />
+                    <span>Create a final backup first</span>
+                </label>
+            </div>
+
+            <mat-form-buttons>
+                <button type="submit" class="mat-btn mat-btn--solid-danger"><icon name="trash" /><span>Uninstall</span></button>
+                <a href="/Apps/Details?id=@Model.App.Id" class="mat-btn mat-btn--ghost"><icon name="back" /><span>Back</span></a>
+            </mat-form-buttons>
+        </form>
+    </div>
+</div>

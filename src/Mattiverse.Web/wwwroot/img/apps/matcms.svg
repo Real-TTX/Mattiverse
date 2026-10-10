@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatCMS">
+  <defs>
+    <linearGradient id="cms" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#cms)"/>
+  <rect x="11" y="14" width="42" height="9" rx="2.5" fill="#fff"/>
+  <rect x="11" y="27" width="19" height="23" rx="2.5" fill="#fff" fill-opacity=".92"/>
+  <rect x="34" y="27" width="19" height="9" rx="2.5" fill="#fff" fill-opacity=".92"/>
+  <rect x="34" y="41" width="19" height="9" rx="2.5" fill="#fff" fill-opacity=".92"/>
+</svg>

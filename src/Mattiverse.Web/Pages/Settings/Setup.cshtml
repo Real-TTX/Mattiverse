@@ -1,0 +1,64 @@
+@page
+@model Mattiverse.Web.Pages.Settings.SetupModel
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="page-head">
+    <div class="page-head__title">
+        <h1>Settings</h1>
+    </div>
+</div>
+
+<tab-bar model='SettingsTabs.Build("setup")' />
+
+<div class="stack" style="max-width:760px;">
+    <div class="card">
+        <div class="card__body">
+            <p style="margin:0;">
+                The setup wizard asks which reverse proxy, DynDNS client and Docker management you want and installs them.
+                You can run it again at any time: what is installed stays, and you can add the rest.
+            </p>
+            <mat-form-buttons>
+                <a href="/Wizard" class="mat-btn mat-btn--primary"><icon name="sparkles" /><span>Run the setup wizard</span></a>
+            </mat-form-buttons>
+        </div>
+    </div>
+
+    @foreach (var slot in Model.Slots)
+    {
+        <div class="card">
+            <div class="card__body">
+                <div class="hero-head">
+                    @if (slot.Installed is not null)
+                    {
+                        <app-icon name="@slot.Installed.Name" icon="@slot.IconFile" size="lg" />
+                    }
+                    else
+                    {
+                        <span class="app-icon app-icon--lg" style="display:grid;place-items:center;font-size:1.8rem;color:var(--text-muted);"><icon name="@slot.Icon" /></span>
+                    }
+                    <div class="hero-head__text">
+                        <h3>@slot.Title</h3>
+                        <div class="text-muted">@slot.Description</div>
+                    </div>
+                    <div>
+                        @if (slot.Installed is { } installed)
+                        {
+                            <a href="/Apps/Details?id=@installed.Id" class="mat-btn mat-btn--sm"><span>@installed.Name</span><icon name="chevron-right" /></a>
+                        }
+                        else
+                        {
+                            <span class="pill pill--unknown">Not installed</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (Model.Config.WizardCompleted)
+    {
+        <p class="text-muted" style="margin:0;">Last run of the wizard: @(Model.Config.WizardCompletedAt is { } at ? Format.DateTimeLocal(at) : "unknown").</p>
+    }
+</div>

@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using Mattiverse.Core.Apps;
 using Mattiverse.Core.Catalog;
@@ -414,52 +413,5 @@ public sealed class BackupService
         {
             _logger.LogWarning(ex, "Could not delete {Path}.", path);
         }
-    }
-}
-
-/// <summary>The version of the running Mattiverse (from the assembly's informational version).</summary>
-public static class AppVersion
-{
-    public static string Current { get; } =
-        (Assembly.GetEntryAssembly() ?? typeof(AppVersion).Assembly)
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? "unknown";
-}
-
-/// <summary>Reads back the <c>.env</c> files that <see cref="AppVariables.BuildEnvFile"/> writes.</summary>
-public static class EnvFileParser
-{
-    private static readonly HashSet<string> BuiltIns = new(StringComparer.Ordinal) { "MV_SLUG", "MV_PROJECT", "MV_PUBLIC_HOST", "TZ" };
-
-    public static bool IsBuiltIn(string key) => BuiltIns.Contains(key);
-
-    public static Dictionary<string, string> Parse(string env)
-    {
-        var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var raw in env.Split('\n'))
-        {
-            var line = raw.Trim();
-            if (line.Length == 0 || line.StartsWith('#'))
-            {
-                continue;
-            }
-
-            var eq = line.IndexOf('=');
-            if (eq <= 0)
-            {
-                continue;
-            }
-
-            var key = line[..eq].Trim();
-            var value = line[(eq + 1)..].Trim();
-            if (value.Length >= 2 && value[0] == '\'' && value[^1] == '\'')
-            {
-                value = value[1..^1];
-            }
-
-            values[key] = value;
-        }
-
-        return values;
     }
 }

@@ -1,0 +1,34 @@
+@page
+@model Mattiverse.Web.Pages.Jobs.DetailsModel
+@{
+    ViewData["Title"] = Model.Job.Title;
+    var job = Model.Job;
+    var app = Model.App;
+}
+
+<div data-job>
+    <div class="page-head">
+        <div class="page-head__title">
+            <h1>@job.Title</h1>
+            <span class="pill pill--busy" data-job-status>@job.Status</span>
+        </div>
+    </div>
+
+    <div class="stack">
+        <div class="alert alert--error" data-job-error hidden style="margin:0;"></div>
+
+        <pre class="log log--tall" data-job-log data-job-id="@job.Id" aria-live="polite"></pre>
+
+        <mat-form-buttons>
+            @if (app is not null && app.UiService is not null && job.Kind != JobKind.Uninstall)
+            {
+                <a href="/Apps/Open?id=@app.Id" class="mat-btn mat-btn--primary" data-job-done hidden><icon name="rocket" /><span>Open @app.Name</span></a>
+            }
+            @if (app is not null && job.Kind != JobKind.Uninstall)
+            {
+                <a href="/Apps/Details?id=@app.Id" class="mat-btn" data-job-done hidden><icon name="info" /><span>Details</span></a>
+            }
+            <a href="/Jobs" class="mat-btn mat-btn--ghost"><icon name="back" /><span>Activity</span></a>
+        </mat-form-buttons>
+    </div>
+</div>

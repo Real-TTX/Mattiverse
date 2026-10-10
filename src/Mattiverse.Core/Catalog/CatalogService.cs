@@ -30,6 +30,9 @@ public sealed class CatalogService
         }
     }
 
+    /// <summary>The icon file (or URL) of a catalog entry, <c>null</c> when it has none or no longer exists.</summary>
+    public string? IconOf(string? id) => Get(id)?.Icon;
+
     public CatalogApp? Get(string? id)
         => string.IsNullOrEmpty(id) ? null : GetAll().FirstOrDefault(a => a.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
 

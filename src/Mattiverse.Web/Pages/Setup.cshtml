@@ -1,0 +1,45 @@
+@page
+@model Mattiverse.Web.Pages.SetupModel
+@{
+    ViewData["Title"] = "Welcome";
+}
+
+<div class="login login--wide">
+    <div class="login__brand">
+        <img src="~/img/logo.svg" alt="Mattiverse" />
+        <span class="name">Welcome to Mattiverse</span>
+        <span class="tagline">Create the administrator account to get started.</span>
+    </div>
+
+    <div class="card">
+        <div class="card__body">
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="alert alert--error"><icon name="x-circle" /><span>@Model.ErrorMessage</span></div>
+            }
+
+            <form method="post" class="mat-form">
+                <div asp-validation-summary="ModelOnly"></div>
+
+                <div class="form-grid">
+                    <mat-field label="Username" asp-for="Input.Username">
+                        <input asp-for="Input.Username" class="mat-input" autocomplete="username" autofocus />
+                    </mat-field>
+                    <mat-field label="Display name" asp-for="Input.DisplayName">
+                        <input asp-for="Input.DisplayName" class="mat-input" />
+                    </mat-field>
+                    <mat-field label="Password" asp-for="Input.Password" hint="At least 8 characters.">
+                        <input asp-for="Input.Password" type="password" class="mat-input" autocomplete="new-password" />
+                    </mat-field>
+                    <mat-field label="Confirm password" asp-for="Input.ConfirmPassword">
+                        <input asp-for="Input.ConfirmPassword" type="password" class="mat-input" autocomplete="new-password" />
+                    </mat-field>
+                </div>
+
+                <mat-form-buttons>
+                    <button type="submit" class="mat-btn mat-btn--primary"><icon name="rocket" /><span>Create account and continue</span></button>
+                </mat-form-buttons>
+            </form>
+        </div>
+    </div>
+</div>

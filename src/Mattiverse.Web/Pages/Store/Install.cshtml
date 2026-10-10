@@ -1,0 +1,109 @@
+@page
+@model Mattiverse.Web.Pages.Store.InstallModel
+@{
+    var app = Model.App!;
+    ViewData["Title"] = $"Install {app.Name}";
+    var main = app.Variables.Where(v => !v.Hidden && !v.Advanced).ToList();
+    var advanced = app.Variables.Where(v => !v.Hidden && v.Advanced).ToList();
+}
+
+<div class="page-head">
+    <div class="page-head__title hero-head">
+        <app-icon name="@app.Name" icon="@app.Icon" size="xl" />
+        <div class="hero-head__text">
+            <h1>@app.Name</h1>
+            <div class="page-head__sub">@app.Tagline</div>
+        </div>
+    </div>
+</div>
+
+<div class="stack" style="max-width:760px;">
+    <div class="card">
+        <div class="card__body">
+            <p>@app.Description</p>
+            @if (!string.IsNullOrEmpty(app.Homepage))
+            {
+                <a href="@app.Homepage" target="_blank" rel="noopener"><icon name="external" /> Project page</a>
+            }
+        </div>
+    </div>
+
+    @foreach (var note in app.Notes)
+    {
+        <div class="alert alert--info" style="margin:0;"><icon name="info" /><span>@note</span></div>
+    }
+
+    @foreach (var conflict in Model.PortConflicts)
+    {
+        <div class="alert alert--warning" style="margin:0;">
+            <icon name="alert" />
+            <span>Host port <strong>@conflict.Port</strong> (@conflict.Protocol) is already used by the container <code>@conflict.Container</code>. The app may fail to start until that is stopped.</span>
+        </div>
+    }
+
+    @if (Model.Errors.Count > 0)
+    {
+        <div class="alert alert--error" style="margin:0;">
+            <icon name="x-circle" />
+            <ul>
+                @foreach (var error in Model.Errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card__header"><icon name="settings" /><span>Install @app.Name</span></div>
+        <div class="card__body">
+            <form method="post" class="mat-form">
+                <input type="hidden" name="Id" value="@app.Id" />
+
+                @if (main.Count > 0)
+                {
+                    <div class="form-grid">
+                        @foreach (var variable in main)
+                        {
+                            <mat-field label="@(string.IsNullOrEmpty(variable.Label) ? variable.Key : variable.Label)" hint="@(variable.Help ?? (variable.Generate ? "Leave empty to generate one." : null))">
+                                <input name="Values[@variable.Key]"
+                                       value="@(variable.IsSecret ? "" : Model.Values.GetValueOrDefault(variable.Key) ?? variable.Default)"
+                                       type="@(variable.IsSecret ? "password" : variable.Type == "number" ? "number" : "text")"
+                                       class="mat-input"
+                                       autocomplete="@(variable.IsSecret ? "new-password" : "off")"
+                                       required="@(variable.Required && !variable.Generate)" />
+                            </mat-field>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted" style="margin:0;">Nothing to configure: the defaults are fine. You can change everything later.</p>
+                }
+
+                <details class="advanced">
+                    <summary>Advanced</summary>
+                    <div class="form-grid">
+                        <mat-field label="Display name" hint="Shown on the home screen. Leave empty for the default.">
+                            <input name="Name" value="@Model.Name" class="mat-input" placeholder="@app.Name" />
+                        </mat-field>
+                        @foreach (var variable in advanced)
+                        {
+                            <mat-field label="@(string.IsNullOrEmpty(variable.Label) ? variable.Key : variable.Label)" hint="@variable.Help">
+                                <input name="Values[@variable.Key]"
+                                       value="@(variable.IsSecret ? "" : Model.Values.GetValueOrDefault(variable.Key) ?? variable.Default)"
+                                       type="@(variable.IsSecret ? "password" : variable.Type == "number" ? "number" : "text")"
+                                       class="mat-input" autocomplete="off" />
+                            </mat-field>
+                        }
+                    </div>
+                </details>
+
+                <mat-form-buttons>
+                    <button type="submit" class="mat-btn mat-btn--primary"><icon name="download" /><span>Install</span></button>
+                    <a href="/Store" class="mat-btn mat-btn--ghost"><icon name="back" /><span>Back</span></a>
+                </mat-form-buttons>
+            </form>
+        </div>
+    </div>
+</div>

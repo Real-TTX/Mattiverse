@@ -1,0 +1,131 @@
+@using System.Security.Claims
+@inject Mattiverse.Core.Configuration.SystemConfigService ConfigSvc
+@inject Mattiverse.Core.Jobs.JobService JobSvc
+@{
+    var path = ViewContext.HttpContext.Request.Path.Value ?? "/";
+    bool IsActive(string prefix) => prefix == "/"
+        ? path == "/"
+        : path.Equals(prefix, StringComparison.OrdinalIgnoreCase) || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
+    var isAdmin = User.IsAdmin();
+    var flush = ViewData["Flush"] is true;
+    var config = await ConfigSvc.GetAsync(Context.RequestAborted);
+    var activeJobs = isAuthenticated && isAdmin ? await JobSvc.CountActiveAsync(Context.RequestAborted) : 0;
+    var title = ViewData["Title"] as string;
+}
+<!DOCTYPE html>
+<html lang="en" data-user-theme="@(isAuthenticated ? User.GetTheme() : "system")">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>@(string.IsNullOrEmpty(title) ? config.InstanceName : $"{title} · {config.InstanceName}")</title>
+    <link rel="icon" href="~/img/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="~/img/apple-touch-icon.png" />
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <meta name="theme-color" id="meta-theme-color" content="#121830" />
+    <meta name="application-name" content="Mattiverse" />
+    <meta name="apple-mobile-web-app-title" content="Mattiverse" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="stylesheet" href="~/css/mattiverse.css" asp-append-version="true" />
+    <script>
+        // Apply the theme before the first paint (no flash): the browser's own choice first, then the one saved on the account.
+        (function () {
+            try {
+                var t = localStorage.getItem('mattiverse-theme');
+                if (!t) {
+                    t = document.documentElement.getAttribute('data-user-theme') || 'system';
+                    localStorage.setItem('mattiverse-theme', t);
+                }
+                var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme-pref', t);
+                var m = document.getElementById('meta-theme-color');
+                if (m) { m.setAttribute('content', dark ? '#121830' : '#ffffff'); }
+            } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+        })();
+    </script>
+</head>
+<body class="@(isAuthenticated ? "is-app" : "is-plain") @(flush ? "is-flush" : "")">
+    @if (isAuthenticated)
+    {
+        <div class="app">
+            <input type="checkbox" id="nav-toggle" class="nav-toggle" hidden />
+            <aside class="sidebar">
+                <a class="brand" href="/" aria-label="Home">
+                    <img class="brand__logo" src="~/img/logo.svg" alt="" width="36" height="36" />
+                    <span class="brand__text">
+                        <span class="brand__name">@config.InstanceName</span>
+                        <span class="brand__version">@AppVersion.Current</span>
+                    </span>
+                </a>
+
+                <nav class="sidebar__nav" aria-label="Main navigation">
+                    <a class="nav-link @(IsActive("/") ? "is-active" : "")" href="/"><icon name="home" /><span>Home</span></a>
+                    @if (isAdmin)
+                    {
+                        <a class="nav-link @(IsActive("/Store") ? "is-active" : "")" href="/Store"><icon name="store" /><span>Store</span></a>
+                    }
+                    <a class="nav-link @(IsActive("/Apps") ? "is-active" : "")" href="/Apps"><icon name="apps" /><span>Apps</span></a>
+                    @if (isAdmin)
+                    {
+                        <a class="nav-link @(IsActive("/Backups") ? "is-active" : "")" href="/Backups"><icon name="save" /><span>Backups</span></a>
+                        <a class="nav-link @(IsActive("/Jobs") ? "is-active" : "")" href="/Jobs">
+                            <icon name="activity" /><span>Activity</span>
+                            @if (activeJobs > 0)
+                            {
+                                <span class="nav-badge">@activeJobs</span>
+                            }
+                        </a>
+                        <div class="nav-sep"></div>
+                        <a class="nav-link @(IsActive("/Users") ? "is-active" : "")" href="/Users"><icon name="users" /><span>Users</span></a>
+                        <a class="nav-link @(IsActive("/Settings") || IsActive("/Wizard") ? "is-active" : "")" href="/Settings"><icon name="settings" /><span>Settings</span></a>
+                    }
+                </nav>
+
+                <div class="sidebar__footer">
+                    <a class="account" href="/Account/Profile" title="Account">
+                        <span class="account__avatar"><icon name="user" /></span>
+                        <span class="account__meta">
+                            <span class="account__name">@User.GetDisplayName()</span>
+                            <span class="account__role">@User.GetRole()</span>
+                        </span>
+                    </a>
+
+                    <div class="theme-switch" role="group" aria-label="Theme">
+                        <button type="button" class="theme-switch__btn" data-theme-set="system" title="System" aria-label="System theme"><icon name="monitor" /></button>
+                        <button type="button" class="theme-switch__btn" data-theme-set="light" title="Light" aria-label="Light theme"><icon name="sun" /></button>
+                        <button type="button" class="theme-switch__btn" data-theme-set="dark" title="Dark" aria-label="Dark theme"><icon name="moon" /></button>
+                    </div>
+
+                    <form method="post" asp-page="/Account/Logout" class="logout-form">
+                        <button type="submit" class="nav-link nav-link--logout"><icon name="logout" /><span>Sign out</span></button>
+                    </form>
+                </div>
+            </aside>
+
+            <div class="content">
+                <header class="topbar">
+                    <label for="nav-toggle" class="topbar__menu" aria-label="Menu"><icon name="menu" /></label>
+                    <span class="topbar__title">@title</span>
+                </header>
+                <main class="main @(flush ? "main--flush" : "")">
+                    @RenderBody()
+                </main>
+            </div>
+            <label for="nav-toggle" class="nav-backdrop" aria-hidden="true"></label>
+        </div>
+    }
+    else
+    {
+        <main class="plain-main">
+            @RenderBody()
+        </main>
+    }
+
+    <script src="~/js/mattiverse.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

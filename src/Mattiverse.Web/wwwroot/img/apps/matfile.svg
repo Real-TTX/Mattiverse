@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MatFile">
+  <title>MatFile</title>
+  <defs>
+    <linearGradient id="mf-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee" />
+      <stop offset="0.55" stop-color="#3b82f6" />
+      <stop offset="1" stop-color="#4f46e5" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#mf-bg)" />
+
+  <!-- Angedeuteter Ordner hinter dem Buchstaben: die Herkunft bleibt sichtbar,
+       das Zeichen selbst ist aber das M. -->
+  <path d="M96 168c0-13.3 10.7-24 24-24h72l32 36h192c13.3 0 24 10.7 24 24v180c0 13.3-10.7 24-24 24H120c-13.3 0-24-10.7-24-24z"
+        fill="#ffffff" opacity="0.18" />
+
+  <!-- M in einem Zug gezeichnet - keine Schrift nötig, also überall gleich. -->
+  <path d="M152 372V186l104 104 104-104v186"
+        fill="none" stroke="#ffffff" stroke-width="52"
+        stroke-linecap="round" stroke-linejoin="round" />
+</svg>

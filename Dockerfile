@@ -31,13 +31,14 @@ WORKDIR /app
 
 # Docker CLI + compose plugin: Mattiverse installs and manages the apps through the mounted
 # /var/run/docker.sock. Installed from Docker's apt repo (multi-arch via dpkg --print-architecture).
+# The base image is Ubuntu or Debian depending on the .NET release, so the repo is chosen from /etc/os-release.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
  && install -m 0755 -d /etc/apt/keyrings \
- && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
- && chmod a+r /etc/apt/keyrings/docker.asc \
  && . /etc/os-release \
- && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list \
+ && curl -fsSL "https://download.docker.com/linux/${ID}/gpg" -o /etc/apt/keyrings/docker.asc \
+ && chmod a+r /etc/apt/keyrings/docker.asc \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
  && apt-get purge -y curl gnupg \
