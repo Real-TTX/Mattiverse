@@ -47,7 +47,7 @@ it there, and Mattiverse keeps your change when it updates the app.
 
 **Store**
 - Catalog of your Mat apps (MatMail, MatFile, MatPaper, MatPlay, MatSplit, Matmon, MatCMS, Matdo, MatBu,
-  MatTrakr) and the infrastructure apps
+  MatTrakr), [MatDesign](https://github.com/Real-TTX/MatDesign) (the design and identity of all of them) and the infrastructure apps
 - **Passwords are generated** and shown (hidden until you ask) on the app's page
 - Add your **own apps** by dropping a compose file into `/data/catalog` (see [docs/CATALOG.md](docs/CATALOG.md))
 
