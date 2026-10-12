@@ -13,6 +13,8 @@ installs them and asks once for the domain and the DNS account. They are fixed p
 Stack: ASP.NET Core on **.NET 10**, C#, **Razor Pages** + TagHelper controls, EF Core + **SQLite**, the `docker` CLI against the mounted
 socket, plain JavaScript (no build step), Docker-first. Web port **8030**.
 
+The look and the controls are **MatUi**, the toolkit of [MatDesign](https://github.com/Real-TTX/MatDesign) (the design and identity of all Mat apps, port 8060): the pages are built from its classes and follow its rulebook. Look there (the Components page, the Shell page, the rules) before building any UI.
+
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing the design: it records the decisions (the engines own the
 configuration, reading goes to Docker and changes to the engines, catalog as data, ...). [docs/ENGINES.md](docs/ENGINES.md) is the API contract
 with MatDock, Matcad and Matddns, [docs/CATALOG.md](docs/CATALOG.md) the format of a catalog entry,
@@ -22,7 +24,9 @@ with MatDock, Matcad and Matddns, [docs/CATALOG.md](docs/CATALOG.md) the format 
 
 - **Build:** `dotnet build Mattiverse.slnx` (note: `.slnx`). SDK 10 (see `global.json`). Expected: 0 warnings.
 - **Unit tests:** `dotnet test` (xunit; no Docker needed: catalog parsing, generated compose files, variables, ports, schedules,
-  `docker ps` parsing).
+  `docker ps` parsing, and `WebUiTests`: the pages name only icons of the toolkit sprite, have no inline style or script, and the stylesheet has tokens only).
+- **Browser checks:** `cd tests/e2e && npm install && node run.js [http://localhost:8030]` (Playwright, installed Edge) against the running dev stack: every page light, dark and on a phone,
+  the theme button, the list tools, validation, the flash message, the wizard, the drawer. It removes what it creates.
 - **Run / test the app: always rebuild the container and redeploy the stack** (project rule): `./scripts/redeploy.ps1`
   (`-Fresh` wipes the volume, `-Port` changes the host port). Dev stack: `docker-compose.dev.yml` (app + `sqlite-web` on 8021).
   In `Development` the account `tester` / `Tester123!` exists.
@@ -38,6 +42,8 @@ with MatDock, Matcad and Matddns, [docs/CATALOG.md](docs/CATALOG.md) the format 
   images (`matdock:mattiverse`, `matcad:mattiverse`, `matddns:mattiverse`, built from the `mattiverse-integration` branches), `pull_policy: never`
   (compose cannot pull a local image), other host ports (the PC has a real MatDock on 4455, Matcad on 4433) and own subnets. Do not touch the
   other containers on the PC.
+- **Updating the toolkit:** `./scripts/update-matui.ps1` copies `matui.css`, `matui.js`, `matui.boot.js` and `matui-icons.svg` from a running MatDesign (default http://localhost:8060) into
+  `wwwroot/matui`. The files are a copy (rule CODE-03): never edit them here, a change belongs into MatDesign. The version is the first line of `matui.css`.
 - **Changing engine behaviour:** the engines' own repositories are where it happens (branch `mattiverse-integration`); keep `docs/ENGINES.md` and the
   clients (`MatDockClient`, `MatcadClient`, `MatddnsClient`) in step with them.
 
@@ -59,11 +65,14 @@ src/Mattiverse.Core        domain, no web types
   Auth/ Users/ Security/     login, sessions, PBKDF2 hasher, secret protector
   Configuration/             options, AppPaths, JsonConfigStore, SystemConfig
 src/Mattiverse.Web         Razor Pages, controls, JS/CSS, Program.cs
-  Controls/                  mat-table, pagination, mat-field, mat-form-buttons, tab-bar, app-icon, icon
+  Controls/                  tag helpers icon (a use of the sprite), app-icon, mat-field (label, control, hint, error), tab-bar; ListModels (ToolbarModel, PagerModel, ListView, ListQuery)
   Pages/                     Index (launcher), Apps/, Store/, Backups/, Jobs/, Settings/, Wizard/, Users/, Account/, Share/
+  Pages/Shared/              _Layout (the shell: menus, switcher, user, theme, breadcrumb), _Bare (no menu), _Head, _Toolbar, _Pager, _ValidationSummary, _StatusPill, _DnsFields
   Infrastructure/            cookie session validation, setup guard, DB bootstrap, API endpoints, health check
-  Support/                   AppUrls, FrameProbe, AppStatus, Format
-tests/Mattiverse.Tests
+  Support/                   Toolkit (the icon sprite), Ui (Icon, Logo), Navigation (the menus: NavSet, NavItem, NavBadge), Crumbs, AppUrls, FrameProbe, AppStatus, Format
+  wwwroot/matui/             the toolkit, a copy of MatDesign's; wwwroot/css/mattiverse.css the few classes only this app has (mv-*); wwwroot/js/mattiverse.js its behaviour
+tests/Mattiverse.Tests       unit tests + WebUiTests (they read the source of the pages)
+tests/e2e                    run.js: the pages in a real browser against the running dev stack
 ```
 
 ## Conventions
@@ -83,14 +92,22 @@ tests/Mattiverse.Tests
   security keys are a `Token` UUID (`UserSession`, `ShareLink`). New schema: `dotnet ef migrations add <Name> --project src/Mattiverse.Core
   --startup-project src/Mattiverse.Web --output-dir Data/Migrations`.
 
-**UI**
-- CRUD = a list plus a separate page for create/edit. Lists: toolbar (search, filter, sort) on top, list actions below and
-  left-aligned, delete spaced apart, pagination directly under the table (`<mat-table>` slots). Buttons in one line, positive
-  to negative: Save, Back, (space) Delete. Icons where they help. Dependent fields only when needed (`data-show-if`).
-- Account, logout and the theme (System/Light/Dark) are at the **bottom left of the menu**. Scrollbars are hidden until scrolling.
-- Mobile matters: check phone width (390 px) for every new page; secondary table columns get `hide-sm`.
+**UI** (the rules are MatDesign's: the rulebook and the Components page; where this list and the rulebook differ, the rulebook wins)
+- A page is built only from the classes of the toolkit (`mat-*`); what only Mattiverse has is `mv-*` in `wwwroot/css/mattiverse.css` (tokens only, no literal colour).
+  **No inline style, no inline script, no event-handler attribute** (`WebUiTests` checks).
+- CRUD = a list plus a separate page for create/edit. A list: the toolbar on top (`<partial name="_Toolbar" />`: a search field, Filter and Sort as dialogs; the page model builds it from `ToolbarModel`
+  and `ListView`; the query is `q`, the filters by name, `sort`, `dir` and `page`), the table (`mat-table`, a `data-label` on every cell, a status as `mat-pill`), `_Pager` directly under it, the actions below
+  (`mat-actions`, left-aligned). An empty list says so (`mat-empty`) and offers the action that fills it.
+- A form: `<form class="mat-form" novalidate>`, `_ValidationSummary` on top, fields as `<mat-field>`, then `mat-btn-row`: Save, Back, (space) Delete. The browser-side messages come from `data-msg-*`, the server's
+  land in the same line. A save redirects and sets `StatusMessage` (TempData): the layout shows it as a toast, or as an alert when `IsError`. Confirmations are `data-confirm`. Dependent fields: `data-show-if`.
+- The menu is `Navigation.For` (two menus for an administrator, one for a user; Settings is a submenu; a badge counts what runs). A page sets `Title`, `PageSub`, `Crumbs` and, where needed, `Width`, `OwnHead`
+  or `Flush` (an app in a frame). Pages without a menu (sign-in, setup, a shared link, errors) use `_Bare`.
+- **The logo is the planet with its orbit (`img/logo.svg`), on purpose:** the owner prefers it to the flat glyph tile that rule IDENT-03 asks for. Do not replace it without asking.
+- The theme: the toolkit's button cycles System / Light / Dark and posts the choice to `/api/theme`; the account keeps it. Account, logout and the theme are at the bottom of the menu.
+- Mobile matters: check phone width (390 px) for every new page; secondary table columns get `mat-hide-sm`.
 - After a change to a CSS/cshtml file the container must be rebuilt (they are baked into the image).
-- Take screenshots of real data only; never real user data in `docs/images`.
+- Take screenshots of real data only; never real user data in `docs/images`. The pictures of the README come from a second Mattiverse (own volume, port 8130, own subnets) with two apps installed
+  through the UI; remove it afterwards.
 
 **Git**
 - Commit and push **under the user's name**, never add a Claude/Anthropic co-author trailer or "generated with" line.

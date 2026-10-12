@@ -1,7 +1,6 @@
 using Mattiverse.Core.Data;
 using Mattiverse.Core.Entities;
 using Mattiverse.Web.Controls;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,42 +17,64 @@ public class IndexModel : PageModel
         _db = db;
     }
 
-    [BindProperty(SupportsGet = true)]
-    public string? Q { get; set; }
+    public ListView<Job> List { get; private set; } = default!;
 
-    [BindProperty(SupportsGet = true)]
-    public string? Status { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public string SortKey { get; set; } = "NewestFirst";
-
-    [BindProperty(SupportsGet = true, Name = "page")]
-    public int PageNumber { get; set; } = 1;
-
-    public List<Job> Items { get; private set; } = new();
-    public PaginationModel Pagination { get; private set; } = new();
-    public bool Busy => Items.Any(j => j.Status is JobStatus.Queued or JobStatus.Running);
+    public bool Busy => List.Items.Any(j => j.Status is JobStatus.Queued or JobStatus.Running);
 
     public async Task OnGetAsync()
     {
+        var ct = HttpContext.RequestAborted;
+        var q = ListQuery.Text(Request, "q");
+        var statusText = ListQuery.Text(Request, "status");
+        var descending = ListQuery.Descending(Request, defaultDescending: true);
+
+        var total = await _db.Jobs.CountAsync(ct);
         var query = _db.Jobs.AsNoTracking().AsQueryable();
 
-        if (Enum.TryParse<JobStatus>(Status, out var status))
+        if (Enum.TryParse<JobStatus>(statusText, out var status))
         {
             query = query.Where(j => j.Status == status);
         }
-
-        if (!string.IsNullOrWhiteSpace(Q))
+        else
         {
-            var s = Q.Trim();
-            query = query.Where(j => EF.Functions.Like(j.Title, $"%{s}%") || (j.AppSlug != null && EF.Functions.Like(j.AppSlug, $"%{s}%")));
+            statusText = null;
         }
 
-        query = SortKey == "OldestFirst" ? query.OrderBy(j => j.Id) : query.OrderByDescending(j => j.Id);
+        if (q is not null)
+        {
+            query = query.Where(j => EF.Functions.Like(j.Title, $"%{q}%") || (j.AppSlug != null && EF.Functions.Like(j.AppSlug, $"%{q}%")));
+        }
 
-        var total = await query.CountAsync(HttpContext.RequestAborted);
-        Pagination = new PaginationModel { Page = PageNumber, PageSize = PageSize, TotalItems = total };
-        Pagination.Normalize();
-        Items = await query.Skip((Pagination.Page - 1) * PageSize).Take(PageSize).ToListAsync(HttpContext.RequestAborted);
+        query = descending ? query.OrderByDescending(j => j.Id) : query.OrderBy(j => j.Id);
+
+        var matching = await query.CountAsync(ct);
+        var toolbar = new ToolbarModel
+        {
+            Id = "jobs",
+            Action = "/Jobs",
+            Label = "Activity",
+            Search = q,
+            SearchPlaceholder = "Search activity",
+            SearchField = true,
+            Filters = [new FilterField("status", "Status", Enum.GetValues<JobStatus>().Select(s => new FilterOption(s.ToString(), s.ToString())).ToList(), statusText)],
+            SortOptions = [new("started", "Started")],
+            Sort = "started",
+            Descending = descending,
+            DefaultSort = "started",
+            DefaultDescending = true,
+            Total = total,
+            Matching = matching,
+            Noun = total == 1 ? "task" : "tasks",
+        };
+
+        var pages = Math.Max(1, (int)Math.Ceiling(matching / (double)PageSize));
+        var page = Math.Clamp(ListQuery.Page(Request), 1, pages);
+        var items = await query.Skip((page - 1) * PageSize).Take(PageSize).ToListAsync(ct);
+        List = new ListView<Job>
+        {
+            Items = items,
+            Toolbar = toolbar,
+            Pager = new PagerModel { Page = page, PageSize = PageSize, Total = matching, Url = toolbar.UrlWithPage },
+        };
     }
 }

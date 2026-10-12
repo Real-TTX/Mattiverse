@@ -38,6 +38,8 @@ it there, and Mattiverse keeps your change when it updates the app.
   open in a new tab)
 - Account, theme (**System / Light / Dark**) and sign-out at the **bottom left** of the menu; on a phone the menu
   is a drawer
+- Looks and behaves like every other Mat app: it is built on **MatUi**, the toolkit of
+  [MatDesign](https://github.com/Real-TTX/MatDesign), with its menu, lists, forms, dialogs and dark mode
 
 **Setup wizard** (first start, and again whenever you like)
 - Installs the three **engines**: MatDock (required), Matcad and Matddns (skip one if something else on the host does its job)
@@ -95,14 +97,20 @@ Buttons read from positive to negative: **Open, Stop, Restart, Update, Back up**
 |---|---|
 | ![Backup history](docs/images/backups.png) | ![Backup schedules](docs/images/backup-schedules.png) |
 
-One list for all backups: those MatDock made (badge *MatDock*, also visible in MatDock) next to those of Mattiverse's own runner.
-Every list has its toolbar (search, filters, sort) on top, its actions below and pagination directly under the table.
+One list for all backups: those MatDock made (kept by *MatDock*, also visible in MatDock) next to those of Mattiverse's own runner.
+Every list has its toolbar on top (a search field, *Filter* and *Sort* open dialogs), its actions below and pagination directly under the table.
+
+| Apps | The tools of a list |
+|---|---|
+| ![The apps list](docs/images/apps.png) | ![The filter dialog of a list](docs/images/toolbar-filter.png) |
 
 ### Light theme and phone
 
 | Light | Phone | Phone menu |
 |---|---|---|
 | ![Light theme](docs/images/home-light.png) | ![Phone home screen](docs/images/mobile-home.png) | ![Phone menu](docs/images/mobile-menu.png) |
+
+The hero picture above is the dark theme; *System* follows the device. On a phone tables become cards and dialogs fill the screen.
 
 ## Quick start
 
@@ -200,9 +208,11 @@ JavaScript. No Node build step.
 
 ```bash
 dotnet build Mattiverse.slnx          # 0 warnings expected
-dotnet test                           # unit tests (catalog, installer files, backups, schedules, parsing)
+dotnet test                           # unit tests (catalog, installer files, backups, schedules, parsing, the markup of the pages)
 ./scripts/redeploy.ps1                # rebuild the container and redeploy the dev stack
 ./scripts/redeploy.ps1 -Fresh         # ... with a clean data volume (the first-run setup appears again)
+(cd tests/e2e && npm install && node run.js)   # the pages in a real browser against the dev stack
+./scripts/update-matui.ps1            # bring a newer MatUi from a running MatDesign into wwwroot/matui
 ```
 
 The dev stack is the app plus a SQLite web viewer (the SQLite counterpart of pgAdmin) on
@@ -227,6 +237,7 @@ GitHub Action, which also builds the multi-arch image (`amd64`, `arm64`).
 | Area | Status |
 |---|---|
 | Launcher, store, wizard, themes, mobile layout | ✅ |
+| The look of the Mat family (MatUi of MatDesign: menu, lists, forms, dialogs, dark mode) | ✅ |
 | Install / update / uninstall / start / stop with live logs | ✅ |
 | Backups: manual, scheduled, retention, restore, download (MatDock's, merged with Mattiverse's own) | ✅ |
 | Local users, roles, persistent sessions, shared links | ✅ |

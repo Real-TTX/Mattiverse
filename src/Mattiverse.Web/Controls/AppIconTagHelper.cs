@@ -8,12 +8,16 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 namespace Mattiverse.Web.Controls;
 
 /// <summary>
-/// The squircle app icon used on the home screen, in lists and in the store: <c>&lt;app-icon name="MatMail" icon="matmail.svg" size="lg" /&gt;</c>.
-/// Without an icon file it draws a tile in a colour derived from the name, so every app still looks like an app.
+/// The icon of an app on the home screen, in lists and in the store: <c>&lt;app-icon name="MatMail" icon="matmail.svg" size="lg" /&gt;</c>.
+/// Without an icon file it draws a flat tile with the initials, in one of twelve hues chosen by the name, so every app still looks like an app.
+/// The hue is a class (<c>mv-hue-N</c>), never an inline style (rule CODE-02).
 /// </summary>
 [HtmlTargetElement("app-icon", TagStructure = TagStructure.WithoutEndTag)]
 public sealed class AppIconTagHelper : TagHelper
 {
+    /// <summary>How many hues the stylesheet has (<c>mv-hue-0</c> to <c>mv-hue-11</c>).</summary>
+    internal const int Hues = 12;
+
     private readonly IUrlHelperFactory _urlHelperFactory;
 
     public AppIconTagHelper(IUrlHelperFactory urlHelperFactory)
@@ -26,7 +30,7 @@ public sealed class AppIconTagHelper : TagHelper
     /// <summary>A file name below <c>/img/apps/</c>, an absolute URL, or empty.</summary>
     public string? Icon { get; set; }
 
-    /// <summary><c>sm</c>, <c>lg</c> or <c>xl</c>; default is the 44px list size.</summary>
+    /// <summary><c>sm</c>, <c>lg</c> or <c>xl</c>; default is the 40 px list size.</summary>
     public string? Size { get; set; }
 
     [HtmlAttributeNotBound]
@@ -38,12 +42,10 @@ public sealed class AppIconTagHelper : TagHelper
         output.TagName = "span";
         output.TagMode = TagMode.StartTagAndEndTag;
 
-        var css = "app-icon" + (string.IsNullOrEmpty(Size) ? string.Empty : $" app-icon--{Size}");
+        var css = "mv-appicon" + (string.IsNullOrEmpty(Size) ? string.Empty : $" mv-appicon--{Size}");
         if (string.IsNullOrWhiteSpace(Icon))
         {
-            var hue = Hue(Name);
-            output.Attributes.SetAttribute("class", css + " app-icon--generated");
-            output.Attributes.SetAttribute("style", $"background:linear-gradient(135deg,hsl({hue} 72% 58%),hsl({(hue + 45) % 360} 72% 44%))");
+            output.Attributes.SetAttribute("class", $"{css} mv-hue-{Hue(Name)}");
             output.Content.SetContent(Initials(Name));
         }
         else
@@ -58,7 +60,7 @@ public sealed class AppIconTagHelper : TagHelper
         output.Attributes.SetAttribute("aria-hidden", "true");
     }
 
-    /// <summary>A stable hue (0-359) for a name, so the same app always gets the same colour.</summary>
+    /// <summary>A stable hue number (0 to 11) for a name, so the same app always gets the same colour.</summary>
     internal static int Hue(string name)
     {
         var hash = 17;
@@ -67,7 +69,7 @@ public sealed class AppIconTagHelper : TagHelper
             hash = unchecked((hash * 31) + c);
         }
 
-        return Math.Abs(hash % 360);
+        return Math.Abs(hash % Hues);
     }
 
     internal static string Initials(string name)

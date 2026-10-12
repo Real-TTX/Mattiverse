@@ -34,3 +34,6 @@ tmp/
 
 # Node tooling (screenshots / helper scripts)
 node_modules/
+
+# Browser checks
+**/node_modules/

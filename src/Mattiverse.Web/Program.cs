@@ -52,6 +52,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<ICurrentUserAccessor, HttpCurrentUserAccessor>();
 builder.Services.AddSingleton<SetupState>();
+builder.Services.AddSingleton<Mattiverse.Web.Support.Toolkit>();
 
 // Honour X-Forwarded-* from a TLS-terminating reverse proxy so Request.IsHttps is correct and the
 // auth cookie is marked Secure when the client connection is HTTPS.

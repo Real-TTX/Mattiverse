@@ -2,153 +2,149 @@
 @model Mattiverse.Web.Pages.Backups.IndexModel
 @{
     ViewData["Title"] = "Backups";
-}
-
-<div class="page-head">
-    <div class="page-head__title">
-        <h1>Backups</h1>
-    </div>
-</div>
-
-@if (!string.IsNullOrEmpty(Model.StatusMessage))
-{
-    <div class="alert @(Model.IsError ? "alert--error" : "alert--success")">
-        <icon name="@(Model.IsError ? "x-circle" : "check-circle")" /><span>@Model.StatusMessage</span>
-    </div>
+    ViewData["PageSub"] = "Copies of the data of your apps, taken by hand or on a schedule.";
+    ViewData["Crumbs"] = Crumbs.Of(("Backups", null));
 }
 
 @if (Model.MatDockSilent)
 {
-    <div class="alert alert--warning"><icon name="alert" /><span>MatDock does not answer right now, so its backups and schedules are not listed. They are safe in MatDock.</span></div>
+    <div class="mat-alert mat-alert--warning">
+        <icon name="alert" />
+        <div class="mat-alert__body">MatDock does not answer right now, so its backups and schedules are not listed. They are safe in MatDock.</div>
+    </div>
 }
 
-<tab-bar model="Model.Tabs" />
+<tab-bar model="Model.Tabs" label="Backups" />
 
-@if (Model.SchedulesTab)
+@if (Model.Schedules is { } schedules)
 {
-    <mat-table>
-        <mat-table-body>
-            @if (Model.Schedules.Count == 0)
-            {
-                <div class="empty-state"><div><icon name="calendar" /></div><p>No schedules yet. A schedule backs up your apps automatically and keeps the newest copies.</p></div>
-            }
-            else
-            {
-                <table class="data">
-                    <thead><tr><th>Schedule</th><th>Apps</th><th>When</th><th class="hide-sm">Keeps</th><th class="hide-sm">Last run</th><th class="actions"></th></tr></thead>
+    <div class="mat-list">
+        <partial name="_Toolbar" model="schedules.Toolbar" />
+
+        @if (schedules.Items.Count == 0)
+        {
+            <div class="mat-empty">
+                <span class="mat-empty__icon"><icon name="calendar" /></span>
+                @if (schedules.Filtered)
+                {
+                    <div class="mat-empty__title">Nothing matches</div>
+                    <p>Change the search.</p>
+                    <a class="mat-btn mat-btn--secondary" href="/Backups?tab=schedules">Reset the tools</a>
+                }
+                else
+                {
+                    <div class="mat-empty__title">No schedules yet</div>
+                    <p>A schedule backs up your apps automatically and keeps the newest copies.</p>
+                    <a class="mat-btn mat-btn--primary" href="/Backups/ScheduleEdit"><icon name="plus" /><span>New schedule</span></a>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table">
+                    <caption class="mat-sr-only">Schedules</caption>
+                    <thead><tr><th scope="col">Schedule</th><th scope="col">Apps</th><th scope="col">When</th><th scope="col" class="mat-hide-sm">Keeps</th><th scope="col" class="mat-hide-sm">Last run</th><th scope="col"><span class="mat-sr-only">Actions</span></th></tr></thead>
                     <tbody>
-                        @foreach (var schedule in Model.Schedules)
+                        @foreach (var schedule in schedules.Items)
                         {
                             <tr>
-                                <td>
-                                    <a asp-page="/Backups/ScheduleEdit" asp-route-id="@schedule.Id"><strong>@schedule.Name</strong></a>
-                                    <span class="mat-badge" style="margin-left:6px;" title="Where this schedule runs">@IndexModel.EngineLabel(schedule.Engine)</span>
-                                    @if (!schedule.Enabled)
-                                    {
-                                        <span class="pill pill--unknown" style="margin-left:6px;">Off</span>
-                                    }
+                                <td data-label="Schedule">
+                                    <div class="mat-table__name">
+                                        <span>
+                                            <a asp-page="/Backups/ScheduleEdit" asp-route-id="@schedule.Id">@schedule.Name</a>
+                                            <small>Runs in @IndexModel.EngineLabel(schedule.Engine)@(schedule.Enabled ? "" : ", switched off")</small>
+                                        </span>
+                                    </div>
                                 </td>
-                                <td>@Model.AppNameOf(schedule.AppSlug)</td>
-                                <td class="nowrap">
-                                    @(schedule.Frequency == BackupFrequency.Daily ? "Daily" : $"Weekly, {schedule.Weekday}") at @TimeSpan.FromMinutes(schedule.MinuteOfDay).ToString(@"hh\:mm")
-                                </td>
-                                <td class="nowrap hide-sm">@schedule.Retention backups</td>
-                                <td class="text-muted hide-sm">@(schedule.LastStatus ?? "not yet")</td>
-                                <td class="actions">
-                                    <div class="row-actions">
-                                        <a class="mat-btn mat-btn--sm mat-btn--icon mat-btn--ghost" asp-page="/Backups/ScheduleEdit" asp-route-id="@schedule.Id" title="Edit"><icon name="edit" /></a>
+                                <td data-label="Apps">@Model.AppNameOf(schedule.AppSlug)</td>
+                                <td data-label="When" class="mat-nowrap">@(schedule.Frequency == BackupFrequency.Daily ? "Daily" : $"Weekly, {schedule.Weekday}") at <span class="mat-mono">@TimeSpan.FromMinutes(schedule.MinuteOfDay).ToString(@"hh\:mm")</span></td>
+                                <td data-label="Keeps" class="mat-hide-sm mat-nowrap">@schedule.Retention backups</td>
+                                <td data-label="Last run" class="mat-hide-sm mat-muted">@(schedule.LastStatus ?? "not yet")</td>
+                                <td class="mat-table__cell-actions">
+                                    <div class="mat-table__actions">
+                                        <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" asp-page="/Backups/ScheduleEdit" asp-route-id="@schedule.Id" aria-label="Edit @schedule.Name" data-tip="Edit"><icon name="edit" /></a>
                                     </div>
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
-            }
-        </mat-table-body>
-        <mat-table-actions>
-            <a href="/Backups/ScheduleEdit" class="mat-btn mat-btn--primary"><icon name="plus" /><span>New schedule</span></a>
-        </mat-table-actions>
-    </mat-table>
-}
-else
-{
-    <mat-table>
-        <mat-table-toolbar>
-            <form method="get" class="js-autosubmit">
-                <div class="search">
-                    <icon name="search" />
-                    <input type="search" name="Q" value="@Model.Q" class="mat-input" placeholder="Search…" aria-label="Search" />
-                </div>
-                <div class="toolbar-field">
-                    <label for="app">App</label>
-                    <select id="app" name="App" class="mat-select">
-                        <option value="">All</option>
-                        @foreach (var slug in Model.AppSlugs)
-                        {
-                            <option value="@slug" selected="@(Model.App == slug)">@slug</option>
-                        }
-                    </select>
-                </div>
-                <div class="toolbar-field">
-                    <label for="kind">Kind</label>
-                    <select id="kind" name="Kind" class="mat-select">
-                        <option value="">All</option>
-                        @foreach (var kind in Enum.GetValues<BackupKind>())
-                        {
-                            <option value="@kind" selected="@(Model.Kind == kind.ToString())">@kind</option>
-                        }
-                    </select>
-                </div>
-                <div class="toolbar-field">
-                    <label for="sort">Sort</label>
-                    <select id="sort" name="SortKey" class="mat-select">
-                        <option value="NewestFirst" selected="@(Model.SortKey == "NewestFirst")">Newest first</option>
-                        <option value="OldestFirst" selected="@(Model.SortKey == "OldestFirst")">Oldest first</option>
-                        <option value="Largest" selected="@(Model.SortKey == "Largest")">Largest first</option>
-                        <option value="App" selected="@(Model.SortKey == "App")">A–Z: App</option>
-                    </select>
-                </div>
-            </form>
-        </mat-table-toolbar>
+            </div>
+        }
 
-        <mat-table-body>
-            @if (Model.Items.Count == 0)
-            {
-                <div class="empty-state"><div><icon name="save" /></div><p>No backups yet.</p></div>
-            }
-            else
-            {
-                <table class="data">
-                    <thead><tr><th>App</th><th>Created</th><th class="hide-sm">Kind</th><th class="hide-sm">Size</th><th>Status</th><th class="actions"></th></tr></thead>
+        <partial name="_Pager" model="schedules.Pager" />
+
+        @if (schedules.Items.Count > 0 || schedules.Filtered)
+        {
+            <div class="mat-actions">
+                <a href="/Backups/ScheduleEdit" class="mat-btn mat-btn--primary"><icon name="plus" /><span>New schedule</span></a>
+            </div>
+        }
+    </div>
+}
+else if (Model.History is { } history)
+{
+    <div class="mat-list">
+        <partial name="_Toolbar" model="history.Toolbar" />
+
+        @if (history.Items.Count == 0)
+        {
+            <div class="mat-empty">
+                <span class="mat-empty__icon"><icon name="save" /></span>
+                @if (history.Filtered)
+                {
+                    <div class="mat-empty__title">Nothing matches</div>
+                    <p>Change the search or the filter.</p>
+                    <a class="mat-btn mat-btn--secondary" href="/Backups">Reset the tools</a>
+                }
+                else
+                {
+                    <div class="mat-empty__title">No backups yet</div>
+                    <p>A backup copies the data of an app, so you can go back if something goes wrong.</p>
+                    <a class="mat-btn mat-btn--primary" href="/Backups/Create"><icon name="plus" /><span>New backup</span></a>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table">
+                    <caption class="mat-sr-only">Backups</caption>
+                    <thead><tr><th scope="col">App</th><th scope="col">Created</th><th scope="col" class="mat-hide-sm">Kind</th><th scope="col" class="mat-hide-sm mat-num">Size</th><th scope="col">Status</th><th scope="col"><span class="mat-sr-only">Actions</span></th></tr></thead>
                     <tbody>
-                        @foreach (var backup in Model.Items)
+                        @foreach (var backup in history.Items)
                         {
                             <tr>
-                                <td>
-                                    <div class="name-cell">
+                                <td data-label="App">
+                                    <div class="mat-table__name">
                                         <app-icon name="@backup.AppName" icon="@Model.IconOf(backup.CatalogId)" size="sm" />
-                                        <span><strong>@backup.AppName</strong>@if (!string.IsNullOrEmpty(backup.Note)) {<small>@backup.Note</small>}</span>
+                                        <span>@(backup.AppName)@if (!string.IsNullOrEmpty(backup.Note)) {<small>@backup.Note</small>}</span>
                                     </div>
                                 </td>
-                                <td class="nowrap">@Format.DateTimeLocal(backup.CreatedUtc)<br /><small class="text-muted">@Format.Ago(backup.CreatedUtc)</small></td>
-                                <td class="hide-sm"><span class="mat-badge">@backup.Kind</span> <span class="mat-badge" title="Where this backup is kept">@IndexModel.EngineLabel(backup.Engine)</span></td>
-                                <td class="nowrap hide-sm">@Format.Size(backup.SizeBytes)<br /><small class="text-muted">@backup.VolumeCount volume@(backup.VolumeCount == 1 ? "" : "s")</small></td>
-                                <td>
-                                    <span class="pill pill--@(backup.Status == BackupStatus.Succeeded ? "online" : backup.Status == BackupStatus.Failed ? "offline" : "busy")" title="@backup.Error">@backup.Status</span>
+                                <td data-label="Created" class="mat-nowrap"><span class="mat-mono">@Format.DateTimeLocal(backup.CreatedUtc)</span><small class="mat-muted mat-d-block">@Format.Ago(backup.CreatedUtc)</small></td>
+                                <td data-label="Kind" class="mat-hide-sm">@backup.Kind<small class="mat-muted mat-d-block">kept by @IndexModel.EngineLabel(backup.Engine)</small></td>
+                                <td data-label="Size" class="mat-hide-sm mat-num mat-mono">@Format.Size(backup.SizeBytes)<small class="mat-muted mat-d-block">@backup.VolumeCount volume@(backup.VolumeCount == 1 ? "" : "s")</small></td>
+                                <td data-label="Status">
+                                    <span class="mat-pill @(backup.Status == BackupStatus.Succeeded ? "mat-pill--ok" : backup.Status == BackupStatus.Failed ? "mat-pill--error" : "mat-pill--busy")">@backup.Status</span>
                                     @if (backup.Status == BackupStatus.Succeeded && !backup.Consistent)
                                     {
-                                        <br /><small class="text-muted" title="The app was running while its data was copied.">live copy</small>
+                                        <small class="mat-muted mat-d-block">live copy</small>
+                                    }
+                                    @if (backup.Status == BackupStatus.Failed && !string.IsNullOrEmpty(backup.Error))
+                                    {
+                                        <small class="mat-muted mat-d-block">@backup.Error</small>
                                     }
                                 </td>
-                                <td class="actions">
-                                    <div class="row-actions">
+                                <td class="mat-table__cell-actions">
+                                    <div class="mat-table__actions">
                                         @if (backup.Status == BackupStatus.Succeeded)
                                         {
-                                            <a class="mat-btn mat-btn--sm" asp-page="/Backups/Restore" asp-route-id="@backup.Id" title="Restore"><icon name="restore" /><span>Restore</span></a>
-                                            <a class="mat-btn mat-btn--sm mat-btn--icon mat-btn--ghost" asp-page="/Backups/Index" asp-page-handler="Download" asp-route-id="@backup.Id" title="Download as tar"><icon name="download" /></a>
+                                            <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" asp-page="/Backups/Restore" asp-route-id="@backup.Id" aria-label="Restore the backup of @backup.AppName" data-tip="Restore"><icon name="restore" /></a>
+                                            <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" asp-page="/Backups/Index" asp-page-handler="Download" asp-route-id="@backup.Id" aria-label="Download the backup of @backup.AppName as tar" data-tip="Download as tar"><icon name="download" /></a>
                                         }
-                                        <form method="post" asp-page-handler="Delete" asp-route-id="@backup.Id" class="inline-form" data-confirm="Delete this backup? Its files are removed." data-confirm-ok="Delete" data-confirm-danger>
-                                            <button type="submit" class="mat-btn mat-btn--sm mat-btn--icon mat-btn--danger" title="Delete"><icon name="trash" /></button>
+                                        <form method="post" asp-page-handler="Delete" asp-route-id="@backup.Id" data-confirm="Delete the backup of @backup.AppName from @Format.DateTimeLocal(backup.CreatedUtc)? Its files are removed." data-confirm-ok="Delete" data-confirm-danger>
+                                            <button type="submit" class="mat-btn mat-btn--danger mat-btn--icon mat-btn--sm" aria-label="Delete the backup of @backup.AppName" data-tip="Delete"><icon name="trash" /></button>
                                         </form>
                                     </div>
                                 </td>
@@ -156,16 +152,17 @@ else
                         }
                     </tbody>
                 </table>
-            }
-        </mat-table-body>
+            </div>
+        }
 
-        <mat-table-pagination>
-            <pagination model="Model.Pagination" />
-        </mat-table-pagination>
+        <partial name="_Pager" model="history.Pager" />
 
-        <mat-table-actions>
-            <a href="/Backups/Create" class="mat-btn mat-btn--primary"><icon name="plus" /><span>New backup</span></a>
-            <span class="text-muted" style="margin-left:auto;">@Format.Size(Model.TotalSize) in total</span>
-        </mat-table-actions>
-    </mat-table>
+        @if (history.Items.Count > 0 || history.Filtered)
+        {
+            <div class="mat-actions">
+                <a href="/Backups/Create" class="mat-btn mat-btn--primary"><icon name="plus" /><span>New backup</span></a>
+                <span class="mat-muted">@Format.Size(Model.TotalSize) in total</span>
+            </div>
+        }
+    </div>
 }

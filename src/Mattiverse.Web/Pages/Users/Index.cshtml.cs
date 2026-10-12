@@ -11,6 +11,7 @@ public class IndexModel : PageModel
 {
     private const int PageSize = 15;
     private static readonly StringComparison Ic = StringComparison.OrdinalIgnoreCase;
+    private static readonly string[] SortKeys = ["username", "name", "role", "login"];
 
     private readonly UserService _userService;
 
@@ -19,17 +20,7 @@ public class IndexModel : PageModel
         _userService = userService;
     }
 
-    [BindProperty(SupportsGet = true)]
-    public string? Q { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public string SortKey { get; set; } = "UsernameAsc";
-
-    [BindProperty(SupportsGet = true, Name = "page")]
-    public int PageNumber { get; set; } = 1;
-
-    public List<User> Items { get; private set; } = new();
-    public PaginationModel Pagination { get; private set; } = new();
+    public ListView<User> List { get; private set; } = default!;
 
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public bool IsError { get; set; }
@@ -37,27 +28,55 @@ public class IndexModel : PageModel
     public async Task OnGetAsync()
     {
         var all = await _userService.GetAllAsync(HttpContext.RequestAborted);
-        IEnumerable<User> query = all;
+        var q = ListQuery.Text(Request, "q");
+        var role = ListQuery.Text(Request, "role");
+        var sort = ListQuery.Text(Request, "sort") is { } s && SortKeys.Contains(s) ? s : "username";
+        var descending = ListQuery.Descending(Request, defaultDescending: sort == "login");
 
-        if (!string.IsNullOrWhiteSpace(Q))
+        IEnumerable<User> query = all;
+        if (Enum.TryParse<UserRole>(role, out var roleValue) && roleValue is UserRole.Admin or UserRole.User)
         {
-            var s = Q.Trim();
-            query = query.Where(u => u.Username.Contains(s, Ic) || u.DisplayName.Contains(s, Ic));
+            query = query.Where(u => u.Role == roleValue);
+        }
+        else
+        {
+            role = null;
         }
 
-        var descending = SortKey.EndsWith("Desc", Ic);
-        query = SortKey switch
+        if (q is not null)
         {
-            "DisplayNameAsc" or "DisplayNameDesc" => Order(query, u => u.DisplayName, descending),
-            "RoleAsc" or "RoleDesc" => Order(query, u => (int)u.Role, descending),
-            "LastLoginAsc" or "LastLoginDesc" => Order(query, u => u.LastLoginAt ?? DateTime.MinValue, descending),
-            _ => Order(query, u => u.Username, descending)
+            query = query.Where(u => u.Username.Contains(q, Ic) || u.DisplayName.Contains(q, Ic));
+        }
+
+        query = sort switch
+        {
+            "name" => Order(query, u => u.DisplayName.ToLowerInvariant(), descending),
+            "role" => Order(query, u => (int)u.Role, descending),
+            "login" => Order(query, u => u.LastLoginAt ?? DateTime.MinValue, descending),
+            _ => Order(query, u => u.Username.ToLowerInvariant(), descending),
         };
 
         var list = query.ToList();
-        Pagination = new PaginationModel { Page = PageNumber, PageSize = PageSize, TotalItems = list.Count };
-        Pagination.Normalize();
-        Items = list.Skip((Pagination.Page - 1) * PageSize).Take(PageSize).ToList();
+        var toolbar = new ToolbarModel
+        {
+            Id = "users",
+            Action = "/Users",
+            Label = "Users",
+            Search = q,
+            SearchPlaceholder = "Search users",
+            SearchField = true,
+            Filters = [new FilterField("role", "Role", [new(nameof(UserRole.Admin), "Admin"), new(nameof(UserRole.User), "User")], role)],
+            SortOptions = [new("username", "Username"), new("name", "Display name"), new("role", "Role"), new("login", "Last login")],
+            Sort = sort,
+            Descending = descending,
+            DefaultSort = "username",
+            Total = all.Count,
+            Matching = list.Count,
+            Noun = all.Count == 1 ? "user" : "users",
+        };
+
+        var (items, pager) = ListQuery.Slice(list, Request, PageSize, toolbar.UrlWithPage);
+        List = new ListView<User> { Items = items, Toolbar = toolbar, Pager = pager };
     }
 
     public async Task<IActionResult> OnPostDeleteAsync(long id)

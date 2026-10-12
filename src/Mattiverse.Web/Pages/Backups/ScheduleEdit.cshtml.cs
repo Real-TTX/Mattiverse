@@ -31,6 +31,8 @@ public class ScheduleEditModel : PageModel
 
     public bool IsEdit => !string.IsNullOrEmpty(Input.Id);
 
+    [TempData] public string? StatusMessage { get; set; }
+
     public class InputModel
     {
         /// <summary><c>&lt;engine&gt;:&lt;id&gt;</c> of an existing schedule; empty for a new one.</summary>
@@ -132,6 +134,7 @@ public class ScheduleEditModel : PageModel
             return Page();
         }
 
+        StatusMessage = "The schedule was saved.";
         return RedirectToPage("/Backups/Index", new { tab = "schedules" });
     }
 
@@ -140,6 +143,7 @@ public class ScheduleEditModel : PageModel
         if (!string.IsNullOrEmpty(Input.Id))
         {
             await _backups.DeleteScheduleAsync(Input.Id, HttpContext.RequestAborted);
+            StatusMessage = "The schedule was deleted. Existing backups are kept.";
         }
 
         return RedirectToPage("/Backups/Index", new { tab = "schedules" });

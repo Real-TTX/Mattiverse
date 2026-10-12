@@ -134,15 +134,20 @@ SQLite (`mattiverse.db`) holds the logic, JSON (`config/system.json`) the config
 
 ## UI conventions
 
-- **Controls** are tag helpers with one code base (`src/Mattiverse.Web/Controls`): `<mat-table>` (toolbar, body,
-  pagination, actions), `<pagination>`, `<mat-field>` / `<mat-form-buttons>`, `<tab-bar>`, `<app-icon>`, `<icon>`. Several of
-  the same control can be on one page.
-- **Lists:** toolbar (search, filters, sort) on top; list actions below, left-aligned, delete spaced apart; pagination
-  directly under the table.
-- **Forms:** CRUD pages are a list and a separate page for create/edit. Buttons stand in one line from positive to
-  negative: *Save, Back, (space) Delete*. Dependent fields are shown only when needed (`data-show-if`).
-- Scrollbars are hidden until something scrolls. Icons are inline SVG, no CDN.
-- Mobile first where it counts: drawer menu, secondary table columns hide on phones, safe-area insets for notches.
+Mattiverse uses **MatUi**, the UI toolkit of [MatDesign](https://github.com/Real-TTX/MatDesign), so that it looks and behaves like the other Mat apps; the rules are MatDesign's rulebook.
+
+- **The toolkit is a copy** in `src/Mattiverse.Web/wwwroot/matui` (CSS, one script, the icon sprite): the app works offline and as a PWA, and nothing is loaded from another site.
+  `scripts/update-matui.ps1` brings a newer release from MatDesign. The app adds only what is its own: `mv-*` classes (app icons, home tiles, the app frame, the wizard) in `mattiverse.css`
+  and a small script (clock, job log, wizard).
+- **Shell:** the layout draws the menu (one menu for a user; Administration is a second menu behind the switcher for an administrator; Settings is a submenu), the user menu, the 3-state theme button,
+  the version and the breadcrumb. Sign-in, setup, shared links and errors have no menu (`_Bare`). The theme is kept on the account (`/api/theme`) and in the browser.
+- **Controls:** the tag helpers `<icon>` (a use of the sprite), `<app-icon>`, `<mat-field>` and `<tab-bar>` and the partials `_Toolbar`, `_Pager`, `_ValidationSummary` and `_StatusPill` are the one code base for them.
+- **Lists:** the page model builds a `ListView` (the rows of the page, a `ToolbarModel`, a `PagerModel`) from the query string. The toolbar has a search field, Filter and Sort open dialogs. Every list has its toolbar
+  on top, the pager directly under the table and its actions below, left-aligned.
+- **Forms:** CRUD pages are a list and a separate page for create/edit. Buttons stand in one line from positive to negative: *Save, Back, (space) Delete*. The page validates (`novalidate`: no bubbles of the browser);
+  a summary at the top links to the fields. After a save the page redirects and shows a toast. Dependent fields are shown only when needed (`data-show-if`).
+- **The logo** stays the planet with its orbit, not the flat glyph tile that MatDesign's rule IDENT-03 describes: the owner prefers it.
+- Mobile first where it counts: a drawer for the menu, tables become cards, dialogs are full screen, safe-area insets for notches.
 
 ## What is deliberately not here
 

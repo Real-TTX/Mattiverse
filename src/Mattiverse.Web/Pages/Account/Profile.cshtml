@@ -2,61 +2,54 @@
 @model Mattiverse.Web.Pages.Account.ProfileModel
 @{
     ViewData["Title"] = "Account";
+    ViewData["PageSub"] = "Who you are in Mattiverse, and your password.";
+    ViewData["Crumbs"] = Crumbs.Of(("Account", null));
+    ViewData["Width"] = "narrow";
 }
-
-<div class="page-head">
-    <div class="page-head__title">
-        <h1>Account</h1>
-    </div>
-</div>
 
 @if (Model.MustChange)
 {
-    <div class="alert alert--warning"><icon name="alert" /><span>Please set your own password before you continue.</span></div>
-}
-@if (!string.IsNullOrEmpty(Model.StatusMessage))
-{
-    <div class="alert alert--success"><icon name="check-circle" /><span>@Model.StatusMessage</span></div>
+    <div class="mat-alert mat-alert--warning" role="alert"><icon name="alert" /><div class="mat-alert__body">Please set your own password before you continue.</div></div>
 }
 
-<tab-bar model="Model.Tabs" />
+<tab-bar model="Model.Tabs" label="Account" />
 
 @if (!Model.PasswordTab)
 {
-    <div class="card" style="max-width:560px;">
-        <div class="card__header"><icon name="user" /><span>Your account</span></div>
-        <div class="card__body">
-            <dl class="kv">
+    <div class="mat-card">
+        <div class="mat-card__head"><icon name="user" /><span class="mat-card__title">Your account</span></div>
+        <div class="mat-card__body">
+            <dl class="mat-kv">
                 <dt>Username</dt><dd>@Model.Username</dd>
                 <dt>Display name</dt><dd>@Model.DisplayName</dd>
-                <dt>Role</dt><dd><span class="mat-badge">@Model.Role</span></dd>
+                <dt>Role</dt><dd>@Model.Role</dd>
             </dl>
         </div>
     </div>
 }
 else
 {
-    <div class="card" style="max-width:560px;">
-        <div class="card__header"><icon name="key" /><span>Change password</span></div>
-        <div class="card__body">
-            <form method="post" class="mat-form">
-                <div asp-validation-summary="ModelOnly"></div>
+    <form method="post" class="mat-form" novalidate>
+        <partial name="_ValidationSummary" />
 
-                <mat-field label="Current password" asp-for="Input.CurrentPassword">
-                    <input asp-for="Input.CurrentPassword" type="password" class="mat-input" autocomplete="current-password" />
+        <div class="mat-card">
+            <div class="mat-card__head"><icon name="key" /><span class="mat-card__title">Change password</span></div>
+            <div class="mat-card__body mat-stack">
+                <mat-field label="Current password" asp-for="Input.CurrentPassword" required="true">
+                    <input asp-for="Input.CurrentPassword" type="password" class="mat-input" autocomplete="current-password" required data-msg-required="Please enter your current password." />
                 </mat-field>
-                <mat-field label="New password" asp-for="Input.NewPassword">
-                    <input asp-for="Input.NewPassword" type="password" class="mat-input" autocomplete="new-password" />
+                <mat-field label="New password" asp-for="Input.NewPassword" required="true" hint="At least 8 characters.">
+                    <input asp-for="Input.NewPassword" type="password" class="mat-input" autocomplete="new-password" required minlength="8" data-msg-required="Please enter a new password." data-msg-range="Use at least 8 characters." />
                 </mat-field>
-                <mat-field label="Confirm new password" asp-for="Input.ConfirmPassword">
-                    <input asp-for="Input.ConfirmPassword" type="password" class="mat-input" autocomplete="new-password" />
+                <mat-field label="Confirm new password" asp-for="Input.ConfirmPassword" required="true">
+                    <input asp-for="Input.ConfirmPassword" type="password" class="mat-input" autocomplete="new-password" required data-msg-required="Please repeat the new password." />
                 </mat-field>
-
-                <mat-form-buttons>
-                    <button type="submit" class="mat-btn mat-btn--primary"><icon name="save" /><span>Save</span></button>
-                    <a href="/Account/Profile" class="mat-btn mat-btn--ghost"><icon name="back" /><span>Back</span></a>
-                </mat-form-buttons>
-            </form>
+            </div>
         </div>
-    </div>
+
+        <div class="mat-btn-row">
+            <button type="submit" class="mat-btn mat-btn--primary"><icon name="save" /><span>Save</span></button>
+            <a href="/Account/Profile" class="mat-btn mat-btn--secondary"><icon name="back" /><span>Back</span></a>
+        </div>
+    </form>
 }

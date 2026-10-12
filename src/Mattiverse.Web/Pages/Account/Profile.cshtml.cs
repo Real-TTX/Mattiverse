@@ -31,7 +31,7 @@ public class ProfileModel : PageModel
     public string DisplayName { get; private set; } = string.Empty;
     public UserRole Role { get; private set; }
     public bool MustChange { get; private set; }
-    public string? StatusMessage { get; private set; }
+    [TempData] public string? StatusMessage { get; set; }
 
     /// <summary>The password tab is shown when a change is required or the last submit failed.</summary>
     public bool PasswordTab => MustChange || Tab == "password" || !ModelState.IsValid;
@@ -96,11 +96,7 @@ public class ProfileModel : PageModel
         await HttpContext.SignInAsync(AuthConstants.CookieScheme, PrincipalFactory.Build(user, User.GetSessionToken() ?? string.Empty));
 
         StatusMessage = "Password changed.";
-        MustChange = false;
-        Tab = null;
-        ModelState.Clear();
-        Input = new InputModel();
-        return Page();
+        return RedirectToPage();
     }
 
     private async Task<bool> LoadAsync()

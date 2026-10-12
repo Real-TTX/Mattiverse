@@ -1,44 +1,44 @@
 @page
 @model Mattiverse.Web.Pages.Apps.OpenModel
 @{
-    ViewData["Title"] = Model.App.Name;
-    ViewData["Flush"] = true;
     var app = Model.App;
+    ViewData["Title"] = app.Name;
+    ViewData["OwnHead"] = true;
+    ViewData["Flush"] = true;
+    ViewData["Crumbs"] = Crumbs.Of(("Apps", "/Apps"), (app.Name, null));
 }
 
-<div class="appview">
-    <div class="appview__bar">
-        <a href="/" class="mat-btn mat-btn--sm mat-btn--ghost" title="Back to Home"><icon name="chevron-left" /><span>Home</span></a>
-        <div class="appview__title">
+<div class="mv-appview">
+    <div class="mv-appview__bar">
+        <div class="mv-appview__title">
             <app-icon name="@app.Name" icon="@Model.Icon" size="sm" />
-            <span>@app.Name</span>
+            <h1 class="mat-fs-md">@app.Name</h1>
         </div>
         @if (Model.Frame.Embeddable)
         {
-            <button type="button" class="mat-btn mat-btn--sm mat-btn--icon mat-btn--ghost" data-frame-reload="app-frame" title="Reload"><icon name="refresh" /></button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-frame-reload="app-frame" aria-label="Reload @app.Name" data-tip="Reload"><icon name="refresh" /></button>
         }
-        <a href="@Model.OpenUrl" target="_blank" rel="noopener" class="mat-btn mat-btn--sm mat-btn--icon mat-btn--ghost" title="Open in a new tab"><icon name="external" /></a>
-        <a href="/Apps/Details?id=@app.Id" class="mat-btn mat-btn--sm mat-btn--icon mat-btn--ghost" title="Details"><icon name="info" /></a>
+        <a href="@Model.OpenUrl" target="_blank" rel="noopener" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="Open @app.Name in a new tab" data-tip="Open in a new tab"><icon name="external" /></a>
+        <a href="/Apps/Details?id=@app.Id" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="Details of @app.Name" data-tip="Details"><icon name="info" /></a>
     </div>
 
     @if (Model.Frame.Embeddable)
     {
-        <iframe id="app-frame" class="appview__frame" src="@Model.OpenUrl" title="@app.Name"
+        <iframe id="app-frame" class="mv-appview__frame" src="@Model.OpenUrl" title="@app.Name"
                 allow="clipboard-read; clipboard-write; fullscreen; camera; microphone; geolocation"
                 referrerpolicy="same-origin"></iframe>
     }
     else
     {
-        <div class="appview__fallback">
-            <div class="card" style="max-width:460px;">
-                <div class="card__body share-card">
+        <div class="mv-appview__fallback">
+            <div class="mat-card">
+                <div class="mat-card__body mv-centered">
                     <app-icon name="@app.Name" icon="@Model.Icon" size="xl" />
-                    <h2>@app.Name</h2>
-                    <p class="text-muted">@Model.Frame.Reason</p>
-                    <mat-form-buttons class="mat-buttons--center" >
+                    <p class="mat-muted">@Model.Frame.Reason</p>
+                    <div class="mat-btn-row mat-btn-row--plain">
                         <a href="@Model.OpenUrl" target="_blank" rel="noopener" class="mat-btn mat-btn--primary"><icon name="external" /><span>Open in a new tab</span></a>
                         <a href="/Apps/Details?id=@app.Id" class="mat-btn mat-btn--ghost"><icon name="info" /><span>Details</span></a>
-                    </mat-form-buttons>
+                    </div>
                 </div>
             </div>
         </div>

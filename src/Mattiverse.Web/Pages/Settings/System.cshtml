@@ -1,48 +1,41 @@
 @page
 @model Mattiverse.Web.Pages.Settings.SystemModel
 @{
-    ViewData["Title"] = "Settings";
+    ViewData["Title"] = "System";
+    ViewData["PageSub"] = "Docker, the data folder and the version of Mattiverse.";
+    ViewData["Crumbs"] = Crumbs.Of(("Settings", "/Settings"), ("System", null));
+    ViewData["Width"] = "narrow";
 }
 
-<div class="page-head">
-    <div class="page-head__title">
-        <h1>Settings</h1>
+<div class="mat-card">
+    <div class="mat-card__head"><icon name="whale" /><span class="mat-card__title">Docker</span></div>
+    <div class="mat-card__body">
+        @if (Model.Engine.Available)
+        {
+            <dl class="mat-kv">
+                <dt>Status</dt><dd><span class="mat-pill mat-pill--ok">Connected</span></dd>
+                <dt>Engine</dt><dd>Docker @Model.Engine.Version on @Model.Engine.OperatingSystem</dd>
+                <dt>Resources</dt><dd>@Model.Engine.Cpus CPUs, @Format.Size(Model.Engine.MemoryBytes) memory</dd>
+                <dt>Containers</dt><dd>@Model.Engine.ContainersRunning running of @Model.Engine.ContainersTotal, @Model.Engine.Images images</dd>
+                <dt>Shared network</dt><dd><code>@Model.Network</code> <span class="mat-muted">connects the reverse proxy and the apps' web interfaces</span></dd>
+                <dt>This container</dt><dd>@(Model.SelfContainer is null ? "not running in Docker" : Model.SelfContainer)</dd>
+            </dl>
+        }
+        else
+        {
+            <div class="mat-alert mat-alert--danger" role="alert"><icon name="x-circle" /><div class="mat-alert__body">@Model.Engine.Error</div></div>
+        }
     </div>
 </div>
 
-<tab-bar model='SettingsTabs.Build("system")' />
-
-<div class="stack" style="max-width:760px;">
-    <div class="card">
-        <div class="card__header"><icon name="whale" /><span>Docker</span></div>
-        <div class="card__body">
-            @if (Model.Engine.Available)
-            {
-                <dl class="kv">
-                    <dt>Status</dt><dd><span class="pill pill--online">Connected</span></dd>
-                    <dt>Engine</dt><dd>Docker @Model.Engine.Version on @Model.Engine.OperatingSystem</dd>
-                    <dt>Resources</dt><dd>@Model.Engine.Cpus CPUs, @Format.Size(Model.Engine.MemoryBytes) memory</dd>
-                    <dt>Containers</dt><dd>@Model.Engine.ContainersRunning running of @Model.Engine.ContainersTotal, @Model.Engine.Images images</dd>
-                    <dt>Shared network</dt><dd><code>@Model.Network</code> <span class="text-muted">connects the reverse proxy and the apps' web interfaces</span></dd>
-                    <dt>This container</dt><dd>@(Model.SelfContainer is null ? "not running in Docker" : Model.SelfContainer)</dd>
-                </dl>
-            }
-            else
-            {
-                <div class="alert alert--error" style="margin:0;"><icon name="x-circle" /><span>@Model.Engine.Error</span></div>
-            }
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card__header"><icon name="info" /><span>Mattiverse</span></div>
-        <div class="card__body">
-            <dl class="kv">
-                <dt>Version</dt><dd><code>@Model.Version</code></dd>
-                <dt>Data folder</dt><dd><code>@Model.DataPath</code> <span class="text-muted">database, settings, compose files of the apps, backups</span></dd>
-                <dt>Catalog</dt><dd>@Model.CatalogTotal apps@(Model.CatalogCustom > 0 ? $" ({Model.CatalogCustom} of your own)" : "")</dd>
-                <dt>Reverse proxy</dt><dd>@(Model.ProxyActive ? "Matcad creates a route for every app." : "No automatic routes (needs Matcad and a domain for your apps).")</dd>
-            </dl>
-        </div>
+<div class="mat-card">
+    <div class="mat-card__head"><icon name="info" /><span class="mat-card__title">Mattiverse</span></div>
+    <div class="mat-card__body">
+        <dl class="mat-kv">
+            <dt>Version</dt><dd><code>@Model.Version</code></dd>
+            <dt>Data folder</dt><dd><code>@Model.DataPath</code> <span class="mat-muted">database, settings, compose files of the apps, backups</span></dd>
+            <dt>Catalog</dt><dd>@Model.CatalogTotal apps@(Model.CatalogCustom > 0 ? $" ({Model.CatalogCustom} of your own)" : "")</dd>
+            <dt>Reverse proxy</dt><dd>@(Model.ProxyActive ? "Matcad creates a route for every app." : "No automatic routes (needs Matcad and a domain for your apps).")</dd>
+        </dl>
     </div>
 </div>

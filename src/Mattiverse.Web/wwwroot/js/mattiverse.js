@@ -1,142 +1,19 @@
-/* Mattiverse UI behaviour. Plain JavaScript, no build step.
-   Every behaviour is switched on by a data-* attribute, so several of the same control can live on one page. */
+/* Mattiverse: the behaviour only this app has. Plain JavaScript, no build step.
+   The shell, the theme, dialogs (data-confirm), forms, validation, copy and the dependent fields (data-show-if) are the toolkit's: wwwroot/matui/matui.js.
+   Every behaviour here is switched on by a data-* attribute, so several of the same control can live on one page. */
 (function () {
   'use strict';
 
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
-  // ------------------------------------------------------------------ theme (system / light / dark)
+  // ------------------------------------------------------------------ a select that applies at once: <form data-autosubmit>
 
-  var THEME_KEY = 'mattiverse-theme';
-
-  function applyTheme(pref) {
-    var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme-pref', pref);
-    var meta = document.getElementById('meta-theme-color');
-    if (meta) { meta.setAttribute('content', dark ? '#121830' : '#ffffff'); }
-    $$('[data-theme-set]').forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-theme-set') === pref); });
-  }
-
-  function currentPref() { try { return localStorage.getItem(THEME_KEY) || 'system'; } catch (e) { return 'system'; } }
-
-  applyTheme(currentPref());
-  if (window.matchMedia) {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-      if (currentPref() === 'system') { applyTheme('system'); }
-    });
-  }
-
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-theme-set]');
-    if (!btn) { return; }
-    var pref = btn.getAttribute('data-theme-set');
-    try { localStorage.setItem(THEME_KEY, pref); } catch (err) { /* private mode */ }
-    applyTheme(pref);
-    // Remember it on the account, so a new device starts with the same theme.
-    var token = $('meta[name="request-verification-token"]');
-    fetch('/api/theme', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token ? token.content : '' },
-      body: JSON.stringify({ theme: pref }),
-      credentials: 'same-origin'
-    }).catch(function () { /* not signed in or offline: the local choice still applies */ });
+  $$('form[data-autosubmit]').forEach(function (form) {
+    form.addEventListener('change', function (e) { if (e.target.matches('select')) { form.submit(); } });
   });
 
-  // ------------------------------------------------------------------ scrollbars only while scrolling
-
-  var scrollTimers = new WeakMap();
-  document.addEventListener('scroll', function (e) {
-    var el = e.target === document ? document.documentElement : e.target;
-    if (!el || !el.classList) { return; }
-    el.classList.add('is-scrolling');
-    clearTimeout(scrollTimers.get(el));
-    scrollTimers.set(el, setTimeout(function () { el.classList.remove('is-scrolling'); }, 700));
-  }, true);
-
-  // ------------------------------------------------------------------ mobile menu closes after a tap on a link
-
-  document.addEventListener('click', function (e) {
-    var link = e.target.closest('.sidebar a.nav-link');
-    var toggle = document.getElementById('nav-toggle');
-    if (link && toggle) { toggle.checked = false; }
-  });
-
-  // ------------------------------------------------------------------ confirm dialogs: <form data-confirm="Really?"> / <a data-confirm>
-
-  function confirmDialog(message, okText, danger) {
-    return new Promise(function (resolve) {
-      var backdrop = document.createElement('div');
-      backdrop.className = 'dialog-backdrop';
-      backdrop.innerHTML =
-        '<div class="dialog" role="alertdialog" aria-modal="true">' +
-        '<h3></h3><p></p>' +
-        '<div class="mat-buttons"><button type="button" class="mat-btn mat-btn--ghost" data-no>Cancel</button>' +
-        '<button type="button" class="mat-btn ' + (danger ? 'mat-btn--solid-danger' : 'mat-btn--primary') + '" data-yes></button></div></div>';
-      backdrop.querySelector('h3').textContent = danger ? 'Are you sure?' : 'Please confirm';
-      backdrop.querySelector('p').textContent = message;
-      backdrop.querySelector('[data-yes]').textContent = okText || 'Confirm';
-      function close(result) { backdrop.remove(); document.removeEventListener('keydown', onKey); resolve(result); }
-      function onKey(ev) { if (ev.key === 'Escape') { close(false); } }
-      backdrop.addEventListener('click', function (ev) {
-        if (ev.target === backdrop || ev.target.hasAttribute('data-no')) { close(false); }
-        else if (ev.target.hasAttribute('data-yes')) { close(true); }
-      });
-      document.addEventListener('keydown', onKey);
-      document.body.appendChild(backdrop);
-      backdrop.querySelector('[data-yes]').focus();
-    });
-  }
-
-  document.addEventListener('submit', function (e) {
-    var form = e.target;
-    var message = form.getAttribute && form.getAttribute('data-confirm');
-    if (!message || form.__confirmed) { return; }
-    e.preventDefault();
-    var submitter = e.submitter;
-    confirmDialog(message, form.getAttribute('data-confirm-ok') || 'Confirm', form.hasAttribute('data-confirm-danger') || !!(submitter && submitter.classList.contains('mat-btn--danger'))).then(function (ok) {
-      if (!ok) { return; }
-      form.__confirmed = true;
-      if (form.requestSubmit && submitter) { form.requestSubmit(submitter); } else { form.submit(); }
-    });
-  });
-
-  // ------------------------------------------------------------------ list toolbars: submit on change, search with a short delay
-
-  $$('form.js-autosubmit').forEach(function (form) {
-    var timer;
-    function submit() { try { sessionStorage.setItem('mv-focus', form.querySelector('input[type=search]') ? 'search' : ''); } catch (e) { } form.submit(); }
-    form.addEventListener('change', function (e) { if (e.target.matches('select, input[type=checkbox]')) { submit(); } });
-    form.addEventListener('input', function (e) {
-      if (e.target.matches('input[type=search]')) { clearTimeout(timer); timer = setTimeout(submit, 450); }
-    });
-    form.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); submit(); } });
-  });
-  try {
-    if (sessionStorage.getItem('mv-focus') === 'search') {
-      var search = $('form.js-autosubmit input[type=search]');
-      if (search) { search.focus(); var len = search.value.length; search.setSelectionRange(len, len); }
-    }
-    sessionStorage.removeItem('mv-focus');
-  } catch (e) { }
-
-  // ------------------------------------------------------------------ dependent fields: data-show-if="#selector" data-show-value="x"
-
-  function refreshDependents() {
-    $$('[data-show-if]').forEach(function (el) {
-      var ctl = $(el.getAttribute('data-show-if'));
-      if (!ctl) { return; }
-      var wanted = el.getAttribute('data-show-value');
-      var value = ctl.type === 'checkbox' ? String(ctl.checked) : ctl.value;
-      if (ctl.type === 'radio') { var on = $('input[name="' + ctl.name + '"]:checked'); value = on ? on.value : ''; }
-      el.hidden = wanted === null ? !value : value !== wanted;
-    });
-  }
-  document.addEventListener('change', refreshDependents);
-  refreshDependents();
-
-  // ------------------------------------------------------------------ home: clock + filter
+  // ------------------------------------------------------------------ home: clock, greeting, filter
 
   var clock = $('[data-clock]');
   if (clock) {
@@ -160,29 +37,21 @@
   if (filter) {
     filter.addEventListener('input', function () {
       var q = filter.value.trim().toLowerCase();
-      $$('.tile[data-name]').forEach(function (t) { t.hidden = q !== '' && t.getAttribute('data-name').indexOf(q) === -1; });
+      $$('.mv-tile[data-name]').forEach(function (t) { t.hidden = q !== '' && t.getAttribute('data-name').indexOf(q) === -1; });
     });
   }
 
-  // ------------------------------------------------------------------ copy and reveal (credentials)
+  // ------------------------------------------------------------------ a secret (credentials): shown on a click, hidden again on the next
 
   document.addEventListener('click', function (e) {
-    var copy = e.target.closest('[data-copy]');
-    if (copy) {
-      var text = copy.getAttribute('data-copy');
-      var done = function () { var old = copy.innerHTML; copy.classList.add('is-done'); setTimeout(function () { copy.classList.remove('is-done'); }, 1200); };
-      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); }
-      else { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (err) { } ta.remove(); }
-      return;
-    }
     var reveal = e.target.closest('[data-reveal]');
-    if (reveal) {
-      var target = document.getElementById(reveal.getAttribute('data-reveal'));
-      if (!target) { return; }
-      var shown = target.getAttribute('data-shown') === '1';
-      target.textContent = shown ? '••••••••••' : target.getAttribute('data-secret');
-      target.setAttribute('data-shown', shown ? '0' : '1');
-    }
+    if (!reveal) { return; }
+    var target = document.getElementById(reveal.getAttribute('data-reveal'));
+    if (!target) { return; }
+    var shown = target.getAttribute('data-shown') === '1';
+    target.textContent = shown ? '••••••••••' : target.getAttribute('data-secret');
+    target.setAttribute('data-shown', shown ? '0' : '1');
+    reveal.setAttribute('aria-pressed', shown ? 'false' : 'true');
   });
 
   // ------------------------------------------------------------------ pages that wait for something refresh themselves
@@ -196,8 +65,8 @@
   // ------------------------------------------------------------------ job log viewer: <pre data-job-log data-job-id="12">
 
   function pillFor(status) {
-    var map = { Queued: ['pill--busy', 'Queued'], Running: ['pill--busy', 'Running'], Succeeded: ['pill--online', 'Done'], Failed: ['pill--offline', 'Failed'] };
-    return map[status] || ['pill--unknown', status];
+    var map = { Queued: ['mat-pill--busy', 'Queued'], Running: ['mat-pill--busy', 'Running'], Succeeded: ['mat-pill--ok', 'Done'], Failed: ['mat-pill--error', 'Failed'] };
+    return map[status] || ['', status];
   }
 
   $$('[data-job-log]').forEach(function (pre) {
@@ -218,11 +87,11 @@
           if (d.text) { pre.textContent += d.text; }
           offset = d.offset;
           if (atBottom) { pre.scrollTop = pre.scrollHeight; }
-          if (statusEl) { var p = pillFor(d.status); statusEl.className = 'pill ' + p[0]; statusEl.textContent = p[1]; }
+          if (statusEl) { var p = pillFor(d.status); statusEl.className = ('mat-pill ' + p[0]).trim(); statusEl.textContent = p[1]; }
           if (d.finished) {
             stopped = true;
             doneEls.forEach(function (el) { el.hidden = false; });
-            if (errorEl && d.error) { errorEl.textContent = d.error; errorEl.hidden = false; }
+            if (errorEl && d.error) { errorEl.querySelector('.mat-alert__body').textContent = d.error; errorEl.hidden = false; }
             pre.dispatchEvent(new CustomEvent('job-finished', { bubbles: true, detail: d }));
             return;
           }
@@ -233,27 +102,34 @@
     poll();
   });
 
-  // ------------------------------------------------------------------ wizard: steps in one page
+  // ------------------------------------------------------------------ wizard: steps in one page, the bar above shows where you are
 
   $$('[data-wizard]').forEach(function (wiz) {
     var panels = $$('[data-step]', wiz);
-    var dots = $$('.wizard__dot', wiz);
+    var bars = $$('.mat-steps li', wiz);
+    var label = $('[data-step-label]', wiz);
     var index = 0;
 
-    function show(i) {
+    function show(i, scroll) {
       index = Math.max(0, Math.min(panels.length - 1, i));
       panels.forEach(function (p, n) { p.classList.toggle('is-active', n === index); });
-      dots.forEach(function (d, n) { d.classList.toggle('is-active', n === index); d.classList.toggle('is-done', n < index); });
+      bars.forEach(function (b, n) {
+        b.classList.toggle('is-active', n === index);
+        b.classList.toggle('is-done', n < index);
+        if (n === index) { b.setAttribute('aria-current', 'step'); } else { b.removeAttribute('aria-current'); }
+      });
+      if (label) { label.textContent = 'Step ' + (index + 1) + ' of ' + panels.length; }
       var summary = $('[data-wizard-summary]', wiz);
       if (summary && index === panels.length - 1) { buildSummary(summary); }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (scroll) { wiz.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     }
 
     function engines() {
       var names = [];
-      $$('.choice[data-engine]', wiz).forEach(function (card) {
+      $$('[data-engine]', wiz).forEach(function (card) {
         var box = card.querySelector('input[type=checkbox]');
-        if (box && box.checked) { names.push(card.querySelector('.choice__title span').textContent); }
+        var name = card.querySelector('[data-engine-name]');
+        if (box && box.checked && name) { names.push(name.textContent); }
       });
       return names.join(', ') || 'none';
     }
@@ -280,10 +156,14 @@
     }
 
     wiz.addEventListener('click', function (e) {
-      if (e.target.closest('[data-next]')) { e.preventDefault(); show(index + 1); }
-      else if (e.target.closest('[data-prev]')) { e.preventDefault(); show(index - 1); }
+      if (e.target.closest('[data-next]')) { e.preventDefault(); show(index + 1, true); }
+      else if (e.target.closest('[data-prev]')) { e.preventDefault(); show(index - 1, true); }
     });
-    show(0);
+    // Enter in a field goes to the next step; only the last step sends the form.
+    wiz.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && index < panels.length - 1 && e.target.matches('input:not([type=checkbox]):not([type=radio]), select')) { e.preventDefault(); show(index + 1, true); }
+    });
+    show(0, false);
   });
 
   // ------------------------------------------------------------------ app view: reload the frame

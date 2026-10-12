@@ -41,6 +41,8 @@ public class ShareModel : PageModel
         return Page();
     }
 
+    [TempData] public string? StatusMessage { get; set; }
+
     public async Task<IActionResult> OnPostAsync(long id)
     {
         var app = await _apps.GetAsync(id, HttpContext.RequestAborted);
@@ -57,6 +59,7 @@ public class ShareModel : PageModel
             ExpiresAt = ExpiresInDays > 0 ? DateTime.UtcNow.AddDays(ExpiresInDays) : null,
         });
         await _db.SaveChangesAsync(HttpContext.RequestAborted);
+        StatusMessage = "The link was created.";
         return RedirectToPage("/Apps/Details", new { id, tab = "sharing" });
     }
 }

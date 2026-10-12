@@ -2,27 +2,25 @@
 @model Mattiverse.Web.Pages.Users.EditModel
 @{
     ViewData["Title"] = Model.IsEdit ? "Edit user" : "New user";
-    var pwHint = Model.IsEdit ? "Leave blank to keep the current password." : null;
+    ViewData["PageSub"] = Model.IsEdit ? "Change the name, the role or the password." : "Creates an account that can sign in.";
+    ViewData["Crumbs"] = Crumbs.Of(("Users", "/Users"), (Model.IsEdit ? Model.Input.Username : "New user", null));
+    ViewData["Width"] = "narrow";
+    var pwHint = Model.IsEdit ? "Leave blank to keep the current password." : "At least 8 characters.";
 }
 
-<div class="page-head">
-    <div class="page-head__title">
-        <h1>@ViewData["Title"]</h1>
-    </div>
-</div>
+<form method="post" class="mat-form" novalidate>
+    <input type="hidden" asp-for="Input.Id" />
+    <partial name="_ValidationSummary" />
 
-<div class="card" style="max-width:640px;">
-    <div class="card__body">
-        <form method="post" class="mat-form">
-            <input type="hidden" asp-for="Input.Id" />
-
-            <div class="form-grid">
-                <mat-field label="Username" asp-for="Input.Username">
-                    <input asp-for="Input.Username" class="mat-input" autocomplete="off" readonly="@Model.IsEdit" />
+    <div class="mat-card">
+        <div class="mat-card__body">
+            <div class="mat-form__grid">
+                <mat-field label="Username" asp-for="Input.Username" required="true">
+                    <input asp-for="Input.Username" class="mat-input" autocomplete="off" readonly="@Model.IsEdit" required data-msg-required="Please enter a username." />
                 </mat-field>
 
-                <mat-field label="Display name" asp-for="Input.DisplayName">
-                    <input asp-for="Input.DisplayName" class="mat-input" />
+                <mat-field label="Display name" asp-for="Input.DisplayName" required="true">
+                    <input asp-for="Input.DisplayName" class="mat-input" required data-msg-required="Please enter a display name." />
                 </mat-field>
 
                 <mat-field label="Role" asp-for="Input.Role">
@@ -32,26 +30,28 @@
                     </select>
                 </mat-field>
 
-                <mat-field label="Status">
-                    <label class="mat-switch" style="margin-top:6px;">
+                <div class="mat-field">
+                    <span class="mat-label">Status</span>
+                    <label class="mat-check">
                         <input asp-for="Input.IsActive" type="checkbox" />
-                        <span>Account is active</span>
+                        <span class="mat-check__text">Account is active</span>
                     </label>
-                </mat-field>
+                    <span class="mat-error"></span>
+                </div>
 
-                <mat-field label="Password" asp-for="Input.Password" hint="@pwHint">
+                <mat-field label="Password" asp-for="Input.Password" required="@(!Model.IsEdit)" hint="@pwHint">
                     <input asp-for="Input.Password" type="password" class="mat-input" autocomplete="new-password" />
                 </mat-field>
 
-                <mat-field label="Confirm password" asp-for="Input.ConfirmPassword">
+                <mat-field label="Confirm password" asp-for="Input.ConfirmPassword" required="@(!Model.IsEdit)">
                     <input asp-for="Input.ConfirmPassword" type="password" class="mat-input" autocomplete="new-password" />
                 </mat-field>
             </div>
-
-            <mat-form-buttons>
-                <button type="submit" class="mat-btn mat-btn--primary"><icon name="save" /><span>Save</span></button>
-                <a href="/Users" class="mat-btn mat-btn--ghost"><icon name="back" /><span>Back</span></a>
-            </mat-form-buttons>
-        </form>
+        </div>
     </div>
-</div>
+
+    <div class="mat-btn-row">
+        <button type="submit" class="mat-btn mat-btn--primary"><icon name="save" /><span>Save</span></button>
+        <a href="/Users" class="mat-btn mat-btn--secondary"><icon name="back" /><span>Back</span></a>
+    </div>
+</form>

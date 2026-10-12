@@ -12,6 +12,9 @@ namespace Mattiverse.Web.Pages.Backups;
 public class IndexModel : PageModel
 {
     private const int PageSize = 15;
+    private static readonly StringComparison Ic = StringComparison.OrdinalIgnoreCase;
+    private static readonly string[] BackupSorts = ["created", "size", "app"];
+    private static readonly string[] ScheduleSorts = ["name", "app"];
 
     private readonly MattiverseDbContext _db;
     private readonly BackupHub _backups;
@@ -27,27 +30,14 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Tab { get; set; }
 
-    [BindProperty(SupportsGet = true)]
-    public string? Q { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public string? App { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public string? Kind { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public string SortKey { get; set; } = "NewestFirst";
-
-    [BindProperty(SupportsGet = true, Name = "page")]
-    public int PageNumber { get; set; } = 1;
-
     public bool SchedulesTab => Tab == "schedules";
-    public List<BackupItem> Items { get; private set; } = new();
-    public List<ScheduleItem> Schedules { get; private set; } = new();
+
+    public ListView<BackupItem>? History { get; private set; }
+
+    public ListView<ScheduleItem>? Schedules { get; private set; }
+
     public Dictionary<string, string> AppNames { get; private set; } = new();
-    public List<string> AppSlugs { get; private set; } = new();
-    public PaginationModel Pagination { get; private set; } = new();
+
     public long TotalSize { get; private set; }
 
     /// <summary>MatDock runs apps but does not answer: its backups and schedules cannot be listed right now.</summary>
@@ -80,44 +70,117 @@ public class IndexModel : PageModel
 
         if (SchedulesTab)
         {
-            Schedules = await _backups.ListSchedulesAsync(ct);
-            return;
+            await BuildSchedulesAsync(ct);
         }
+        else
+        {
+            await BuildHistoryAsync(ct);
+        }
+    }
 
+    private async Task BuildHistoryAsync(CancellationToken ct)
+    {
         var all = await _backups.ListAsync(ct);
-        AppSlugs = all.Select(b => b.AppSlug).Distinct().Order().ToList();
+        var q = ListQuery.Text(Request, "q");
+        var app = ListQuery.Text(Request, "app");
+        var kindText = ListQuery.Text(Request, "kind");
+        var sort = ListQuery.Text(Request, "sort") is { } s && BackupSorts.Contains(s) ? s : "created";
+        var descending = ListQuery.Descending(Request, defaultDescending: sort != "app");
 
         IEnumerable<BackupItem> query = all;
-        if (!string.IsNullOrWhiteSpace(App))
+        if (app is not null)
         {
-            query = query.Where(b => b.AppSlug == App);
+            query = query.Where(b => b.AppSlug == app);
         }
 
-        if (Enum.TryParse<BackupKind>(Kind, out var kind))
+        if (Enum.TryParse<BackupKind>(kindText, out var kind))
         {
             query = query.Where(b => b.Kind == kind);
         }
-
-        if (!string.IsNullOrWhiteSpace(Q))
+        else
         {
-            var s = Q.Trim();
-            query = query.Where(b => b.AppName.Contains(s, StringComparison.OrdinalIgnoreCase) || (b.Note?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false));
+            kindText = null;
+        }
+
+        if (q is not null)
+        {
+            query = query.Where(b => b.AppName.Contains(q, Ic) || (b.Note?.Contains(q, Ic) ?? false));
         }
 
         var filtered = query.ToList();
         TotalSize = filtered.Where(b => b.Status == BackupStatus.Succeeded).Sum(b => b.SizeBytes);
 
-        filtered = SortKey switch
+        Func<BackupItem, object> key = sort switch
         {
-            "OldestFirst" => filtered.OrderBy(b => b.CreatedUtc).ToList(),
-            "Largest" => filtered.OrderByDescending(b => b.SizeBytes).ToList(),
-            "App" => filtered.OrderBy(b => b.AppName, StringComparer.OrdinalIgnoreCase).ThenByDescending(b => b.CreatedUtc).ToList(),
-            _ => filtered.OrderByDescending(b => b.CreatedUtc).ToList(),
+            "size" => b => b.SizeBytes,
+            "app" => b => b.AppName.ToLowerInvariant(),
+            _ => b => b.CreatedUtc,
+        };
+        var list = (descending ? filtered.OrderByDescending(key) : filtered.OrderBy(key)).ThenByDescending(b => b.CreatedUtc).ToList();
+
+        var toolbar = new ToolbarModel
+        {
+            Id = "backups",
+            Action = "/Backups",
+            Label = "Backups",
+            Search = q,
+            SearchPlaceholder = "Search backups",
+            SearchField = true,
+            Filters =
+            [
+                new FilterField("app", "App", all.Select(b => b.AppSlug).Distinct().Order().Select(slug => new FilterOption(slug, AppNames.GetValueOrDefault(slug, slug))).ToList(), app),
+                new FilterField("kind", "Kind", Enum.GetValues<BackupKind>().Select(k => new FilterOption(k.ToString(), k.ToString())).ToList(), kindText),
+            ],
+            SortOptions = [new("created", "Created"), new("size", "Size"), new("app", "App")],
+            Sort = sort,
+            Descending = descending,
+            DefaultSort = "created",
+            DefaultDescending = true,
+            Total = all.Count,
+            Matching = list.Count,
+            Noun = all.Count == 1 ? "backup" : "backups",
         };
 
-        Pagination = new PaginationModel { Page = PageNumber, PageSize = PageSize, TotalItems = filtered.Count };
-        Pagination.Normalize();
-        Items = filtered.Skip((Pagination.Page - 1) * PageSize).Take(PageSize).ToList();
+        var (items, pager) = ListQuery.Slice(list, Request, PageSize, toolbar.UrlWithPage);
+        History = new ListView<BackupItem> { Items = items, Toolbar = toolbar, Pager = pager };
+    }
+
+    private async Task BuildSchedulesAsync(CancellationToken ct)
+    {
+        var all = await _backups.ListSchedulesAsync(ct);
+        var q = ListQuery.Text(Request, "q");
+        var sort = ListQuery.Text(Request, "sort") is { } s && ScheduleSorts.Contains(s) ? s : "name";
+        var descending = ListQuery.Descending(Request, defaultDescending: false);
+
+        IEnumerable<ScheduleItem> query = all;
+        if (q is not null)
+        {
+            query = query.Where(x => x.Name.Contains(q, Ic) || AppNameOf(x.AppSlug).Contains(q, Ic));
+        }
+
+        Func<ScheduleItem, string> key = sort == "app" ? x => AppNameOf(x.AppSlug).ToLowerInvariant() : x => x.Name.ToLowerInvariant();
+        var list = (descending ? query.OrderByDescending(key) : query.OrderBy(key)).ToList();
+
+        var toolbar = new ToolbarModel
+        {
+            Id = "schedules",
+            Action = "/Backups",
+            Label = "Schedules",
+            Search = q,
+            SearchPlaceholder = "Search schedules",
+            SearchField = true,
+            SortOptions = [new("name", "Name"), new("app", "App")],
+            Sort = sort,
+            Descending = descending,
+            DefaultSort = "name",
+            Keep = new Dictionary<string, string?> { ["tab"] = "schedules" },
+            Total = all.Count,
+            Matching = list.Count,
+            Noun = all.Count == 1 ? "schedule" : "schedules",
+        };
+
+        var (items, pager) = ListQuery.Slice(list, Request, PageSize, toolbar.UrlWithPage);
+        Schedules = new ListView<ScheduleItem> { Items = items, Toolbar = toolbar, Pager = pager };
     }
 
     public async Task<IActionResult> OnPostDeleteAsync(string id)

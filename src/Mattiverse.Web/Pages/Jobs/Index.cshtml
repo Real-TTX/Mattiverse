@@ -2,79 +2,64 @@
 @model Mattiverse.Web.Pages.Jobs.IndexModel
 @{
     ViewData["Title"] = "Activity";
+    ViewData["PageSub"] = "Installs, updates and backups, and how they went.";
+    ViewData["Crumbs"] = Crumbs.Of(("Activity", null));
+    var list = Model.List;
 }
 
-<div class="page-head">
-    <div class="page-head__title">
-        <h1>Activity</h1>
-    </div>
-</div>
+<div class="mat-list" @(Model.Busy ? "data-autorefresh=4000" : "")>
+    <partial name="_Toolbar" model="list.Toolbar" />
 
-<div @(Model.Busy ? "data-autorefresh=4000" : "")>
-<mat-table>
-    <mat-table-toolbar>
-        <form method="get" class="js-autosubmit">
-            <div class="search">
-                <icon name="search" />
-                <input type="search" name="Q" value="@Model.Q" class="mat-input" placeholder="Search…" aria-label="Search" />
-            </div>
-            <div class="toolbar-field">
-                <label for="status">Status</label>
-                <select id="status" name="Status" class="mat-select">
-                    <option value="">All</option>
-                    @foreach (var status in Enum.GetValues<JobStatus>())
-                    {
-                        <option value="@status" selected="@(Model.Status == status.ToString())">@status</option>
-                    }
-                </select>
-            </div>
-            <div class="toolbar-field">
-                <label for="sort">Sort</label>
-                <select id="sort" name="SortKey" class="mat-select">
-                    <option value="NewestFirst" selected="@(Model.SortKey == "NewestFirst")">Newest first</option>
-                    <option value="OldestFirst" selected="@(Model.SortKey == "OldestFirst")">Oldest first</option>
-                </select>
-            </div>
-        </form>
-    </mat-table-toolbar>
-
-    <mat-table-body>
-        @if (Model.Items.Count == 0)
-        {
-            <div class="empty-state"><div><icon name="activity" /></div><p>Nothing happened yet. Installs, updates and backups show up here.</p></div>
-        }
-        else
-        {
-            <table class="data">
+    @if (list.Items.Count == 0)
+    {
+        <div class="mat-empty">
+            <span class="mat-empty__icon"><icon name="activity" /></span>
+            @if (list.Filtered)
+            {
+                <div class="mat-empty__title">Nothing matches</div>
+                <p>Change the search or the filter.</p>
+                <a class="mat-btn mat-btn--secondary" href="/Jobs">Reset the tools</a>
+            }
+            else
+            {
+                <div class="mat-empty__title">Nothing happened yet</div>
+                <p>Installs, updates and backups show up here.</p>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="mat-table-wrap">
+            <table class="mat-table">
+                <caption class="mat-sr-only">Activity</caption>
                 <thead>
-                    <tr><th>Task</th><th>Status</th><th class="hide-sm">Started</th><th class="hide-sm">Duration</th><th class="actions"></th></tr>
+                    <tr><th scope="col">Task</th><th scope="col">Status</th><th scope="col" class="mat-hide-sm">Started</th><th scope="col" class="mat-hide-sm">Duration</th><th scope="col"><span class="mat-sr-only">Actions</span></th></tr>
                 </thead>
                 <tbody>
-                    @foreach (var job in Model.Items)
+                    @foreach (var job in list.Items)
                     {
-                        var css = job.Status switch
+                        var pill = job.Status switch
                         {
-                            JobStatus.Succeeded => "online",
-                            JobStatus.Failed => "offline",
-                            _ => "busy",
+                            JobStatus.Succeeded => "mat-pill--ok",
+                            JobStatus.Failed => "mat-pill--error",
+                            _ => "mat-pill--busy",
                         };
                         <tr>
-                            <td><a href="/Jobs/Details?id=@job.Id"><strong>@job.Title</strong></a></td>
-                            <td><span class="pill pill--@css">@(job.Status == JobStatus.Succeeded ? "Done" : job.Status.ToString())</span></td>
-                            <td class="text-muted nowrap hide-sm">@Format.Ago(job.StartedAt ?? job.CreateDate)</td>
-                            <td class="text-muted nowrap hide-sm">@Format.Duration(job.StartedAt, job.FinishedAt)</td>
-                            <td class="actions">
-                                <a class="mat-btn mat-btn--sm mat-btn--icon mat-btn--ghost" href="/Jobs/Details?id=@job.Id" title="Show the log"><icon name="terminal" /></a>
+                            <td data-label="Task"><div class="mat-table__name"><a href="/Jobs/Details?id=@job.Id">@job.Title</a></div></td>
+                            <td data-label="Status"><span class="mat-pill @pill">@(job.Status == JobStatus.Succeeded ? "Done" : job.Status.ToString())</span></td>
+                            <td data-label="Started" class="mat-hide-sm mat-muted mat-nowrap">@Format.Ago(job.StartedAt ?? job.CreateDate)</td>
+                            <td data-label="Duration" class="mat-hide-sm mat-muted mat-nowrap mat-mono">@Format.Duration(job.StartedAt, job.FinishedAt)</td>
+                            <td class="mat-table__cell-actions">
+                                <div class="mat-table__actions">
+                                    <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Jobs/Details?id=@job.Id" aria-label="Show the log of @job.Title" data-tip="Show the log"><icon name="terminal" /></a>
+                                </div>
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
-        }
-    </mat-table-body>
+        </div>
+    }
 
-    <mat-table-pagination>
-        <pagination model="Model.Pagination" />
-    </mat-table-pagination>
-</mat-table>
+    <partial name="_Pager" model="list.Pager" />
 </div>
