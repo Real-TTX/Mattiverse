@@ -86,6 +86,66 @@ public sealed class IdentityLink
         log($"Signs in through MatIdentity ({variables[ManagedVariables.IdentityAuthority]}) as the app \"{clientId}\".");
     }
 
+    /// <summary>The client id of Mattiverse itself in MatIdentity.</summary>
+    public const string SelfClientId = "mattiverse";
+
+    /// <summary>
+    /// Registers Mattiverse itself in MatIdentity, so people sign in to Mattiverse through it too, and keeps how in the settings. <paramref name="origin"/> is the
+    /// address a person reaches Mattiverse at now (a new one is added to the redirect addresses); the route of the proxy is added on its own.
+    /// Without MatIdentity the sign-in through it is switched off. Returns whether Mattiverse signs in through MatIdentity now.
+    /// </summary>
+    public async Task<bool> ConnectSelfAsync(string? origin, Action<string> log, CancellationToken ct)
+    {
+        var identityApp = await _db.InstalledApps.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.CatalogId == MatIdentityClient.CatalogIdValue && a.Lifecycle == AppLifecycle.Installed, ct);
+        var endpoint = await _identity.FindAsync(ct);
+        if (identityApp is null || endpoint is null || await _identity.GetStatusAsync(ct) is not { ApiVersion: >= 1 })
+        {
+            if ((await _config.GetAsync(ct)).Identity is not null)
+            {
+                await _config.SetIdentityAsync(null, null, ct);
+                log("Mattiverse signs people in itself again.");
+            }
+
+            return false;
+        }
+
+        var config = await _config.GetAsync(ct);
+        var origins = new List<string>(config.Identity?.Origins ?? []);
+        if (!string.IsNullOrWhiteSpace(config.BaseDomain) && await _proxy.IsActiveAsync(ct))
+        {
+            origins.Add(ProxyPublisher.UrlFor(ProxyPublisher.HostFor("mattiverse", config.BaseDomain)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(origin))
+        {
+            origins.Add(origin.TrimEnd('/'));
+        }
+
+        origins = origins.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var secret = await _config.GetIdentitySecretAsync(ct);
+        var registration = await _identity.UpsertClientAsync(
+            SelfClientId,
+            "Mattiverse",
+            origins.FirstOrDefault(),
+            origins.Select(o => o + "/signin-oidc").ToList(),
+            origins.Select(o => o + "/signout-callback-oidc").ToList(),
+            callsAllApps: true,
+            renewSecret: string.IsNullOrEmpty(secret),
+            ct);
+
+        await _config.SetIdentityAsync(new IdentitySignIn
+        {
+            Authority = await PublicUrlAsync(identityApp, ct) ?? endpoint.BaseUrl,
+            // Mattiverse reaches MatIdentity like it reaches the engines (the shared network, or the host port during development).
+            InternalUrl = endpoint.BaseUrl,
+            ClientId = SelfClientId,
+            Origins = origins,
+        }, registration.Secret, ct);
+        log("Mattiverse signs people in through MatIdentity.");
+        return true;
+    }
+
     /// <summary>Removes the client of an app that is being uninstalled (only what Mattiverse registered).</summary>
     public async Task RemoveAsync(InstalledApp app, CatalogApp? catalog, Action<string> log, CancellationToken ct)
     {

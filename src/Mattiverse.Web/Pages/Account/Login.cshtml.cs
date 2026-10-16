@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Mattiverse.Core.Auth;
+using Mattiverse.Core.Configuration;
+using Mattiverse.Core.Integrations;
 using Mattiverse.Web.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -13,9 +15,13 @@ public class LoginModel : PageModel
 {
     private readonly AuthService _authService;
     private readonly SessionService _sessionService;
+    private readonly SystemConfigService _config;
+    private readonly IdentityLink _identity;
 
-    public LoginModel(AuthService authService, SessionService sessionService)
+    public LoginModel(AuthService authService, SessionService sessionService, SystemConfigService config, IdentityLink identity)
     {
+        _config = config;
+        _identity = identity;
         _authService = authService;
         _sessionService = sessionService;
     }
@@ -27,6 +33,13 @@ public class LoginModel : PageModel
     public string? ReturnUrl { get; set; }
 
     public string? ErrorMessage { get; private set; }
+
+    /// <summary>The local form even when MatIdentity signs people in (the way in for the administrator when MatIdentity is down).</summary>
+    [BindProperty(SupportsGet = true)]
+    public bool Local { get; set; }
+
+    /// <summary>MatIdentity is connected: the page offers it (and, without <see cref="Local"/>, goes there right away).</summary>
+    public bool IdentityAvailable { get; private set; }
 
     public class InputModel
     {
@@ -43,18 +56,42 @@ public class LoginModel : PageModel
         public bool RememberMe { get; set; } = true;
     }
 
-    public IActionResult OnGet()
+    public async Task<IActionResult> OnGetAsync()
     {
         if (User.Identity?.IsAuthenticated == true)
         {
             return LocalRedirect(SafeReturnUrl());
         }
 
-        return Page();
+        var identity = (await _config.GetAsync(HttpContext.RequestAborted)).Identity;
+        IdentityAvailable = identity is not null;
+        if (identity is null || Local)
+        {
+            return Page();
+        }
+
+        // Auto login: straight to MatIdentity. An address of Mattiverse that MatIdentity does not know yet is registered first.
+        var origin = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        if (!identity.Origins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await _identity.ConnectSelfAsync(origin, _ => { }, HttpContext.RequestAborted);
+            }
+            catch (InvalidOperationException)
+            {
+                ErrorMessage = "MatIdentity does not answer. Sign in with a local account.";
+                return Page();
+            }
+        }
+
+        MatIdentitySignIn.Refresh(HttpContext.RequestServices);
+        return Challenge(new AuthenticationProperties { RedirectUri = "/Account/External?returnUrl=" + Uri.EscapeDataString(SafeReturnUrl()) }, MatIdentitySignIn.Scheme);
     }
 
     public async Task<IActionResult> OnPostAsync()
     {
+        IdentityAvailable = (await _config.GetAsync(HttpContext.RequestAborted)).Identity is not null;
         if (!ModelState.IsValid)
         {
             return Page();

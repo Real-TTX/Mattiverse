@@ -391,6 +391,10 @@ namespace Mattiverse.Core.Data.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ExternalSubject")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
@@ -428,6 +432,10 @@ namespace Mattiverse.Core.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalSubject")
+                        .IsUnique()
+                        .HasFilter("\"ExternalSubject\" IS NOT NULL AND \"UpdateState\" <> 0");
 
                     b.HasIndex("Username")
                         .IsUnique()

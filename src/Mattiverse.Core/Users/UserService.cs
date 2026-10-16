@@ -115,6 +115,50 @@ public sealed class UserService
         return user;
     }
 
+    /// <summary>
+    /// The local account of a person who signed in through MatIdentity: found by the claim <c>sub</c>, else the local account with the same user name that is
+    /// not linked yet (the administrator who set Mattiverse up is the administrator of MatIdentity too), else a new account. The role follows the claim
+    /// <c>role</c> of the token (<c>admin</c> is Admin, anything else User) when it is there. Null for a disabled account.
+    /// </summary>
+    public async Task<User?> FindOrCreateExternalAsync(string subject, string username, string? displayName, string? role, CancellationToken ct = default)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.ExternalSubject == subject, ct)
+                   ?? await _db.Users.FirstOrDefaultAsync(u => u.Username == username && u.ExternalSubject == null, ct);
+        if (user is null)
+        {
+            var name = username;
+            for (var n = 2; await _db.Users.AnyAsync(u => u.Username == name, ct); n++)
+            {
+                name = $"{username}-{n}";
+            }
+
+            // No password: the account signs in through MatIdentity (a local password can be set by an administrator).
+            user = new User { Username = name, DisplayName = string.IsNullOrWhiteSpace(displayName) ? name : displayName.Trim(), PasswordHash = string.Empty, Role = UserRole.User, IsActive = true };
+            _db.Users.Add(user);
+        }
+
+        if (!user.IsActive)
+        {
+            return null;
+        }
+
+        user.ExternalSubject = subject;
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            user.DisplayName = displayName.Trim();
+        }
+
+        if (role is not null)
+        {
+            user.Role = role == "admin" ? UserRole.Admin : UserRole.User;
+        }
+
+        user.MustChangePassword = false;
+        user.LastLoginAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return user;
+    }
+
     public Task<int> CountAsync(CancellationToken ct = default)
         => _db.Users.CountAsync(ct);
 }

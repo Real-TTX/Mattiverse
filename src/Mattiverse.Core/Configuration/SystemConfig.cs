@@ -36,6 +36,9 @@ public sealed class SystemConfig
     /// <summary>The DNS account of the domain (the credentials themselves are in <see cref="ProtectedSecrets"/> under <c>dns</c>).</summary>
     public DnsSettings Dns { get; set; } = new();
 
+    /// <summary>Mattiverse's own sign-in through MatIdentity (set when MatIdentity is installed and Mattiverse registered itself there); null without it.</summary>
+    public IdentitySignIn? Identity { get; set; }
+
     /// <summary>Default theme for new users: system, light or dark.</summary>
     public string DefaultTheme { get; set; } = "system";
 }
@@ -76,4 +79,20 @@ public sealed class DnsSettings
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsConfigured => DnsProviders.Find(Provider) is not null;
+}
+
+/// <summary>
+/// How Mattiverse signs people in through MatIdentity: where MatIdentity is (for the browser and inside Docker) and the client of Mattiverse there.
+/// The secret of the client is in <see cref="SystemConfig.ProtectedSecrets"/> under <c>matidentity</c>.
+/// </summary>
+public sealed class IdentitySignIn
+{
+    public string Authority { get; set; } = string.Empty;
+
+    public string? InternalUrl { get; set; }
+
+    public string ClientId { get; set; } = "mattiverse";
+
+    /// <summary>The addresses of Mattiverse that are registered as redirect addresses (a new one is added when someone signs in from it).</summary>
+    public List<string> Origins { get; set; } = new();
 }

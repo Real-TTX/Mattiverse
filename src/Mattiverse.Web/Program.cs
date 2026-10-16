@@ -85,7 +85,17 @@ builder.Services.AddAuthentication(AuthConstants.CookieScheme)
         options.ExpireTimeSpan = TimeSpan.FromDays(Math.Max(1, sessionLifetimeDays));
         options.SlidingExpiration = true;
         options.Events.OnValidatePrincipal = SessionValidation.ValidateAsync;
-    });
+    })
+    // The sign-in through MatIdentity (when it is installed): the answer lands in a short cookie of its own, /Account/External turns it into a session.
+    .AddCookie(MatIdentitySignIn.ExternalScheme, options =>
+    {
+        options.Cookie.Name = "mattiverse.external";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+    })
+    .AddOpenIdConnect(MatIdentitySignIn.Scheme, _ => { });
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IConfigureOptions<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>, MatIdentitySignIn>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -104,6 +114,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/");
     options.Conventions.AllowAnonymousToPage("/Setup");
     options.Conventions.AllowAnonymousToPage("/Account/Login");
+    options.Conventions.AllowAnonymousToPage("/Account/External");
     options.Conventions.AllowAnonymousToPage("/Account/Logout");
     options.Conventions.AllowAnonymousToPage("/Account/AccessDenied");
     options.Conventions.AllowAnonymousToPage("/Share/View");

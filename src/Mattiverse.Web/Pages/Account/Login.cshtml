@@ -38,4 +38,9 @@
             <button type="submit" class="mat-btn mat-btn--primary mat-btn--block"><icon name="login" /><span>Sign in</span></button>
         </div>
     </form>
+
+    @if (Model.IdentityAvailable)
+    {
+        <a class="mat-btn mat-btn--secondary mat-btn--block" href="/Account/Login?returnUrl=@Uri.EscapeDataString(Model.ReturnUrl ?? "/")"><icon name="key" /><span>Sign in with MatIdentity</span></a>
+    }
 </div>

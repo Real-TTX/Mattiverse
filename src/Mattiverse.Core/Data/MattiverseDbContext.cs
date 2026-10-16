@@ -39,6 +39,8 @@ public class MattiverseDbContext : DbContext
             e.Property(x => x.DisplayName).HasMaxLength(256);
             e.Property(x => x.PasswordHash).HasMaxLength(512);
             e.Property(x => x.Theme).HasMaxLength(16).IsRequired();
+            e.Property(x => x.ExternalSubject).HasMaxLength(64);
+            e.HasIndex(x => x.ExternalSubject).IsUnique().HasFilter("\"ExternalSubject\" IS NOT NULL AND \"UpdateState\" <> 0");
             e.Property(x => x.Role).HasConversion<int>();
             // Unique only among non-deleted rows, so a username can be reused after a soft delete.
             e.HasIndex(x => x.Username).IsUnique().HasFilter("\"UpdateState\" <> 0");

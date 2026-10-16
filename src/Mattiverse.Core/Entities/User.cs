@@ -19,6 +19,9 @@ public class User : AuditableEntity
 
     public DateTime? LastLoginAt { get; set; }
 
+    /// <summary>The claim <c>sub</c> of the person in MatIdentity when they sign in through it (the single sign-on); null for a local account only.</summary>
+    public string? ExternalSubject { get; set; }
+
     /// <summary>Preferred theme: system, light or dark (stored in the browser as well, so it applies before login).</summary>
     public string Theme { get; set; } = "system";
 

@@ -48,6 +48,28 @@ public sealed class SystemConfigService
     /// Saves the DNS account. A credential that is left empty keeps the stored value (the form never shows secrets), and <c>none</c> removes
     /// the credentials.
     /// </summary>
+    /// <summary>The secret of Mattiverse's client in MatIdentity, or null.</summary>
+    public async Task<string?> GetIdentitySecretAsync(CancellationToken ct = default)
+    {
+        var config = await GetAsync(ct);
+        return config.ProtectedSecrets.TryGetValue("matidentity", out var value) ? _protector.UnprotectNullable(value) : null;
+    }
+
+    /// <summary>Stores how Mattiverse signs in through MatIdentity (null: not at all) and, when given, the secret of its client.</summary>
+    public Task SetIdentityAsync(IdentitySignIn? identity, string? secret, CancellationToken ct = default)
+        => UpdateAsync(c =>
+        {
+            c.Identity = identity;
+            if (identity is null)
+            {
+                c.ProtectedSecrets.Remove("matidentity");
+            }
+            else if (!string.IsNullOrEmpty(secret))
+            {
+                c.ProtectedSecrets["matidentity"] = _protector.Protect(secret);
+            }
+        }, ct);
+
     public async Task SetDnsAsync(string provider, string? zone, IReadOnlyDictionary<string, string?> credentials, CancellationToken ct = default)
     {
         var known = DnsProviders.Find(provider);

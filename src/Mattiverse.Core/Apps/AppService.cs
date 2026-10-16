@@ -394,6 +394,16 @@ public sealed partial class AppService
     /// </summary>
     public async Task ConnectIdentityAppsAsync(Action<string> log, CancellationToken ct)
     {
+        // Mattiverse itself first: its own sign-in goes through MatIdentity too (or no more).
+        try
+        {
+            await _identity.ConnectSelfAsync(origin: null, log, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            log($"Warning: Mattiverse could not register itself in MatIdentity: {ex.Message}");
+        }
+
         var apps = await _db.InstalledApps.Where(a => a.Lifecycle == AppLifecycle.Installed).ToListAsync(ct);
         foreach (var other in apps)
         {
