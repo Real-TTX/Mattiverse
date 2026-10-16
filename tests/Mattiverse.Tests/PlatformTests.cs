@@ -65,16 +65,21 @@ public class PlatformTests
         Assert.Contains("MAT_API_KEY: ${MAT_API_KEY}", identity.ComposeYaml);
     }
 
-    [Fact]
-    public void MatSplit_speaks_the_platform_and_signs_in_through_MatIdentity()
+    [Theory]
+    [InlineData("matsplit")]
+    [InlineData("mattrakr")]
+    [InlineData("matplay")]
+    [InlineData("matbu")]
+    [InlineData("matmail")]
+    public void The_app_speaks_the_platform_and_signs_in_through_MatIdentity(string id)
     {
-        var split = CreateCatalog().Get("matsplit");
-        Assert.NotNull(split);
-        Assert.True(split.Platform);
-        Assert.NotNull(split.Identity);
+        var app = CreateCatalog().Get(id);
+        Assert.NotNull(app);
+        Assert.True(app.Platform);
+        Assert.NotNull(app.Identity);
         foreach (var key in new[] { ManagedVariables.ApiKey, ManagedVariables.IdentityAuthority, ManagedVariables.IdentityInternalUrl, ManagedVariables.IdentityClientId, ManagedVariables.IdentityClientSecret })
         {
-            Assert.Contains($"{key}: ${{{key}", split.ComposeYaml);
+            Assert.Contains($"{key}: ${{{key}", app.ComposeYaml);
         }
     }
 
