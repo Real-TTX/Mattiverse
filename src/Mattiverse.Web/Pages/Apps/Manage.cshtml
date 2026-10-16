@@ -64,10 +64,11 @@ else
                         }
                         else if (action.Kind == "post")
                         {
-                            <form method="post" asp-page-handler="Action" asp-route-page="@Model.Current.Id" data-confirm="@action.Confirm" data-confirm-ok="@action.Label" data-confirm-danger="@(action.Danger == true ? "true" : null)">
+                            @* The button stands in the row itself (the toolkit orders the buttons of a row: positive to negative); its form is beside it. *@
+                            <form id="action-@action.Id" method="post" asp-page-handler="Action" asp-route-id="@Model.Id" asp-route-view="@Model.Current.Id" data-confirm="@action.Confirm" data-confirm-ok="@action.Label" data-confirm-danger="@(action.Danger == true ? "true" : null)" hidden>
                                 <input type="hidden" name="actionId" value="@action.Id" />
-                                <button type="submit" class="mat-btn @(action.Danger == true ? "mat-btn--danger" : "mat-btn--secondary")">@Ui.Icon(icon)<span>@action.Label</span></button>
                             </form>
+                            <button type="submit" form="action-@action.Id" class="mat-btn @(action.Danger == true ? "mat-btn--danger" : "mat-btn--secondary")">@Ui.Icon(icon)<span>@action.Label</span></button>
                         }
                     }
                 </div>
@@ -75,7 +76,7 @@ else
 
             case "form":
                 var fields = Model.FieldsOf(part).ToList();
-                <form method="post" asp-page-handler="Configure" asp-route-page="@Model.Current.Id" class="mat-form" novalidate>
+                <form method="post" asp-page-handler="Configure" asp-route-id="@Model.Id" asp-route-view="@Model.Current.Id" class="mat-form" novalidate>
                     <input type="hidden" name="keys" value="@string.Join(',', fields.Select(f => f.Key))" />
                     <partial name="_ValidationSummary" />
                     <div class="mat-card">

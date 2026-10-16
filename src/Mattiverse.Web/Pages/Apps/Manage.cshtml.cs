@@ -31,8 +31,8 @@ public class ManageModel : PageModel
     [BindProperty(SupportsGet = true)]
     public long Id { get; set; }
 
-    /// <summary>The page of the definition that is shown (its id).</summary>
-    [BindProperty(SupportsGet = true, Name = "page")]
+    /// <summary>The page of the definition that is shown (its id; the query is <c>view</c>, because <c>page</c> is the route value of Razor Pages).</summary>
+    [BindProperty(SupportsGet = true, Name = "view")]
     public string? PageId { get; set; }
 
     public Core.Entities.InstalledApp App { get; private set; } = null!;
@@ -59,7 +59,7 @@ public class ManageModel : PageModel
         Tabs = Definition?.Pages.Select(p => new TabItem
         {
             Title = p.Label,
-            Href = $"/Apps/Manage?id={Id}&page={Uri.EscapeDataString(p.Id)}",
+            Href = $"/Apps/Manage?id={Id}&view={Uri.EscapeDataString(p.Id)}",
             Icon = p.Icon is not null && KnownIcon(p.Icon) ? p.Icon : null,
             Active = p.Id == Current?.Id,
         }).ToList() ?? [],
@@ -130,7 +130,7 @@ public class ManageModel : PageModel
                 var restart = Definition.Configure.Any(f => keys.Contains(f.Key) && f.Restart == true && values.ContainsKey(f.Key));
                 StatusMessage = restart ? "Saved. Some of these settings take effect after a restart of the app." : "Saved.";
                 IsError = false;
-                return RedirectToPage(new { id = Id, page = Current.Id });
+                return RedirectToPage(new { id = Id, view = Current.Id });
             }
 
             errors = result.Errors.Count > 0 ? new Dictionary<string, string>(result.Errors) : new Dictionary<string, string> { [string.Empty] = result.Message ?? "The app did not save." };
@@ -155,7 +155,7 @@ public class ManageModel : PageModel
         var result = await _platform.RunActionAsync(App, actionId, HttpContext.RequestAborted);
         StatusMessage = result.Message;
         IsError = !result.Ok;
-        return RedirectToPage(new { id = Id, page = Current?.Id });
+        return RedirectToPage(new { id = Id, view = Current?.Id });
     }
 
     /// <summary>An icon the app names is drawn only when the sprite of this Mattiverse has it (an app may know newer icons).</summary>
