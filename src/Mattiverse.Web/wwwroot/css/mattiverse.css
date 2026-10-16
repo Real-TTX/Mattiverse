@@ -130,3 +130,10 @@
 .mv-engine__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mv-engine__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-2); font-weight: 650; }
 .mv-engine__warn { color: var(--mat-warning-text); }
+
+/* ---- An app as it describes itself (Apps/Manage): the tone of a tile from its level, a meter under the number ---- */
+.mv-stat__body { flex: 1 1 auto; min-width: 0; }
+.mv-stat__body .mat-meter { margin-top: var(--mat-space-2); }
+.mv-stat--info .mv-stat__icon { background: var(--mat-info-bg); color: var(--mat-info-text); }
+.mv-stat--warn .mv-stat__icon { background: var(--mat-warning-bg); color: var(--mat-warning-text); }
+.mv-stat--error .mv-stat__icon { background: var(--mat-danger-bg); color: var(--mat-danger-text); }

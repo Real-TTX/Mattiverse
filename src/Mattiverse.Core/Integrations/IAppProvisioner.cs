@@ -93,3 +93,27 @@ public sealed class MatddnsProvisioner : IAppProvisioner
         await _dns.PublishAllAsync(log, null, ct);
     }
 }
+
+/// <summary>MatIdentity: waits for its API; Mattiverse then registers the apps that sign in through it (<see cref="Apps.AppService.ConnectIdentityAppsAsync"/>).</summary>
+public sealed class MatIdentityProvisioner : IAppProvisioner
+{
+    private readonly MatIdentityClient _identity;
+
+    public MatIdentityProvisioner(MatIdentityClient identity)
+    {
+        _identity = identity;
+    }
+
+    public string Key => "matidentity";
+
+    public async Task ProvisionAsync(InstalledApp app, CatalogApp catalog, Action<string> log, CancellationToken ct)
+    {
+        if (!await _identity.WaitReadyAsync(TimeSpan.FromSeconds(120), log, ct))
+        {
+            log("The MatIdentity API did not answer. This MatIdentity image may be older than its API: the apps keep their own sign-in until it is updated.");
+            return;
+        }
+
+        log("MatIdentity is ready: the apps that can use it are connected now.");
+    }
+}

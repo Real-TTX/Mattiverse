@@ -69,6 +69,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAppProvisioner, MatcadProvisioner>();
         services.AddScoped<IAppProvisioner, MatddnsProvisioner>();
 
+        // MatIdentity, the single sign-on: the apps are registered there by Mattiverse.
+        services.AddScoped<MatIdentityClient>();
+        services.AddScoped<IdentityLink>();
+        services.AddScoped<PlatformClient>();
+        services.AddScoped<IAppProvisioner, MatIdentityProvisioner>();
+
         return services;
     }
 

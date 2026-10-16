@@ -9,6 +9,9 @@ public static class AppRoles
     public const string Ddns = "ddns";
     public const string Docker = "docker";
     public const string App = "app";
+
+    /// <summary>The single sign-on of the family (MatIdentity).</summary>
+    public const string Identity = "identity";
 }
 
 /// <summary>
@@ -56,6 +59,12 @@ public sealed class CatalogApp
     public List<CatalogVariable> Variables { get; set; } = new();
 
     public List<CatalogCredential> Credentials { get; set; } = new();
+
+    /// <summary>The app speaks the platform contract (MatDesign docs/PLATFORM.md): Mattiverse gives it a key (<c>MAT_API_KEY</c>) and shows its <c>/api</c> on the page of the app.</summary>
+    public bool Platform { get; set; }
+
+    /// <summary>The app can sign people in through MatIdentity: when MatIdentity is installed, Mattiverse registers the app there and fills <c>MATIDENTITY_*</c>.</summary>
+    public CatalogIdentity? Identity { get; set; }
 
     // ---- filled by the loader, not part of the YAML block ----
 
@@ -137,4 +146,25 @@ public sealed class CatalogPort
     public int HostPort { get; set; }
 
     public string Protocol { get; set; } = "tcp";
+}
+
+/// <summary>Where an app receives the sign-in from MatIdentity (paths of its own address; the defaults are those of ASP.NET Core).</summary>
+public sealed class CatalogIdentity
+{
+    public string Callback { get; set; } = "/signin-oidc";
+
+    public string SignedOut { get; set; } = "/signout-callback-oidc";
+}
+
+/// <summary>The names of the variables Mattiverse fills itself (MatDesign docs/PLATFORM.md): the same in every app of the family.</summary>
+public static class ManagedVariables
+{
+    public const string ApiKey = "MAT_API_KEY";
+    public const string IdentityAuthority = "MATIDENTITY_AUTHORITY";
+    public const string IdentityInternalUrl = "MATIDENTITY_INTERNAL_URL";
+    public const string IdentityClientId = "MATIDENTITY_CLIENT_ID";
+    public const string IdentityClientSecret = "MATIDENTITY_CLIENT_SECRET";
+
+    /// <summary>The issuer of MatIdentity itself (its public address), set by Mattiverse when it installs MatIdentity.</summary>
+    public const string IdentityIssuer = "MATIDENTITY_ISSUER";
 }

@@ -43,6 +43,7 @@ public sealed partial class AppService
     private readonly StackEngines _engines;
     private readonly BackupHub _backups;
     private readonly IEnumerable<IAppProvisioner> _provisioners;
+    private readonly IdentityLink _identity;
     private readonly ILogger<AppService> _logger;
 
     public AppService(
@@ -58,6 +59,7 @@ public sealed partial class AppService
         StackEngines engines,
         BackupHub backups,
         IEnumerable<IAppProvisioner> provisioners,
+        IdentityLink identity,
         ILogger<AppService> logger)
     {
         _db = db;
@@ -72,6 +74,7 @@ public sealed partial class AppService
         _engines = engines;
         _backups = backups;
         _provisioners = provisioners;
+        _identity = identity;
         _logger = logger;
     }
 
@@ -171,7 +174,7 @@ public sealed partial class AppService
             await _db.SaveChangesAsync(ct);
             log(engine.Id == "matdock" ? "MatDock runs this app." : "Mattiverse runs this app itself (docker compose).");
 
-            var (spec, variables) = await BuildSpecAsync(app, catalog, ct);
+            var (spec, variables) = await BuildSpecAsync(app, catalog, log, ct);
             foreach (var conflict in await _ports.FindConflictsAsync(catalog, variables, app.ProjectName, ct))
             {
                 log($"Warning: host port {conflict.Port}/{conflict.Protocol} is already used by '{conflict.Container}'; the start may fail.");
@@ -220,7 +223,7 @@ public sealed partial class AppService
 
         await _docker.EnsureNetworkAsync(ct);
         var engine = _engines.For(app);
-        var (spec, _) = await BuildSpecAsync(app, catalog, ct);
+        var (spec, _) = await BuildSpecAsync(app, catalog, log, ct);
 
         var current = await engine.ReadAsync(app, ct);
         var customized = current is not null && app.ComposeSha is not null && ComposeHash.Of(current.Compose) != app.ComposeSha;
@@ -274,6 +277,7 @@ public sealed partial class AppService
 
             await _proxy.UnpublishAsync(app, log, ct);
             await _dns.PublishAllAsync(log, excludeSlug: app.Slug, ct);
+            await RemoveFromIdentityAsync(app, log, ct);
 
             log(deleteData ? "Removing the containers and the data ..." : "Removing the containers (the data is kept) ...");
             await _engines.For(app).RemoveAsync(app, deleteData, log, ct);
@@ -283,6 +287,12 @@ public sealed partial class AppService
             _db.InstalledApps.Remove(app);
             await _db.SaveChangesAsync(ct);
             log($"{app.Name} was removed.");
+
+            if (app.Role == AppRoles.Identity)
+            {
+                // Without MatIdentity the apps sign people in themselves again.
+                await ConnectIdentityAppsAsync(log, ct);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -314,7 +324,7 @@ public sealed partial class AppService
     /// What the engine deploys for an app, from its current catalog entry. Keeps the answers the user gave and fills in what is new (a
     /// newer catalog entry can add a variable such as a database password), so fixes to a catalog entry reach apps that were installed earlier.
     /// </summary>
-    private async Task<(StackSpec Spec, Dictionary<string, string> Variables)> BuildSpecAsync(InstalledApp app, CatalogApp catalog, CancellationToken ct)
+    private async Task<(StackSpec Spec, Dictionary<string, string> Variables)> BuildSpecAsync(InstalledApp app, CatalogApp catalog, Action<string> log, CancellationToken ct)
     {
         var errors = new List<string>();
         var existing = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
@@ -322,6 +332,16 @@ public sealed partial class AppService
         if (errors.Count > 0)
         {
             throw new InvalidOperationException(string.Join(' ', errors));
+        }
+
+        // What Mattiverse fills itself: the sign-in through MatIdentity (registered there now), the issuer of MatIdentity.
+        try
+        {
+            await _identity.ApplyAsync(app, catalog, variables, log, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            log($"Warning: MatIdentity could not register the app ({ex.Message}); it keeps its own sign-in for now.");
         }
 
         var config = await _config.GetAsync(ct);
@@ -345,6 +365,12 @@ public sealed partial class AppService
                 await provisioner.ProvisionAsync(app, catalog, log, ct);
             }
 
+            // MatIdentity came: the apps that can sign in through it are registered there and get their sign-in.
+            if (catalog.Role == AppRoles.Identity)
+            {
+                await ConnectIdentityAppsAsync(log, ct);
+            }
+
             // An app that is not a proxy itself gets its route and its DNS record right away when the engines exist.
             if (catalog.Role != AppRoles.Proxy)
             {
@@ -359,6 +385,49 @@ public sealed partial class AppService
             // The app runs; only the integration failed. Say so, but do not fail the install.
             _logger.LogWarning(ex, "Provisioning {Slug} failed.", app.Slug);
             log($"Warning: the follow-up setup failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Registers every installed app that can sign in through MatIdentity there (or, without MatIdentity, takes the sign-in away again) and deploys it
+    /// again with its new variables. Runs after MatIdentity was installed or removed.
+    /// </summary>
+    public async Task ConnectIdentityAppsAsync(Action<string> log, CancellationToken ct)
+    {
+        var apps = await _db.InstalledApps.Where(a => a.Lifecycle == AppLifecycle.Installed).ToListAsync(ct);
+        foreach (var other in apps)
+        {
+            var otherCatalog = _catalog.Get(other.CatalogId);
+            if (otherCatalog?.Identity is null)
+            {
+                continue;
+            }
+
+            log($"Connecting {other.Name} ...");
+            try
+            {
+                var (spec, _) = await BuildSpecAsync(other, otherCatalog, log, ct);
+                var engine = _engines.For(other);
+                await engine.DeployAsync(spec, log, ct);
+                other.ComposeSha = await StoredHashAsync(engine, other, spec, ct);
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log($"Warning: {other.Name} could not be connected: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task RemoveFromIdentityAsync(InstalledApp app, Action<string> log, CancellationToken ct)
+    {
+        try
+        {
+            await _identity.RemoveAsync(app, _catalog.Get(app.CatalogId), log, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            log($"Warning: the app could not be removed from MatIdentity: {ex.Message}");
         }
     }
 

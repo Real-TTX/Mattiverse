@@ -4,6 +4,7 @@ using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Docker;
 using Mattiverse.Core.Engines;
+using Mattiverse.Core.Integrations;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Jobs;
 using Mattiverse.Web.Support;
@@ -57,6 +58,7 @@ public class IndexModel : PageModel
 
     [BindProperty] public bool InstallMatcad { get; set; } = true;
     [BindProperty] public bool InstallMatddns { get; set; } = true;
+    [BindProperty] public bool InstallMatIdentity { get; set; } = true;
 
     [BindProperty] public string? DnsProvider { get; set; }
     [BindProperty] public string? DnsZone { get; set; }
@@ -78,6 +80,7 @@ public class IndexModel : PageModel
         var installed = await _apps.ListAsync(ct);
         InstallMatcad = Wanted(installed, EngineIds.Matcad, config.Selection.ProxyAppId, config);
         InstallMatddns = Wanted(installed, EngineIds.Matddns, config.Selection.DdnsAppId, config);
+        InstallMatIdentity = Wanted(installed, MatIdentityClient.CatalogIdValue, config.Selection.IdentityAppId, config);
         await LoadAsync(config, installed, DnsFormModel.From(config, await _config.GetDnsCredentialsAsync(ct)));
     }
 
@@ -128,14 +131,15 @@ public class IndexModel : PageModel
                 DockerAppId = EngineIds.MatDock,
                 ProxyAppId = IsThere(installed, EngineIds.Matcad) || InstallMatcad ? EngineIds.Matcad : null,
                 DdnsAppId = IsThere(installed, EngineIds.Matddns) || InstallMatddns ? EngineIds.Matddns : null,
+                IdentityAppId = IsThere(installed, MatIdentityClient.CatalogIdValue) || InstallMatIdentity ? MatIdentityClient.CatalogIdValue : null,
             };
             c.WizardCompleted = true;
             c.WizardCompletedAt = DateTime.UtcNow;
         }, ct);
 
-        // MatDock first: it deploys the others. Each install connects itself to the settings once it runs.
+        // MatDock first: it deploys the others. Each install connects itself to the settings once it runs. MatIdentity last: it gets the route of the proxy.
         var jobIds = new List<long>();
-        var chosen = new[] { EngineIds.MatDock, InstallMatcad ? EngineIds.Matcad : null, InstallMatddns ? EngineIds.Matddns : null };
+        var chosen = new[] { EngineIds.MatDock, InstallMatcad ? EngineIds.Matcad : null, InstallMatddns ? EngineIds.Matddns : null, InstallMatIdentity ? MatIdentityClient.CatalogIdValue : null };
         foreach (var catalogId in chosen.OfType<string>().Where(id => !IsThere(installed, id)))
         {
             var result = await _apps.PrepareInstallAsync(new InstallRequest(catalogId, null, null, new Dictionary<string, string?>()), ct);
@@ -174,10 +178,11 @@ public class IndexModel : PageModel
             [EngineIds.MatDock] = "Runs your apps: stacks, updates, backups and schedules. You see and change all of it in MatDock.",
             [EngineIds.Matcad] = "Gives every app its own address and HTTPS certificate. The routes are visible in Matcad.",
             [EngineIds.Matddns] = "Keeps the DNS records of your apps on your changing home IP. The records are visible in Matddns.",
+            [MatIdentityClient.CatalogIdValue] = "One sign-in for all your apps. Mattiverse registers every app there; people, groups and who may open what are set in MatIdentity.",
         };
 
         Engines = [];
-        foreach (var id in EngineIds.All)
+        foreach (var id in EngineIds.All.Append(MatIdentityClient.CatalogIdValue))
         {
             var app = _catalog.Get(id);
             if (app is null)

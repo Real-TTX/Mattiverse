@@ -114,7 +114,7 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AuthorizeFolder(folder, "AdminOnly");
     }
 
-    foreach (var page in new[] { "/Apps/Update", "/Apps/Uninstall", "/Apps/Share" })
+    foreach (var page in new[] { "/Apps/Update", "/Apps/Uninstall", "/Apps/Share", "/Apps/Manage" })
     {
         options.Conventions.AuthorizePage(page, "AdminOnly");
     }

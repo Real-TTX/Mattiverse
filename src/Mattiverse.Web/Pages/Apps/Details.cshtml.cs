@@ -98,6 +98,12 @@ public class DetailsModel : PageModel
             };
             if (User.IsAdmin())
             {
+                // An app that describes itself (the platform contract) is managed on a page drawn from its description.
+                if (Catalog?.Platform == true)
+                {
+                    tabs.Insert(1, new() { Title = "Manage", Href = $"/Apps/Manage?id={Id}", Icon = "sliders", Active = false });
+                }
+
                 tabs.Add(new() { Title = "Backups", Href = $"/Apps/Details?id={Id}&tab=backups", Icon = "save", Active = ActiveTab == "backups" });
                 tabs.Add(new() { Title = "Files", Href = $"/Apps/Details?id={Id}&tab=files", Icon = "file", Active = ActiveTab == "files" });
                 tabs.Add(new() { Title = "Sharing", Href = $"/Apps/Details?id={Id}&tab=sharing", Icon = "link", Active = ActiveTab == "sharing" });

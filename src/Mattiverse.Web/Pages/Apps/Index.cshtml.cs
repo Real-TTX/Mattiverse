@@ -43,6 +43,7 @@ public class IndexModel : PageModel
                 AppRoles.Proxy => "Reverse proxy",
                 AppRoles.Ddns => "DynDNS client",
                 AppRoles.Docker => "Docker management",
+                AppRoles.Identity => "Single sign-on",
                 _ => _catalog.Get(a.CatalogId)?.Category ?? "App",
             })).ToList();
 

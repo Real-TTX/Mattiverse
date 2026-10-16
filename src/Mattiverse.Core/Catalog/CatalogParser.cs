@@ -66,7 +66,42 @@ public static partial class CatalogParser
             throw new FormatException($"{source}: shared service '{shared}' is not a service of the compose file.");
         }
 
+        if ((app.Platform || app.Identity is not null) && app.Ui is null)
+        {
+            throw new FormatException($"{source}: 'platform' and 'identity' need a 'ui' (the service that answers /api and /signin-oidc).");
+        }
+
+        AddManagedVariables(app);
         return app;
+    }
+
+    /// <summary>
+    /// The variables Mattiverse fills itself for an app that speaks the platform contract (the key of its /api) or signs in through MatIdentity (where MatIdentity
+    /// is and the app's client): hidden in the form, written to the <c>.env</c> like every variable, so the compose file uses them as <c>${MAT_API_KEY}</c> and so on.
+    /// An entry that declares one of them itself keeps its own declaration.
+    /// </summary>
+    private static void AddManagedVariables(CatalogApp app)
+    {
+        void Add(string key, string label, bool secret, bool generate = false)
+        {
+            if (app.Variables.All(v => v.Key != key))
+            {
+                app.Variables.Add(new CatalogVariable { Key = key, Label = label, Type = secret ? "secret" : "text", Generate = generate, Hidden = true });
+            }
+        }
+
+        if (app.Platform)
+        {
+            Add(ManagedVariables.ApiKey, "Platform API key", secret: true, generate: true);
+        }
+
+        if (app.Identity is not null)
+        {
+            Add(ManagedVariables.IdentityAuthority, "MatIdentity address", secret: false);
+            Add(ManagedVariables.IdentityInternalUrl, "MatIdentity address inside Docker", secret: false);
+            Add(ManagedVariables.IdentityClientId, "MatIdentity client id", secret: false);
+            Add(ManagedVariables.IdentityClientSecret, "MatIdentity client secret", secret: true);
+        }
     }
 
     private static void ReadServices(CatalogApp app, string yaml, string source)

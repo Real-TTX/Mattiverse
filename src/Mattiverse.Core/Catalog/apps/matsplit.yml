@@ -8,6 +8,9 @@ x-mattiverse:
   role: app
   icon: matsplit.svg
   homepage: https://github.com/Real-TTX/MatSplit
+  # The platform contract (/api) and the sign-in through MatIdentity: Mattiverse fills MAT_API_KEY and MATIDENTITY_*.
+  platform: true
+  identity: {}
   ui:
     service: matsplit
     port: 8080
@@ -34,6 +37,11 @@ services:
       ASPNETCORE_URLS: http://+:8080
       MATSPLIT_DATA_DIR: /data
       TZ: ${TIMEZONE:-Europe/Berlin}
+      MAT_API_KEY: ${MAT_API_KEY}
+      MATIDENTITY_AUTHORITY: ${MATIDENTITY_AUTHORITY:-}
+      MATIDENTITY_INTERNAL_URL: ${MATIDENTITY_INTERNAL_URL:-}
+      MATIDENTITY_CLIENT_ID: ${MATIDENTITY_CLIENT_ID:-}
+      MATIDENTITY_CLIENT_SECRET: ${MATIDENTITY_CLIENT_SECRET:-}
     volumes:
       - matsplit-data:/data
     healthcheck:

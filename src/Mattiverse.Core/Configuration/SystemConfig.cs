@@ -51,6 +51,9 @@ public sealed class WizardSelection
 
     /// <summary>Catalog id of the advanced Docker management (e.g. <c>matdock</c>), or <c>null</c>.</summary>
     public string? DockerAppId { get; set; }
+
+    /// <summary>Catalog id of the single sign-on (<c>matidentity</c>), or <c>null</c>.</summary>
+    public string? IdentityAppId { get; set; }
 }
 
 public sealed class BackupDefaults
