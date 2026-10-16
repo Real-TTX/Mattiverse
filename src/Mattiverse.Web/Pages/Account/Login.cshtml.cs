@@ -36,7 +36,10 @@ public class LoginModel : PageModel
 
     /// <summary>The local form even when MatIdentity signs people in (the way in for the administrator when MatIdentity is down).</summary>
     [BindProperty(SupportsGet = true)]
-    public bool Local { get; set; }
+    public string? Local { get; set; }
+
+    /// <summary><c>?local=1</c> (or <c>true</c>), as the platform contract writes it.</summary>
+    public bool WantsLocal => Local is "1" or "true" or "True";
 
     /// <summary>MatIdentity is connected: the page offers it (and, without <see cref="Local"/>, goes there right away).</summary>
     public bool IdentityAvailable { get; private set; }
@@ -65,7 +68,7 @@ public class LoginModel : PageModel
 
         var identity = (await _config.GetAsync(HttpContext.RequestAborted)).Identity;
         IdentityAvailable = identity is not null;
-        if (identity is null || Local)
+        if (identity is null || WantsLocal)
         {
             return Page();
         }

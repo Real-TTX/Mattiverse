@@ -155,3 +155,22 @@ Mattiverse uses **MatUi**, the UI toolkit of [MatDesign](https://github.com/Real
   stack is the single service `mattiverse`; the dev stack adds a SQLite web viewer.
 - No multi-host management (that is MatDock), no file explorer or terminal (MatOS / MatDock).
 - No deep integration of alternatives (Nginx Proxy Manager, Portainer): they are installed as plain apps.
+
+## MatIdentity, the single sign-on
+
+MatIdentity is an optional part, installed like an engine (the fourth card of the wizard, or from the store), and **Mattiverse manages all of it**; people,
+groups and who may open which app stay in MatIdentity's own pages (the Manage tab of MatIdentity links there).
+
+- **Its address.** Mattiverse gives MatIdentity its public address as the fixed issuer (`MATIDENTITY_ISSUER`: the route of the proxy, else this host and
+  its port). Inside Docker the apps reach it as `http://<project>-matidentity-matidentity:2300` (`MATIDENTITY_INTERNAL_URL`); MatIdentity names the public
+  address in its discovery document whichever way it is read, so the browser always goes to the public one.
+- **The apps.** `IdentityLink` registers every app whose catalog entry says `identity: {}` as a client (id = the slug, `managedBy: mattiverse`, redirect
+  addresses for the route and the host port) and fills its `MATIDENTITY_*` variables before the stack is deployed; the client is removed with the app.
+  When MatIdentity is installed (or removed) the apps that are there are connected (or disconnected) and redeployed (`AppService.ConnectIdentityAppsAsync`,
+  also run by *Connect again* on the Engines page).
+- **Mattiverse itself** is the client `mattiverse` (it may call every app). The login page goes straight to MatIdentity when it is connected (`?local=1`
+  keeps the local form); `/Account/External` turns the answer into a session: the person is found by `sub` (`User.ExternalSubject`), else by the user
+  name, else created, and the role follows the claim `role`. Signing out ends the session at MatIdentity too. The OpenID Connect options are read from the
+  settings when they are built, so nothing needs a restart (`MatIdentitySignIn`).
+- **Manage.** An app with `platform: true` gets the tab *Manage*: `PlatformClient` reads its MatApiDefinition (`GET /api`) and its values with `MAT_API_KEY`,
+  and the page draws its pages (tiles, settings form, buttons) with MatUi without knowing the app.

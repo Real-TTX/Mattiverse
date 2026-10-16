@@ -31,12 +31,16 @@ public static class AppJobs
             await ctx.Services.GetRequiredService<BackupHub>().RunAsync(app, kind, stopContainers, note, ctx.Log, ctx.Cancellation);
         };
 
-    /// <summary>Brings Matcad (base domain, DNS account, a route per app) and Matddns (the DNS records) in line with the settings.</summary>
+    /// <summary>
+    /// Brings Matcad (base domain, DNS account, a route per app) and Matddns (the DNS records) in line with the settings, and MatIdentity (Mattiverse
+    /// itself and every app that signs in through it).
+    /// </summary>
     public static Func<JobContext, Task> ConnectEngines()
         => async ctx =>
         {
             await ctx.Services.GetRequiredService<ProxyPublisher>().PublishAllAsync(ctx.Log, ctx.Cancellation);
             await ctx.Services.GetRequiredService<DnsPublisher>().PublishAllAsync(ctx.Log, null, ctx.Cancellation);
+            await ctx.Services.GetRequiredService<AppService>().ConnectIdentityAppsAsync(ctx.Log, ctx.Cancellation);
         };
 
     public static Func<JobContext, Task> Restore(string backupId, bool backupCurrentFirst)

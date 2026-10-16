@@ -27,7 +27,9 @@ x-mattiverse:
     hostPort: 3000            # tried first on the host; a free port from the pool is used when taken
     path: /login              # optional: appended when the app is opened
   shared: [proxy]             # more services that must be reachable by the reverse proxy (the UI service always is)
-  provision: matcad           # optional: a built-in provisioner to run after the install (matdock | matcad | matddns)
+  provision: matcad           # optional: a built-in provisioner to run after the install (matdock | matcad | matddns | matidentity)
+  platform: true              # optional: the app speaks the platform contract (MatDesign docs/PLATFORM.md): Mattiverse gives it MAT_API_KEY and a Manage page
+  identity: {}                # optional: the app signs in through MatIdentity (callback /signin-oidc and signedOut /signout-callback-oidc can be changed)
   notes:
     - Shown as a hint on the install page.
   variables:
@@ -77,6 +79,13 @@ volumes:
 - A catalog entry with `provision: matcad` (or `matddns`, `matdock`) connects the engine after the install; other provisioners are C# classes
   implementing `IAppProvisioner`. An engine also needs its API key as a generated, hidden variable (`MATCAD_API_KEY`, `MATDDNS_API_KEY`,
   `MATDOCK_API_KEY`) that the compose file passes to the container the way the engine expects it (see [ENGINES.md](ENGINES.md)).
+
+## The platform contract and MatIdentity
+
+- `platform: true` adds the hidden, generated variable `MAT_API_KEY`; the compose file passes it as `MAT_API_KEY: ${MAT_API_KEY}`. The app gets a tab **Manage**, drawn from its `/api`.
+- `identity: {}` adds the hidden variables `MATIDENTITY_AUTHORITY`, `MATIDENTITY_INTERNAL_URL`, `MATIDENTITY_CLIENT_ID` and `MATIDENTITY_CLIENT_SECRET` (pass them as `${MATIDENTITY_AUTHORITY:-}` ...).
+  When MatIdentity is installed Mattiverse registers the app there and fills them on every install and update; without MatIdentity they are empty and the app signs people in itself.
+- An entry may declare one of these variables itself; then its own declaration is kept.
 
 ## What Mattiverse adds
 

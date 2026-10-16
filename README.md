@@ -243,6 +243,8 @@ GitHub Action, which also builds the multi-arch image (`amd64`, `arm64`).
 | Local users, roles, persistent sessions, shared links | ✅ |
 | Apps as MatDock stacks, routes in Matcad, DNS records in Matddns, domain and DNS account asked once | ✅ |
 | Stack edited in MatDock survives an update | ✅ |
+| Single sign-on through MatIdentity (installed and wired by Mattiverse: the apps and Mattiverse itself) | ✅ |
+| Apps that describe themselves (platform contract): the tab Manage with their tiles, settings and buttons | ✅ |
 | Microsoft Entra ID sign-in | planned (the login is already behind `AuthService` / `SessionService`) |
 | Remote backup targets (SMB, off-site) | MatDock's backup targets |
 | The engine APIs | on the `mattiverse-integration` branches of MatDock, Matcad and Matddns; they reach the released images with the next release of each ([docs/INTEGRATION.md](docs/INTEGRATION.md)) |

@@ -7,7 +7,7 @@ interfaces or major data flow change.
 
 A launcher (iOS/Android look, one app open at a time) that **installs, updates and backs up Docker apps**. It is a thin layer on top of
 three **engines** that own the configuration and show it in their own UI: **MatDock** (stacks, backups, schedules), **Matcad** (routes,
-certificates, DNS providers) and **Matddns** (IP sources, DNS records, rules). Mattiverse calls their REST APIs (`docs/ENGINES.md`); the wizard
+certificates, DNS providers) and **Matddns** (IP sources, DNS records, rules), plus the optional single sign-on **MatIdentity**, which Mattiverse installs and wires (docs/ARCHITECTURE.md, "MatIdentity"). Mattiverse calls their REST APIs (`docs/ENGINES.md`); the wizard
 installs them and asks once for the domain and the DNS account. They are fixed parts, not options. Every app is a compose project.
 
 Stack: ASP.NET Core on **.NET 10**, C#, **Razor Pages** + TagHelper controls, EF Core + **SQLite**, the `docker` CLI against the mounted
