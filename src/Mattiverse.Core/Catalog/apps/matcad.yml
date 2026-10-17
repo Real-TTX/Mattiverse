@@ -34,7 +34,7 @@ x-mattiverse:
       label: Admin password
       type: secret
       generate: true
-      help: The password of the user "admin" in Matcad. Leave empty to generate one.
+      help: The password of the user "admin" in Matcad (at least 8 characters). Leave empty to generate one.
   credentials:
     - label: Username
       value: admin

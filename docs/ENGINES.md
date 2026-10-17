@@ -40,7 +40,7 @@ Matcad already had the API (`/api/v1`: `status`, `provider-types`, `providers`, 
 `certificates`, `settings`, key `Matcad__ApiKey`). Mattiverse needed these additions (all built, branch `mattiverse-integration`):
 
 1. **`MATCAD_ADMIN_PASSWORD`** (environment): when no user exists, `admin` is created with this password, **without** the forced change, and
-   the setup wizard is treated as completed. A value shorter than 6 characters or equal to `admin` is ignored with a warning. Without the variable nothing changes.
+   the setup wizard is treated as completed. A value shorter than 8 characters or equal to `admin` is ignored with a warning (Matcad then seeds `admin`/`admin` with the forced change). Without the variable nothing changes.
 2. **`PUT /api/v1/settings`** also accepts `"setupCompleted": true` (and returns it).
 3. **`GET /healthz`** anonymous, plain `ok`.
 4. **`/api/v1/status`** additionally returns `app`, `version`, `apiVersion`.
