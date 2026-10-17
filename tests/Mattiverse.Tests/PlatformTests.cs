@@ -72,6 +72,7 @@ public class PlatformTests
     [InlineData("matbu")]
     [InlineData("matmail")]
     [InlineData("matpaper")]
+    [InlineData("matfile")]
     public void The_app_speaks_the_platform_and_signs_in_through_MatIdentity(string id)
     {
         var app = CreateCatalog().Get(id);
