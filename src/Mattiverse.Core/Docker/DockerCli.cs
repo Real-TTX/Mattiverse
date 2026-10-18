@@ -136,6 +136,35 @@ public class DockerCli
         return new CliResult(process.ExitCode, stdout.ToString(), stderr.ToString());
     }
 
+    /// <summary>
+    /// The docker process gets only what the CLI needs, never the settings of Mattiverse: <c>docker compose</c> prefers a variable of its process over
+    /// the <c>.env</c> of a stack, so anything else in the environment of Mattiverse would end up in every app it deploys.
+    /// </summary>
+    public static void KeepOnlySafeVariables(IDictionary<string, string?> environment)
+    {
+        foreach (var name in environment.Keys.ToList())
+        {
+            if (!IsSafeVariable(name))
+            {
+                environment.Remove(name);
+            }
+        }
+    }
+
+    private static readonly HashSet<string> SafeNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR", "TERM",
+        // Windows (a developer's machine): what the docker CLI needs to find its configuration and its helpers.
+        "SystemRoot", "SystemDrive", "windir", "ComSpec", "PATHEXT", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "ProgramData",
+        "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "CommonProgramFiles", "USERNAME", "HOMEDRIVE", "HOMEPATH",
+    };
+
+    public static bool IsSafeVariable(string name)
+        => SafeNames.Contains(name)
+           || name.StartsWith("LC_", StringComparison.Ordinal)
+           || name.StartsWith("DOCKER_", StringComparison.OrdinalIgnoreCase)
+           || name.StartsWith("SSL_CERT_", StringComparison.Ordinal);
+
     private Process Start(IEnumerable<string> args, string? workingDirectory, bool redirectInput)
     {
         var startInfo = new ProcessStartInfo("docker")
@@ -159,6 +188,7 @@ public class DockerCli
             startInfo.WorkingDirectory = workingDirectory;
         }
 
+        KeepOnlySafeVariables(startInfo.Environment);
         if (!string.IsNullOrWhiteSpace(_options.DockerHost))
         {
             startInfo.Environment["DOCKER_HOST"] = _options.DockerHost;
