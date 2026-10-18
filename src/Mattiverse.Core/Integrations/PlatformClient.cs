@@ -192,6 +192,8 @@ public sealed class PlatformClient
         var baseUrl = await BaseUrlAsync(app, ct) ?? throw new InvalidOperationException("The app has no web service.");
         using var request = new HttpRequestMessage(method, baseUrl + path) { Content = content };
         request.Headers.Accept.ParseAdd("application/json");
+        // Mattiverse is English: the app answers its texts (labels, units, messages) in English too.
+        request.Headers.AcceptLanguage.ParseAdd("en");
         if (withKey)
         {
             var key = AppVariables.Deserialize(_catalog.Get(app.CatalogId), app.VariablesJson, _protector).GetValueOrDefault(ManagedVariables.ApiKey);

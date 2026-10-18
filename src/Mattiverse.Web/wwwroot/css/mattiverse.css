@@ -133,6 +133,8 @@
 
 /* ---- An app as it describes itself (Apps/Manage): the tone of a tile from its level, a meter under the number ---- */
 .mv-stat__body { flex: 1 1 auto; min-width: 0; }
+/* A value is the text of the app: a long one (a status with a sentence) wraps and stops after three lines instead of leaving the tile. */
+.mv-stat__body .mat-stat__value { overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .mv-stat__body .mat-meter { margin-top: var(--mat-space-2); }
 .mv-stat--info .mv-stat__icon { background: var(--mat-info-bg); color: var(--mat-info-text); }
 .mv-stat--warn .mv-stat__icon { background: var(--mat-warning-bg); color: var(--mat-warning-text); }
