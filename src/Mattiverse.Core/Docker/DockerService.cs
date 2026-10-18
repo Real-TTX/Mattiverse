@@ -278,6 +278,17 @@ public sealed partial class DockerService
         return result.Success ? result.StdOut.Trim() : null;
     }
 
+    /// <summary>
+    /// The image a container was created from as its compose file names it (<c>Config.Image</c>, the tag) and the id (sha256:...) of the image it runs,
+    /// or <c>null</c>. <c>docker ps</c> is no help here: once the tag points to a newer image it shows the old id instead of the tag.
+    /// </summary>
+    public async Task<(string Reference, string ImageId)?> GetContainerImageAsync(string container, CancellationToken ct = default)
+    {
+        var result = await _cli.RunAsync(["inspect", "--format", "{{.Config.Image}} {{.Image}}", container], ct: ct);
+        var parts = result.Success ? result.StdOut.Trim().Split(' ', 2) : [];
+        return parts.Length == 2 ? (parts[0], parts[1]) : null;
+    }
+
     /// <summary>The repo digest (<c>repo@sha256:...</c>) of a container's image, if it came from a registry.</summary>
     public async Task<string?> GetContainerImageDigestAsync(string container, CancellationToken ct = default)
     {

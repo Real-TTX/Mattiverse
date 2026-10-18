@@ -52,7 +52,25 @@ public sealed class LocalComposeEngine : IStackEngine
         var after = await ImageIdsAsync(images, ct);
 
         var changed = images.Where(i => before.GetValueOrDefault(i) != after.GetValueOrDefault(i)).ToList();
-        var runtime = DockerService.Summarize(await _docker.ListContainersAsync(app.Slug, ct));
+        var containers = await _docker.ListContainersAsync(app.Slug, ct);
+        var runtime = DockerService.Summarize(containers);
+
+        // A container can run an older image than its tag even when this pull brought nothing new (the image was pulled or built before):
+        // then it is re-created too.
+        foreach (var container in containers)
+        {
+            if (await _docker.GetContainerImageAsync(container.Id, ct) is not { } image)
+            {
+                continue;
+            }
+
+            var tagId = after.GetValueOrDefault(image.Reference) ?? await _docker.GetImageIdAsync(image.Reference, ct);
+            if (StaleImage(tagId, image.ImageId) && !changed.Contains(image.Reference))
+            {
+                changed.Add(image.Reference);
+            }
+        }
+
         if (changed.Count == 0 && !composeChanged && runtime.State == RuntimeState.Running)
         {
             return false;
@@ -92,6 +110,10 @@ public sealed class LocalComposeEngine : IStackEngine
 
     public Task<StackSpec?> ReadAsync(InstalledApp app, CancellationToken ct = default)
         => _files.ReadAsync(app.Slug, app.ProjectName, ct);
+
+    /// <summary>True when a container runs another image than the one its tag points to now (both known).</summary>
+    public static bool StaleImage(string? tagImageId, string? containerImageId)
+        => !string.IsNullOrEmpty(tagImageId) && !string.IsNullOrEmpty(containerImageId) && !string.Equals(tagImageId, containerImageId, StringComparison.Ordinal);
 
     private async Task<Dictionary<string, string?>> ImageIdsAsync(IEnumerable<string> images, CancellationToken ct)
     {

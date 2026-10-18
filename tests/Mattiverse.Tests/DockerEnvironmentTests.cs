@@ -28,3 +28,15 @@ public class DockerEnvironmentTests
         Assert.Equal(["DOCKER_HOST", "HOME", "PATH", "USERPROFILE"], env.Keys.Order(StringComparer.Ordinal));
     }
 }
+
+/// <summary>An update re-creates a container that runs an older image than its tag, also when the pull itself brought nothing new.</summary>
+public class StaleImageTests
+{
+    [Theory]
+    [InlineData("sha256:new", "sha256:old", true)]
+    [InlineData("sha256:same", "sha256:same", false)]
+    [InlineData(null, "sha256:old", false)]
+    [InlineData("sha256:new", null, false)]
+    public void A_container_on_an_older_image_is_stale(string? tag, string? container, bool stale)
+        => Assert.Equal(stale, Mattiverse.Core.Engines.LocalComposeEngine.StaleImage(tag, container));
+}
