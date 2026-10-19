@@ -128,16 +128,34 @@ public abstract class EngineClient
     protected async Task<JsonNode?> SendAsync(HttpMethod method, string path, JsonNode? body, TimeSpan? timeout, CancellationToken ct)
     {
         var endpoint = await FindAsync(ct) ?? throw new InvalidOperationException($"{DisplayName} is not installed.");
-        using var request = new HttpRequestMessage(method, $"{endpoint.BaseUrl}/api/v1/{path}");
-        request.Headers.Add("X-Api-Key", endpoint.ApiKey);
-        if (body is not null)
-        {
-            request.Content = JsonContent.Create(body);
-        }
-
         var client = _http.CreateClient("engine");
         client.Timeout = timeout ?? TimeSpan.FromSeconds(30);
-        using var response = await SendRequestAsync(client, request, HttpCompletionOption.ResponseContentRead, ct);
+
+        // An engine that is being redeployed (an update, or a new MatSMTP connecting the apps that send mail, MatDock among them) refuses connections for
+        // a few seconds: a job that needs it then waits for it instead of failing. Only "status" answers at once: it is how Mattiverse asks whether an engine is there.
+        var deadline = DateTime.UtcNow + (path == "status" ? TimeSpan.Zero : StartGrace);
+        HttpResponseMessage response;
+        while (true)
+        {
+            using var request = new HttpRequestMessage(method, $"{endpoint.BaseUrl}/api/v1/{path}");
+            request.Headers.Add("X-Api-Key", endpoint.ApiKey);
+            if (body is not null)
+            {
+                request.Content = JsonContent.Create(body);
+            }
+
+            try
+            {
+                response = await SendRequestAsync(client, request, HttpCompletionOption.ResponseContentRead, ct);
+                break;
+            }
+            catch (InvalidOperationException ex) when (IsRefused(ex) && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(RetryDelay, ct);
+            }
+        }
+
+        using var _ = response;
         var text = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
         {
@@ -159,6 +177,16 @@ public abstract class EngineClient
             throw new InvalidOperationException($"{DisplayName} did not answer {method} {path} with JSON. Its version may not have this API yet.");
         }
     }
+
+    /// <summary>How long a request waits for an engine that refuses connections because it is starting.</summary>
+    public static TimeSpan StartGrace { get; set; } = TimeSpan.FromSeconds(90);
+
+    /// <summary>The pause between two attempts while an engine is starting.</summary>
+    public static TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>True when the engine refused the connection (it is starting or stopped), not when it answered or timed out.</summary>
+    public static bool IsRefused(Exception ex)
+        => ex.InnerException is HttpRequestException { HttpRequestError: HttpRequestError.ConnectionError or HttpRequestError.NameResolutionError };
 
     /// <summary>Sends the request; a connection that is refused or a timeout becomes the same <see cref="InvalidOperationException"/> as an error answer, so callers handle one kind of failure.</summary>
     private async Task<HttpResponseMessage> SendRequestAsync(HttpClient client, HttpRequestMessage request, HttpCompletionOption completion, CancellationToken ct)
