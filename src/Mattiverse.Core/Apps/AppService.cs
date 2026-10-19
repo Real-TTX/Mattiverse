@@ -268,7 +268,8 @@ public sealed partial class AppService
     public async Task RunUninstallAsync(long appId, bool deleteData, bool backupFirst, Action<string> log, CancellationToken ct = default)
     {
         var app = await RequireAsync(appId, ct);
-        if (app.IsCore)
+        // An engine stays; only an install that failed can be removed to start over (the page offers it, the job must allow it too).
+        if (app.IsCore && app.Lifecycle != AppLifecycle.Failed)
         {
             throw new InvalidOperationException($"{app.Name} is part of Mattiverse and cannot be removed here.");
         }

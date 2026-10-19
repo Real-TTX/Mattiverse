@@ -65,6 +65,6 @@ public class UninstallModel : PageModel
         return RedirectToPage("/Jobs/Details", new { id = jobId });
     }
 
-    /// <summary>MatDock, Matcad and Matddns are part of Mattiverse and stay; only a failed install can be removed to start over.</summary>
+    /// <summary>The engines are part of Mattiverse and stay; only a failed install can be removed to start over.</summary>
     private static bool IsProtected(InstalledApp app) => app.IsCore && app.Lifecycle != AppLifecycle.Failed;
 }
