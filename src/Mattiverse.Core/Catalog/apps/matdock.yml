@@ -16,6 +16,8 @@ x-mattiverse:
   # The platform contract (/api) and the sign-in through MatIdentity: Mattiverse fills MAT_API_KEY and MATIDENTITY_*.
   platform: true
   identity: {}
+  # Sends mail (notifications): through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
+  mail: {}
   ui:
     service: matdock
     port: 4455
@@ -59,6 +61,12 @@ services:
       MATIDENTITY_INTERNAL_URL: ${MATIDENTITY_INTERNAL_URL:-}
       MATIDENTITY_CLIENT_ID: ${MATIDENTITY_CLIENT_ID:-}
       MATIDENTITY_CLIENT_SECRET: ${MATIDENTITY_CLIENT_SECRET:-}
+      MATSMTP_HOST: ${MATSMTP_HOST:-}
+      MATSMTP_PORT: ${MATSMTP_PORT:-}
+      MATSMTP_USERNAME: ${MATSMTP_USERNAME:-}
+      MATSMTP_PASSWORD: ${MATSMTP_PASSWORD:-}
+      MATSMTP_FROM: ${MATSMTP_FROM:-}
+      MATSMTP_TLS: ${MATSMTP_TLS:-}
     volumes:
       - matdock-data:/data
       - /var/run/docker.sock:/var/run/docker.sock

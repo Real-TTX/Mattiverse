@@ -75,6 +75,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<PlatformClient>();
         services.AddScoped<IAppProvisioner, MatIdentityProvisioner>();
 
+        // MatSMTP, the mail relay: every app that sends mail gets a relay user there from Mattiverse.
+        services.AddScoped<MatSmtpClient>();
+        services.AddScoped<MailLink>();
+        services.AddScoped<IAppProvisioner, MatSmtpProvisioner>();
+
         return services;
     }
 

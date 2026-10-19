@@ -12,6 +12,7 @@ x-mattiverse:
   homepage: https://github.com/Real-TTX/MatIdentity
   recommended: true
   provision: matidentity
+  core: true
   platform: true
   ui:
     service: matidentity

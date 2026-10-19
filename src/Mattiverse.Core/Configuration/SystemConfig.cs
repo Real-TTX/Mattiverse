@@ -57,6 +57,9 @@ public sealed class WizardSelection
 
     /// <summary>Catalog id of the single sign-on (<c>matidentity</c>), or <c>null</c>.</summary>
     public string? IdentityAppId { get; set; }
+
+    /// <summary>Catalog id of the mail relay (<c>matsmtp</c>), or <c>null</c>.</summary>
+    public string? MailAppId { get; set; }
 }
 
 public sealed class BackupDefaults

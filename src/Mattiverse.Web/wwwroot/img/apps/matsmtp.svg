@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="MatSMTP">
+  <!-- The flat tile in the accent of MatSMTP (IDENT-03, sun yellow, dark ink on it): a letter that leaves along an arrow, MatSMTP's own mark. -->
+  <rect width="128" height="128" rx="28" fill="#f5b800"/>
+  <g transform="translate(16 16) scale(4)" fill="none" stroke="#0b1020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="3" width="16" height="11.5" rx="2"/><path d="m2.6 4.4 7.4 5.6 7.4-5.6"/><path d="M10 19.5h11"/><path d="m17.5 16 3.5 3.5-3.5 3.5"/>
+  </g>
+</svg>

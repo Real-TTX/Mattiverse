@@ -32,15 +32,24 @@ public static class AppJobs
         };
 
     /// <summary>
-    /// Brings Matcad (base domain, DNS account, a route per app) and Matddns (the DNS records) in line with the settings, and MatIdentity (Mattiverse
-    /// itself and every app that signs in through it).
+    /// Brings Matcad (base domain, DNS account, a route per app) and Matddns (the DNS records) in line with the settings, MatSMTP (its setup and the domain of
+    /// the senders), and MatIdentity and MatSMTP (Mattiverse itself, every app that signs in through MatIdentity and every app that sends mail, each deployed once).
     /// </summary>
     public static Func<JobContext, Task> ConnectEngines()
         => async ctx =>
         {
             await ctx.Services.GetRequiredService<ProxyPublisher>().PublishAllAsync(ctx.Log, ctx.Cancellation);
             await ctx.Services.GetRequiredService<DnsPublisher>().PublishAllAsync(ctx.Log, null, ctx.Cancellation);
-            await ctx.Services.GetRequiredService<AppService>().ConnectIdentityAppsAsync(ctx.Log, ctx.Cancellation);
+            try
+            {
+                await ctx.Services.GetRequiredService<MailLink>().ConfigureRelayAsync(ctx.Log, ctx.Cancellation);
+            }
+            catch (InvalidOperationException ex)
+            {
+                ctx.Log($"Warning: MatSMTP could not be set up: {ex.Message}");
+            }
+
+            await ctx.Services.GetRequiredService<AppService>().ConnectPlatformAppsAsync(identity: true, mail: true, ctx.Log, ctx.Cancellation);
         };
 
     public static Func<JobContext, Task> Restore(string backupId, bool backupCurrentFirst)

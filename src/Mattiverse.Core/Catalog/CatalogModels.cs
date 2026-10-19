@@ -12,6 +12,9 @@ public static class AppRoles
 
     /// <summary>The single sign-on of the family (MatIdentity).</summary>
     public const string Identity = "identity";
+
+    /// <summary>The mail relay of the family (MatSMTP).</summary>
+    public const string Mail = "mail";
 }
 
 /// <summary>
@@ -42,7 +45,7 @@ public sealed class CatalogApp
     /// <summary>Offered first in the setup wizard.</summary>
     public bool Recommended { get; set; }
 
-    /// <summary>An engine (MatDock, Matcad, Matddns): installed by the setup wizard as part of Mattiverse and not removable from the app list.</summary>
+    /// <summary>An engine (MatDock, Matcad, Matddns, MatIdentity, MatSMTP): installed by the setup wizard as part of Mattiverse and not removable from the app list.</summary>
     public bool Core { get; set; }
 
     /// <summary>Short notes shown on the install page (limits, hints).</summary>
@@ -65,6 +68,9 @@ public sealed class CatalogApp
 
     /// <summary>The app can sign people in through MatIdentity: when MatIdentity is installed, Mattiverse registers the app there and fills <c>MATIDENTITY_*</c>.</summary>
     public CatalogIdentity? Identity { get; set; }
+
+    /// <summary>The app sends mail: when MatSMTP is installed, Mattiverse creates a relay user for it there and fills <c>MATSMTP_*</c>, so all its mail goes through MatSMTP.</summary>
+    public CatalogMail? Mail { get; set; }
 
     // ---- filled by the loader, not part of the YAML block ----
 
@@ -156,6 +162,13 @@ public sealed class CatalogIdentity
     public string SignedOut { get; set; } = "/signout-callback-oidc";
 }
 
+/// <summary>How an app sends its mail through MatSMTP (MatDesign docs/PLATFORM.md, "Mail through MatSMTP").</summary>
+public sealed class CatalogMail
+{
+    /// <summary>The part of the sender address before the <c>@</c>; default: the slug of the app (<c>matsplit@example.com</c>).</summary>
+    public string? Sender { get; set; }
+}
+
 /// <summary>The names of the variables Mattiverse fills itself (MatDesign docs/PLATFORM.md): the same in every app of the family.</summary>
 public static class ManagedVariables
 {
@@ -167,4 +180,15 @@ public static class ManagedVariables
 
     /// <summary>The issuer of MatIdentity itself (its public address), set by Mattiverse when it installs MatIdentity.</summary>
     public const string IdentityIssuer = "MATIDENTITY_ISSUER";
+
+    /// <summary>Mail through MatSMTP: where it is on the shared network, the relay user of the app, its sender and the TLS mode.</summary>
+    public const string MailHost = "MATSMTP_HOST";
+    public const string MailPort = "MATSMTP_PORT";
+    public const string MailUsername = "MATSMTP_USERNAME";
+    public const string MailPassword = "MATSMTP_PASSWORD";
+    public const string MailFrom = "MATSMTP_FROM";
+    public const string MailTls = "MATSMTP_TLS";
+
+    /// <summary>The six mail variables, in the order of the documentation.</summary>
+    public static readonly IReadOnlyList<string> Mail = [MailHost, MailPort, MailUsername, MailPassword, MailFrom, MailTls];
 }

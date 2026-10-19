@@ -15,7 +15,7 @@ namespace Mattiverse.Web.Pages.Wizard;
 
 /// <summary>
 /// The setup wizard (first start, and again whenever the user wants): the address of the host, the domain and its DNS account, and
-/// which of the engines to set up. MatDock, Matcad and Matddns are part of Mattiverse; the wizard installs what is missing, hands the
+/// which of the engines to set up. MatDock, Matcad, Matddns, MatIdentity and MatSMTP are part of Mattiverse; the wizard installs what is missing, hands the
 /// domain and the DNS account over and leaves alone what is there.
 /// </summary>
 public class IndexModel : PageModel
@@ -59,6 +59,7 @@ public class IndexModel : PageModel
     [BindProperty] public bool InstallMatcad { get; set; } = true;
     [BindProperty] public bool InstallMatddns { get; set; } = true;
     [BindProperty] public bool InstallMatIdentity { get; set; } = true;
+    [BindProperty] public bool InstallMatSmtp { get; set; } = true;
 
     [BindProperty] public string? DnsProvider { get; set; }
     [BindProperty] public string? DnsZone { get; set; }
@@ -80,7 +81,8 @@ public class IndexModel : PageModel
         var installed = await _apps.ListAsync(ct);
         InstallMatcad = Wanted(installed, EngineIds.Matcad, config.Selection.ProxyAppId, config);
         InstallMatddns = Wanted(installed, EngineIds.Matddns, config.Selection.DdnsAppId, config);
-        InstallMatIdentity = Wanted(installed, MatIdentityClient.CatalogIdValue, config.Selection.IdentityAppId, config);
+        InstallMatIdentity = Wanted(installed, EngineIds.MatIdentity, config.Selection.IdentityAppId, config);
+        InstallMatSmtp = Wanted(installed, EngineIds.MatSmtp, config.Selection.MailAppId, config);
         await LoadAsync(config, installed, DnsFormModel.From(config, await _config.GetDnsCredentialsAsync(ct)));
     }
 
@@ -131,16 +133,17 @@ public class IndexModel : PageModel
                 DockerAppId = EngineIds.MatDock,
                 ProxyAppId = IsThere(installed, EngineIds.Matcad) || InstallMatcad ? EngineIds.Matcad : null,
                 DdnsAppId = IsThere(installed, EngineIds.Matddns) || InstallMatddns ? EngineIds.Matddns : null,
-                IdentityAppId = IsThere(installed, MatIdentityClient.CatalogIdValue) || InstallMatIdentity ? MatIdentityClient.CatalogIdValue : null,
+                IdentityAppId = IsThere(installed, EngineIds.MatIdentity) || InstallMatIdentity ? EngineIds.MatIdentity : null,
+                MailAppId = IsThere(installed, EngineIds.MatSmtp) || InstallMatSmtp ? EngineIds.MatSmtp : null,
             };
             c.WizardCompleted = true;
             c.WizardCompletedAt = DateTime.UtcNow;
         }, ct);
 
-        // MatDock first: it deploys the others. Each install connects itself to the settings once it runs. MatIdentity last: it gets the route of the proxy.
+        // In the order of EngineIds.All: MatDock first (it deploys the others), Matcad and Matddns, then MatIdentity (it gets the route of the proxy) and MatSMTP
+        // (registered in MatIdentity as it is deployed). Each install connects itself to the settings once it runs.
         var jobIds = new List<long>();
-        var chosen = new[] { EngineIds.MatDock, InstallMatcad ? EngineIds.Matcad : null, InstallMatddns ? EngineIds.Matddns : null, InstallMatIdentity ? MatIdentityClient.CatalogIdValue : null };
-        foreach (var catalogId in chosen.OfType<string>().Where(id => !IsThere(installed, id)))
+        foreach (var catalogId in EngineIds.All.Where(Chosen).Where(id => !IsThere(installed, id)))
         {
             var result = await _apps.PrepareInstallAsync(new InstallRequest(catalogId, null, null, new Dictionary<string, string?>()), ct);
             if (!result.Succeeded)
@@ -178,11 +181,12 @@ public class IndexModel : PageModel
             [EngineIds.MatDock] = "Runs your apps: stacks, updates, backups and schedules. You see and change all of it in MatDock.",
             [EngineIds.Matcad] = "Gives every app its own address and HTTPS certificate. The routes are visible in Matcad.",
             [EngineIds.Matddns] = "Keeps the DNS records of your apps on your changing home IP. The records are visible in Matddns.",
-            [MatIdentityClient.CatalogIdValue] = "One sign-in for all your apps. Mattiverse registers every app there; people, groups and who may open what are set in MatIdentity.",
+            [EngineIds.MatIdentity] = "One sign-in for all your apps. People, groups and who may open what are visible in MatIdentity.",
+            [EngineIds.MatSmtp] = "Sends the mail of your apps through your mail account. The relay users and the queue are visible in MatSMTP.",
         };
 
         Engines = [];
-        foreach (var id in EngineIds.All.Append(MatIdentityClient.CatalogIdValue))
+        foreach (var id in EngineIds.All)
         {
             var app = _catalog.Get(id);
             if (app is null)
@@ -196,6 +200,16 @@ public class IndexModel : PageModel
             Engines.Add(new EngineCard(app, existing, id == EngineIds.MatDock, conflicts, owns[id]));
         }
     }
+
+    /// <summary>Whether the user chose this engine (MatDock always).</summary>
+    private bool Chosen(string catalogId) => catalogId switch
+    {
+        EngineIds.Matcad => InstallMatcad,
+        EngineIds.Matddns => InstallMatddns,
+        EngineIds.MatIdentity => InstallMatIdentity,
+        EngineIds.MatSmtp => InstallMatSmtp,
+        _ => true,
+    };
 
     private static bool IsThere(List<InstalledApp> installed, string catalogId)
         => installed.Any(a => a.CatalogId == catalogId && a.Lifecycle != AppLifecycle.Failed);

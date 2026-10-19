@@ -40,7 +40,8 @@ public sealed record PlatformField(
     string? Hint,
     string? Group,
     IReadOnlyDictionary<string, JsonElement>? ShowIf,
-    bool? Restart);
+    bool? Restart,
+    bool? Fixed = null);
 
 public sealed record PlatformOption(string Value, string Label);
 

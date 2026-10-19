@@ -92,12 +92,13 @@ else
                                 var showIf = PlatformFormat.ShowIf(field);
                                 var hint = field.Hint + (field.Restart == true ? " Takes effect after a restart." : string.Empty);
                                 var error = Model.FieldErrors.GetValueOrDefault(field.Key);
+                                var locked = field.Fixed == true;
                                 <div class="mat-field @(error is null ? string.Empty : "is-invalid")" data-show-if="@showIf?.Controller" data-show-value="@showIf?.Value">
                                     @if (field.Type == "bool")
                                     {
                                         <input type="hidden" name="@name" value="false" />
                                         <label class="mat-check">
-                                            <input type="checkbox" id="@id" name="@name" value="true" checked="@PlatformFormat.FieldIsTrue(Model.Settings, field.Key)" />
+                                            <input type="checkbox" id="@id" name="@name" value="true" checked="@PlatformFormat.FieldIsTrue(Model.Settings, field.Key)" disabled="@locked" />
                                             <span class="mat-check__text">@field.Label</span>
                                         </label>
                                     }
@@ -107,7 +108,7 @@ else
                                         @switch (field.Type)
                                         {
                                             case "select":
-                                                <select class="mat-select" id="@id" name="@name" required="@(field.Required == true)">
+                                                <select class="mat-select" id="@id" name="@name" required="@(field.Required == true)" disabled="@locked">
                                                     @foreach (var option in field.Options ?? [])
                                                     {
                                                         <option value="@option.Value" selected="@(PlatformFormat.FieldValue(Model.Settings, field.Key) == option.Value)">@option.Label</option>
@@ -115,13 +116,13 @@ else
                                                 </select>
                                                 break;
                                             case "secret":
-                                                <input class="mat-input" type="password" id="@id" name="@name" autocomplete="new-password" placeholder="@(PlatformFormat.SecretIsSet(Model.Settings, field.Key) ? "Stored – leave empty to keep it" : field.Placeholder)" />
+                                                <input class="mat-input" type="password" id="@id" name="@name" autocomplete="new-password" disabled="@locked" placeholder="@(PlatformFormat.SecretIsSet(Model.Settings, field.Key) ? "Stored – leave empty to keep it" : field.Placeholder)" />
                                                 break;
                                             case "number":
-                                                <input class="mat-input" type="number" id="@id" name="@name" value="@PlatformFormat.FieldValue(Model.Settings, field.Key)" min="@field.Min" max="@field.Max" required="@(field.Required == true)" data-msg-required="Please enter @field.Label.ToLowerInvariant()." data-msg-range="Choose between @field.Min and @field.Max." />
+                                                <input class="mat-input" type="number" id="@id" name="@name" value="@PlatformFormat.FieldValue(Model.Settings, field.Key)" min="@field.Min" max="@field.Max" required="@(field.Required == true)" data-msg-required="Please enter @field.Label.ToLowerInvariant()." data-msg-range="Choose between @field.Min and @field.Max." disabled="@locked" />
                                                 break;
                                             default:
-                                                <input class="mat-input" type="@(field.Type is "url" or "email" ? field.Type : "text")" id="@id" name="@name" value="@PlatformFormat.FieldValue(Model.Settings, field.Key)" placeholder="@field.Placeholder" maxlength="@(field.Max is { } max ? (int)max : (int?)null)" pattern="@field.Pattern" required="@(field.Required == true)" data-msg-required="Please enter @field.Label.ToLowerInvariant()." />
+                                                <input class="mat-input" type="@(field.Type is "url" or "email" ? field.Type : "text")" id="@id" name="@name" value="@PlatformFormat.FieldValue(Model.Settings, field.Key)" placeholder="@field.Placeholder" maxlength="@(field.Max is { } max ? (int)max : (int?)null)" pattern="@field.Pattern" required="@(field.Required == true)" data-msg-required="Please enter @field.Label.ToLowerInvariant()." disabled="@locked" />
                                                 break;
                                         }
                                     }

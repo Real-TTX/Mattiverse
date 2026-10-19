@@ -44,6 +44,7 @@ public sealed partial class AppService
     private readonly BackupHub _backups;
     private readonly IEnumerable<IAppProvisioner> _provisioners;
     private readonly IdentityLink _identity;
+    private readonly MailLink _mail;
     private readonly ILogger<AppService> _logger;
 
     public AppService(
@@ -60,6 +61,7 @@ public sealed partial class AppService
         BackupHub backups,
         IEnumerable<IAppProvisioner> provisioners,
         IdentityLink identity,
+        MailLink mail,
         ILogger<AppService> logger)
     {
         _db = db;
@@ -75,6 +77,7 @@ public sealed partial class AppService
         _backups = backups;
         _provisioners = provisioners;
         _identity = identity;
+        _mail = mail;
         _logger = logger;
     }
 
@@ -278,6 +281,7 @@ public sealed partial class AppService
             await _proxy.UnpublishAsync(app, log, ct);
             await _dns.PublishAllAsync(log, excludeSlug: app.Slug, ct);
             await RemoveFromIdentityAsync(app, log, ct);
+            await RemoveFromMailAsync(app, log, ct);
 
             log(deleteData ? "Removing the containers and the data ..." : "Removing the containers (the data is kept) ...");
             await _engines.For(app).RemoveAsync(app, deleteData, log, ct);
@@ -292,6 +296,11 @@ public sealed partial class AppService
             {
                 // Without MatIdentity the apps sign people in themselves again.
                 await ConnectIdentityAppsAsync(log, ct);
+            }
+            else if (app.Role == AppRoles.Mail)
+            {
+                // Without MatSMTP the apps send their mail themselves again.
+                await ConnectMailAppsAsync(log, ct);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -344,6 +353,20 @@ public sealed partial class AppService
             log($"Warning: MatIdentity could not register the app ({ex.Message}); it keeps its own sign-in for now.");
         }
 
+        // ... and the mail through MatSMTP (a relay user there now).
+        try
+        {
+            await _mail.ApplyAsync(app, catalog, variables, log, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            log($"Warning: MatSMTP could not make the relay user of the app ({ex.Message}); its mail settings stay as they are for now.");
+        }
+
+        // A newer catalog entry may make an app an engine (MatIdentity, MatSMTP) or give it another role.
+        app.IsCore = catalog.Core;
+        app.Role = catalog.Role;
+
         var config = await _config.GetAsync(ct);
         app.VariablesJson = AppVariables.Serialize(catalog, variables, _protector);
         await _db.SaveChangesAsync(ct);
@@ -371,6 +394,12 @@ public sealed partial class AppService
                 await ConnectIdentityAppsAsync(log, ct);
             }
 
+            // MatSMTP came: the apps that send mail get their relay user and send through it.
+            if (catalog.Role == AppRoles.Mail)
+            {
+                await ConnectMailAppsAsync(log, ct);
+            }
+
             // An app that is not a proxy itself gets its route and its DNS record right away when the engines exist.
             if (catalog.Role != AppRoles.Proxy)
             {
@@ -392,23 +421,38 @@ public sealed partial class AppService
     /// Registers every installed app that can sign in through MatIdentity there (or, without MatIdentity, takes the sign-in away again) and deploys it
     /// again with its new variables. Runs after MatIdentity was installed or removed.
     /// </summary>
-    public async Task ConnectIdentityAppsAsync(Action<string> log, CancellationToken ct)
+    public Task ConnectIdentityAppsAsync(Action<string> log, CancellationToken ct) => ConnectPlatformAppsAsync(identity: true, mail: false, log, ct);
+
+    /// <summary>
+    /// Gives every installed app that sends mail its relay user in MatSMTP (or, without MatSMTP, takes its mail variables away again) and deploys it again
+    /// with its new variables. Runs after MatSMTP was installed or removed.
+    /// </summary>
+    public Task ConnectMailAppsAsync(Action<string> log, CancellationToken ct) => ConnectPlatformAppsAsync(identity: false, mail: true, log, ct);
+
+    /// <summary>
+    /// Connects the apps to MatIdentity and MatSMTP in one pass (the job that connects the engines): every app that uses one of them is deployed once, with
+    /// all its variables filled.
+    /// </summary>
+    public async Task ConnectPlatformAppsAsync(bool identity, bool mail, Action<string> log, CancellationToken ct)
     {
-        // Mattiverse itself first: its own sign-in goes through MatIdentity too (or no more).
-        try
+        if (identity)
         {
-            await _identity.ConnectSelfAsync(origin: null, log, ct);
-        }
-        catch (InvalidOperationException ex)
-        {
-            log($"Warning: Mattiverse could not register itself in MatIdentity: {ex.Message}");
+            // Mattiverse itself first: its own sign-in goes through MatIdentity too (or no more).
+            try
+            {
+                await _identity.ConnectSelfAsync(origin: null, log, ct);
+            }
+            catch (InvalidOperationException ex)
+            {
+                log($"Warning: Mattiverse could not register itself in MatIdentity: {ex.Message}");
+            }
         }
 
         var apps = await _db.InstalledApps.Where(a => a.Lifecycle == AppLifecycle.Installed).ToListAsync(ct);
         foreach (var other in apps)
         {
             var otherCatalog = _catalog.Get(other.CatalogId);
-            if (otherCatalog?.Identity is null)
+            if (otherCatalog is null || !((identity && otherCatalog.Identity is not null) || (mail && otherCatalog.Mail is not null)))
             {
                 continue;
             }
@@ -426,6 +470,18 @@ public sealed partial class AppService
             {
                 log($"Warning: {other.Name} could not be connected: {ex.Message}");
             }
+        }
+    }
+
+    private async Task RemoveFromMailAsync(InstalledApp app, Action<string> log, CancellationToken ct)
+    {
+        try
+        {
+            await _mail.RemoveAsync(app, _catalog.Get(app.CatalogId), log, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            log($"Warning: the relay user of the app could not be removed from MatSMTP: {ex.Message}");
         }
     }
 

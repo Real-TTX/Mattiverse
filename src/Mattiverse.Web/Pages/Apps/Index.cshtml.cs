@@ -44,6 +44,7 @@ public class IndexModel : PageModel
                 AppRoles.Ddns => "DynDNS client",
                 AppRoles.Docker => "Docker management",
                 AppRoles.Identity => "Single sign-on",
+                AppRoles.Mail => "Mail relay",
                 _ => _catalog.Get(a.CatalogId)?.Category ?? "App",
             })).ToList();
 

@@ -3,15 +3,15 @@
 @model Mattiverse.Web.Pages.Settings.EnginesModel
 @{
     ViewData["Title"] = "Engines";
-    ViewData["PageSub"] = "The three programs that keep the configuration of Mattiverse.";
+    ViewData["PageSub"] = "The five programs that keep the configuration of Mattiverse.";
     ViewData["Crumbs"] = Crumbs.Of(("Settings", "/Settings"), ("Engines", null));
     ViewData["Width"] = "narrow";
     var dns = DnsProviders.Find(Model.Config.Dns.Provider);
 }
 
 <p>
-    Mattiverse is the launcher on top of these three programs. Each one keeps its own part of the configuration, so you see
-    the stacks in MatDock, the routes in Matcad and the DNS records in Matddns, marked <em>Managed by Mattiverse</em>.
+    Mattiverse is the launcher on top of these five programs. Each one keeps its own part of the configuration, so you see
+    the stacks in MatDock, the routes in Matcad, the DNS records in Matddns, the apps in MatIdentity and their relay users in MatSMTP, marked <em>Managed by Mattiverse</em>.
 </p>
 
 @foreach (var row in Model.Rows)

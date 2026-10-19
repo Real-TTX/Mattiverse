@@ -78,7 +78,8 @@ public class ManageModel : PageModel
         var keys = Request.Form["keys"].ToString().Split(',', StringSplitOptions.RemoveEmptyEntries);
         var values = new Dictionary<string, object?>();
         var errors = new Dictionary<string, string>();
-        foreach (var field in Definition.Configure.Where(f => keys.Contains(f.Key)))
+        // A fixed field (set from outside the app, like the MATSMTP_* variables) is shown, never sent.
+        foreach (var field in Definition.Configure.Where(f => keys.Contains(f.Key) && f.Fixed != true))
         {
             var raw = Request.Form["f." + field.Key].ToString();
             switch (field.Type)

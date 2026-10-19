@@ -8,6 +8,8 @@ x-mattiverse:
   role: app
   icon: matcms.svg
   homepage: https://github.com/Real-TTX/MatCMS
+  # Sends mail (form submissions, notifications): through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
+  mail: {}
   ui:
     service: matcms
     port: 8080
@@ -24,6 +26,13 @@ services:
   matcms:
     image: ghcr.io/real-ttx/matcms:latest
     restart: unless-stopped
+    environment:
+      MATSMTP_HOST: ${MATSMTP_HOST:-}
+      MATSMTP_PORT: ${MATSMTP_PORT:-}
+      MATSMTP_USERNAME: ${MATSMTP_USERNAME:-}
+      MATSMTP_PASSWORD: ${MATSMTP_PASSWORD:-}
+      MATSMTP_FROM: ${MATSMTP_FROM:-}
+      MATSMTP_TLS: ${MATSMTP_TLS:-}
     volumes:
       # Database, keys, uploads and backups: everything lives here.
       - matcms-data:/app/appdata

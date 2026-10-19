@@ -117,3 +117,33 @@ public sealed class MatIdentityProvisioner : IAppProvisioner
         log("MatIdentity is ready: the apps that can use it are connected now.");
     }
 }
+
+/// <summary>
+/// MatSMTP: waits for its API and does the first-run setup without a person (the administrator comes from <c>MATSMTP_ADMIN_PASSWORD</c>, the senders get the domain of
+/// the settings); Mattiverse then gives every app that sends mail its relay user (<see cref="Apps.AppService.ConnectMailAppsAsync"/>).
+/// </summary>
+public sealed class MatSmtpProvisioner : IAppProvisioner
+{
+    private readonly MatSmtpClient _smtp;
+    private readonly MailLink _mail;
+
+    public MatSmtpProvisioner(MatSmtpClient smtp, MailLink mail)
+    {
+        _smtp = smtp;
+        _mail = mail;
+    }
+
+    public string Key => "matsmtp";
+
+    public async Task ProvisionAsync(InstalledApp app, CatalogApp catalog, Action<string> log, CancellationToken ct)
+    {
+        if (!await _smtp.WaitReadyAsync(TimeSpan.FromSeconds(120), log, ct))
+        {
+            log("The MatSMTP API did not answer. This MatSMTP image may be older than its API: the apps send their mail themselves until it is updated.");
+            return;
+        }
+
+        await _mail.ConfigureRelayAsync(log, ct);
+        log("MatSMTP is ready: the apps that send mail are connected now. Add the account MatSMTP delivers through in its own UI.");
+    }
+}

@@ -13,7 +13,7 @@ public sealed record IdentityRegistration(string ClientId, string? Secret);
 /// </summary>
 public sealed class MatIdentityClient : EngineClient
 {
-    public const string CatalogIdValue = "matidentity";
+    public const string CatalogIdValue = EngineIds.MatIdentity;
     public const string ManagedBy = "mattiverse";
 
     public MatIdentityClient(EngineLocator locator, IHttpClientFactory http)

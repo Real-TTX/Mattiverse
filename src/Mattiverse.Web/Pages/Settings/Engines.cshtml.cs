@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Mattiverse.Web.Pages.Settings;
 
-/// <summary>MatDock, Matcad and Matddns: which of them are there, whether their API answers, and where to open them.</summary>
+/// <summary>MatDock, Matcad, Matddns, MatIdentity and MatSMTP: which of them are there, whether their API answers, and where to open them.</summary>
 public class EnginesModel : PageModel
 {
     private readonly SystemConfigService _config;
@@ -20,6 +20,8 @@ public class EnginesModel : PageModel
     private readonly MatDockClient _matdock;
     private readonly MatcadClient _matcad;
     private readonly MatddnsClient _matddns;
+    private readonly MatIdentityClient _matidentity;
+    private readonly MatSmtpClient _matsmtp;
     private readonly MatDockEngine _matdockEngine;
     private readonly AppReconciler _reconciler;
     private readonly AppUrls _urls;
@@ -32,6 +34,8 @@ public class EnginesModel : PageModel
         MatDockClient matdock,
         MatcadClient matcad,
         MatddnsClient matddns,
+        MatIdentityClient matidentity,
+        MatSmtpClient matsmtp,
         MatDockEngine matdockEngine,
         AppReconciler reconciler,
         AppUrls urls,
@@ -43,6 +47,8 @@ public class EnginesModel : PageModel
         _matdock = matdock;
         _matcad = matcad;
         _matddns = matddns;
+        _matidentity = matidentity;
+        _matsmtp = matsmtp;
         _matdockEngine = matdockEngine;
         _reconciler = reconciler;
         _urls = urls;
@@ -71,6 +77,8 @@ public class EnginesModel : PageModel
             [EngineIds.MatDock] = "Stacks, containers, backups, schedules and updates of your apps.",
             [EngineIds.Matcad] = "Routes, certificates and logins: the address of every app.",
             [EngineIds.Matddns] = "Sources of your IP, DNS records and the rules that keep them current.",
+            [EngineIds.MatIdentity] = "People, groups, and which app each of them may open: one sign-in for all apps.",
+            [EngineIds.MatSmtp] = "The relay user of every app that sends mail, the account the mail leaves through, the queue.",
         };
 
         // One after the other: the clients share the request's database context.
@@ -79,6 +87,8 @@ public class EnginesModel : PageModel
             [EngineIds.MatDock] = _matdock,
             [EngineIds.Matcad] = _matcad,
             [EngineIds.Matddns] = _matddns,
+            [EngineIds.MatIdentity] = _matidentity,
+            [EngineIds.MatSmtp] = _matsmtp,
         };
 
         Rows = [];

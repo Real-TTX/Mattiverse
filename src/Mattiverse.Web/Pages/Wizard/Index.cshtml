@@ -27,8 +27,9 @@
         <div class="mv-step__head">
             <h2 id="step-welcome">@(Model.AlreadyCompleted ? "Set up Mattiverse again" : "Welcome to Mattiverse")</h2>
             <p>
-                Mattiverse is the launcher on top of three programs: MatDock runs your apps, Matcad gives them addresses and HTTPS, and
-                Matddns keeps your DNS on your home IP. Their settings live in their own screens, so you can see and change what Mattiverse set up.
+                Mattiverse is the launcher on top of five programs: MatDock runs your apps, Matcad gives them addresses and HTTPS,
+                Matddns keeps your DNS on your home IP, MatIdentity signs people in and MatSMTP sends the mail. Their settings live in their own screens,
+                so you can see and change what Mattiverse set up.
             </p>
         </div>
 
@@ -81,7 +82,7 @@
     <section class="mv-step" data-step aria-labelledby="step-engines">
         <div class="mv-step__head">
             <h2 id="step-engines">The engines</h2>
-            <p>MatDock is needed for everything else. Matcad and Matddns are what a domain needs; skip one if something else on this machine already does its job.</p>
+            <p>MatDock is needed for everything else. Skip one of the others if something else on this machine already does its job.</p>
         </div>
 
         <fieldset class="mat-field mat-fieldset">
@@ -100,9 +101,13 @@
                         {
                             <input asp-for="InstallMatddns" type="checkbox" disabled="@locked" />
                         }
-                        else if (app.Id == Mattiverse.Core.Integrations.MatIdentityClient.CatalogIdValue)
+                        else if (app.Id == EngineIds.MatIdentity)
                         {
                             <input asp-for="InstallMatIdentity" type="checkbox" disabled="@locked" />
+                        }
+                        else if (app.Id == EngineIds.MatSmtp)
+                        {
+                            <input asp-for="InstallMatSmtp" type="checkbox" disabled="@locked" />
                         }
                         else
                         {

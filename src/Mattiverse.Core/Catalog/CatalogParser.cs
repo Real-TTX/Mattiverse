@@ -66,6 +66,11 @@ public static partial class CatalogParser
             throw new FormatException($"{source}: shared service '{shared}' is not a service of the compose file.");
         }
 
+        if (app.Mail?.Sender is { } sender && !SenderRegex().IsMatch(sender))
+        {
+            throw new FormatException($"{source}: mail.sender must be the part of an address before the @ (letters, digits, dots, dashes; got '{sender}').");
+        }
+
         if ((app.Platform || app.Identity is not null) && app.Ui is null)
         {
             throw new FormatException($"{source}: 'platform' and 'identity' need a 'ui' (the service that answers /api and /signin-oidc).");
@@ -76,8 +81,8 @@ public static partial class CatalogParser
     }
 
     /// <summary>
-    /// The variables Mattiverse fills itself for an app that speaks the platform contract (the key of its /api) or signs in through MatIdentity (where MatIdentity
-    /// is and the app's client): hidden in the form, written to the <c>.env</c> like every variable, so the compose file uses them as <c>${MAT_API_KEY}</c> and so on.
+    /// The variables Mattiverse fills itself for an app that speaks the platform contract (the key of its /api), signs in through MatIdentity (where MatIdentity
+    /// is and the app's client) or sends mail through MatSMTP (where MatSMTP is, the app's relay user, its sender): hidden in the form, written to the <c>.env</c> like every variable, so the compose file uses them as <c>${MAT_API_KEY}</c> and so on.
     /// An entry that declares one of them itself keeps its own declaration.
     /// </summary>
     private static void AddManagedVariables(CatalogApp app)
@@ -101,6 +106,16 @@ public static partial class CatalogParser
             Add(ManagedVariables.IdentityInternalUrl, "MatIdentity address inside Docker", secret: false);
             Add(ManagedVariables.IdentityClientId, "MatIdentity client id", secret: false);
             Add(ManagedVariables.IdentityClientSecret, "MatIdentity client secret", secret: true);
+        }
+
+        if (app.Mail is not null)
+        {
+            Add(ManagedVariables.MailHost, "MatSMTP address", secret: false);
+            Add(ManagedVariables.MailPort, "MatSMTP port", secret: false);
+            Add(ManagedVariables.MailUsername, "MatSMTP relay user", secret: false);
+            Add(ManagedVariables.MailPassword, "MatSMTP relay password", secret: true);
+            Add(ManagedVariables.MailFrom, "Sender address", secret: false);
+            Add(ManagedVariables.MailTls, "MatSMTP TLS mode", secret: false);
         }
     }
 
@@ -186,4 +201,7 @@ public static partial class CatalogParser
 
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,40}$")]
     private static partial Regex IdRegex();
+
+    [GeneratedRegex("^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$")]
+    private static partial Regex SenderRegex();
 }
