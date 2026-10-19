@@ -71,7 +71,18 @@ public sealed class MatDockEngine : IStackEngine
 
     public async Task RemoveAsync(InstalledApp app, bool deleteVolumes, Action<string> log, CancellationToken ct = default)
     {
-        var operation = await _client.DeleteStackAsync(app.ProjectName, deleteVolumes, ct);
+        string operation;
+        try
+        {
+            operation = await _client.DeleteStackAsync(app.ProjectName, deleteVolumes, ct);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("HTTP 404", StringComparison.Ordinal))
+        {
+            // Never deployed (an install that failed before MatDock had the stack) or removed already: there is nothing to remove.
+            log("MatDock has no stack of this app: nothing to remove there.");
+            return;
+        }
+
         await _client.WaitOperationAsync(operation, log, ct);
     }
 
