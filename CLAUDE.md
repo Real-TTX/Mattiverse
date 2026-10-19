@@ -26,7 +26,7 @@ with MatDock, Matcad, Matddns, MatIdentity and MatSMTP, [docs/CATALOG.md](docs/C
 
 - **Build:** `dotnet build Mattiverse.slnx` (note: `.slnx`). SDK 10 (see `global.json`). Expected: 0 warnings.
 - **Unit tests:** `dotnet test` (xunit; no Docker needed: catalog parsing, generated compose files, variables, ports, schedules,
-  `docker ps` parsing, and `WebUiTests`: the pages name only icons of the toolkit sprite, have no inline style or script, and the stylesheet has tokens only).
+  `docker ps` parsing, a stale EF migration lock (`MigrationLockTests`), and `WebUiTests`: the pages name only icons of the toolkit sprite, have no inline style or script, and the stylesheet has tokens only).
 - **Browser checks:** `cd tests/e2e && npm install && node run.js [http://localhost:8030]` (Playwright, installed Edge) against the running dev stack: every page light, dark and on a phone,
   the theme button, the list tools, validation, the flash message, the wizard, the drawer. It removes what it creates.
 - **Run / test the app: always rebuild the container and redeploy the stack** (project rule): `./scripts/redeploy.ps1`

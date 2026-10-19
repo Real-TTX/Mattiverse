@@ -7,7 +7,10 @@ using Microsoft.Extensions.Options;
 
 namespace Mattiverse.Web.Infrastructure;
 
-/// <summary>Applies EF Core migrations and seeds the first administrator on an empty database (headless setups only).</summary>
+/// <summary>
+/// Removes a migration lock left behind by a stopped process, applies EF Core migrations and seeds the first administrator on an empty database
+/// (headless setups only).
+/// </summary>
 public static class DbBootstrapper
 {
     public static async Task InitializeAsync(IServiceProvider services, ILogger logger)
@@ -16,6 +19,11 @@ public static class DbBootstrapper
         var provider = scope.ServiceProvider;
 
         var db = provider.GetRequiredService<MattiverseDbContext>();
+        if (await MigrationLock.ReleaseStaleAsync(db.Database))
+        {
+            logger.LogWarning("Removed a migration lock left behind by a process that was stopped while it migrated the database.");
+        }
+
         await db.Database.MigrateAsync();
 
         var users = provider.GetRequiredService<UserService>();
