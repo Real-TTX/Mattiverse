@@ -145,7 +145,7 @@ public sealed partial class DockerService
             args.AddRange(["--filter", $"label={InstanceLabel}={instance}"]);
         }
 
-        args.AddRange(["--format", $"{{{{.ID}}}}\t{{{{.Names}}}}\t{{{{.Image}}}}\t{{{{.State}}}}\t{{{{.Status}}}}\t{{{{.Label \"{InstanceLabel}\"}}}}\t{{{{.Label \"{ServiceLabel}\"}}}}\t{{{{.Ports}}}}"]);
+        args.AddRange(["--format", $"{{{{.ID}}}}\t{{{{.Names}}}}\t{{{{.Image}}}}\t{{{{.State}}}}\t{{{{.Status}}}}\t{{{{.Label \"{InstanceLabel}\"}}}}\t{{{{.Label \"{ServiceLabel}\"}}}}\t{{{{.Label \"{ComposeProjectLabel}\"}}}}\t{{{{.Ports}}}}"]);
         var result = await _cli.RunAsync(args, ct: ct);
         if (!result.Success)
         {
@@ -153,8 +153,13 @@ public sealed partial class DockerService
             return [];
         }
 
-        return ParseContainers(result.StdOut);
+        // A second Mattiverse on the same Docker (a test instance with its own prefix) uses the same labels and slugs: only this one's projects count.
+        return ParseContainers(result.StdOut).Where(c => IsOwn(c, _options.ProjectPrefix)).ToList();
     }
+
+    /// <summary>A container of this Mattiverse: its compose project starts with the prefix (one without a project is kept, as before).</summary>
+    public static bool IsOwn(ContainerInfo container, string prefix)
+        => string.IsNullOrEmpty(container.Project) || container.Project.StartsWith(prefix + "-", StringComparison.Ordinal);
 
     /// <summary>
     /// Reads the tab separated output of <c>docker ps</c>. The last field (the ports) is empty for a stopped container, so a
@@ -165,7 +170,9 @@ public sealed partial class DockerService
             .Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.TrimEnd('\r').Split('\t'))
             .Where(p => p.Length >= 8)
-            .Select(p => new ContainerInfo(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]))
+            .Select(p => p.Length >= 9
+                ? new ContainerInfo(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[8], p[7])
+                : new ContainerInfo(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]))
             .ToList();
 
     /// <summary>Summarizes the containers of one app as a single state.</summary>

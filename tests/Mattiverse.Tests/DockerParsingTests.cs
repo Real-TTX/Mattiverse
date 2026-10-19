@@ -84,3 +84,27 @@ public class DockerParsingTests
     [Fact]
     public void Hint_IsEmptyForUnknownErrors() => Assert.Equal(string.Empty, ComposeSteps.Hint("something else broke"));
 }
+
+/// <summary>Two Mattiverse on one Docker share labels and slugs: each sees only the compose projects of its own prefix.</summary>
+public class OwnContainerTests
+{
+    [Fact]
+    public void A_line_with_the_project_is_read_and_another_prefix_is_not_ours()
+    {
+        var line = "abc\tmvtest-matddns-matddns\tmatddns:e2e\trunning\tUp 1 minute\tmatddns\tmatddns\tmvtest-matddns\t0.0.0.0:8602->8080/tcp";
+        var container = Assert.Single(DockerService.ParseContainers(line + "\n"));
+        Assert.Equal("mvtest-matddns", container.Project);
+        Assert.Equal("0.0.0.0:8602->8080/tcp", container.Ports);
+        Assert.True(DockerService.IsOwn(container, "mvtest"));
+        Assert.False(DockerService.IsOwn(container, "mattiverse"));
+    }
+
+    [Fact]
+    public void A_stopped_container_with_the_project_keeps_its_empty_ports()
+    {
+        var line = "abc\tmattiverse-x-web\tnginx\texited\tExited (0) 1 minute ago\tx\tweb\tmattiverse-x\t";
+        var container = Assert.Single(DockerService.ParseContainers(line + "\n"));
+        Assert.Equal("mattiverse-x", container.Project);
+        Assert.Equal(string.Empty, container.Ports);
+    }
+}

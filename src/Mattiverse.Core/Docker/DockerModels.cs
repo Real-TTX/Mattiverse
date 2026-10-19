@@ -9,7 +9,8 @@ public sealed record ContainerInfo(
     string Status,
     string Instance,
     string Service,
-    string Ports)
+    string Ports,
+    string Project = "")
 {
     public bool IsRunning => State.Equals("running", StringComparison.OrdinalIgnoreCase);
 }

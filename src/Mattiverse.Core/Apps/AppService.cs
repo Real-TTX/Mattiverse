@@ -119,6 +119,13 @@ public sealed partial class AppService
             return new PrepareResult(null, [$"The app '{request.CatalogId}' is not in the catalog."], []);
         }
 
+        // An engine (core) exists once: Mattiverse finds it by its catalog id. A second install would be a second MatDock or MatSMTP that nothing talks to;
+        // a failed one is tried again on its own page instead.
+        if (catalog.Core && await _db.InstalledApps.AnyAsync(a => a.CatalogId == catalog.Id, ct))
+        {
+            return new PrepareResult(null, [$"{catalog.Name} is installed already. If its install failed, use \"Try again\" on its page."], []);
+        }
+
         var errors = new List<string>();
         var slug = await UniqueSlugAsync(string.IsNullOrWhiteSpace(request.Slug) ? catalog.Id : request.Slug, ct);
         if (slug is null)
