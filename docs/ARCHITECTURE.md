@@ -2,9 +2,9 @@
 
 This page records the questions that shaped Mattiverse and the answers, so they do not have to be argued again.
 
-## What Mattiverse is: a layer on top of three engines
+## What Mattiverse is: a layer on top of five engines
 
-Mattiverse is **not** a second Docker manager with its own copy of everything. It is the thin, friendly layer on top of three programs
+Mattiverse is **not** a second Docker manager with its own copy of everything. It is the thin, friendly layer on top of five programs
 that each **own** one part of the configuration:
 
 | Engine | Owns | Mattiverse adds |
@@ -12,12 +12,14 @@ that each **own** one part of the configuration:
 | **MatDock** | stacks (compose + env), containers, backups, schedules, updates | the store, one-click installs, the launcher |
 | **Matcad** | routes, certificates, DNS providers for certificates, logins | a route `app.example.com` for every app |
 | **Matddns** | sources of the IP, DNS records, rules | the DNS record `app.example.com` for every app |
+| **MatIdentity** | people, groups, the apps and who may open them | one sign-in for every app (a client per app) and for Mattiverse |
+| **MatSMTP** | relay users, the accounts mail leaves through, rules, the queue | one relay user per app that sends mail (`mail: {}`) |
 
 Mattiverse itself keeps what no engine knows: users, roles and sessions, shared links, the catalog, the wizard's choices, which catalog
 entry an app came from, and where it sits on the home screen. Everything else lives in the engines and **is visible and editable there**: open
-MatDock and the apps are stacks marked *Managed by Mattiverse*, open Matcad and they are routes, open Matddns and they are records.
+MatDock and the apps are stacks marked *Managed by Mattiverse*, open Matcad and they are routes, open Matddns and they are records, open MatIdentity and they are apps, open MatSMTP and they are relay users.
 
-The three are **fixed parts** of Mattiverse (the wizard installs them; they cannot be uninstalled from Mattiverse except a failed install, to start over).
+The five are **fixed parts** of Mattiverse (`EngineIds.All`, `core: true`; the wizard installs them in that order, MatDock first because it deploys the others; they cannot be uninstalled from Mattiverse except a failed install, to start over).
 Other tools in the store (Nginx Proxy Manager, Portainer, ...) are plain apps without deep integration. The contract between Mattiverse and the
 engines is [ENGINES.md](ENGINES.md).
 
@@ -158,7 +160,7 @@ Mattiverse uses **MatUi**, the UI toolkit of [MatDesign](https://github.com/Real
 
 ## MatIdentity, the single sign-on
 
-MatIdentity is an optional part, installed like an engine (the fourth card of the wizard, or from the store), and **Mattiverse manages all of it**; people,
+MatIdentity is an engine (the fourth card of the wizard, `core: true`), and **Mattiverse manages all of it**; people,
 groups and who may open which app stay in MatIdentity's own pages (the Manage tab of MatIdentity links there).
 
 - **Its address.** Mattiverse gives MatIdentity its public address as the fixed issuer (`MATIDENTITY_ISSUER`: the route of the proxy, else this host and
@@ -174,3 +176,21 @@ groups and who may open which app stay in MatIdentity's own pages (the Manage ta
   settings when they are built, so nothing needs a restart (`MatIdentitySignIn`).
 - **Manage.** An app with `platform: true` gets the tab *Manage*: `PlatformClient` reads its MatApiDefinition (`GET /api`) and its values with `MAT_API_KEY`,
   and the page draws its pages (tiles, settings form, buttons) with MatUi without knowing the app.
+
+## MatSMTP, the mail relay
+
+MatSMTP is the fifth engine (the last card of the wizard, `core: true`): every app that sends mail hands it to MatSMTP, and MatSMTP delivers it through the account set
+in its own UI. **Mattiverse manages the connection**; the account, the rules and the queue stay in MatSMTP's pages (MatDesign docs/PLATFORM.md "Mail through MatSMTP", the
+API in [ENGINES.md](ENGINES.md)).
+
+- **Its setup.** The catalog entry generates `MATSMTP_API_KEY` and the administrator's password (`MATSMTP_ADMIN_PASSWORD`); after the install `MatSmtpProvisioner` sets
+  `setupCompleted` and the domain of the senders (the domain of the wizard). Only the submission port is published, for devices in the network; the SMTP port of the apps is
+  reached on the shared network only, so MatSMTP is never an open relay.
+- **The apps.** `MailLink` gives every app whose catalog entry says `mail: {}` a relay user (id = the slug, `managedBy: mattiverse`, its sender as the only allowed one) and
+  fills its `MATSMTP_*` variables before the stack is deployed: MatSMTP's container name, port and TLS mode from its status, the user, the password (kept; renewed only when the
+  app has none), the sender `<slug>@<domain>`. MatSMTP installed but not answering leaves the variables alone (it may be restarting); without MatSMTP they are emptied and the app
+  sends its mail itself. The relay user is removed with the app. When MatSMTP is installed (or removed) the apps are connected (or disconnected) and redeployed
+  (`AppService.ConnectMailAppsAsync`; *Connect again* does MatIdentity and MatSMTP in one pass, `ConnectPlatformAppsAsync`).
+- **The apps' side.** With the variables set an app sends all its mail through MatSMTP and shows its own SMTP settings as fixed (in its pages and with `fixed: true` in its
+  `/api/configure`, which the Manage tab draws as disabled fields and never sends back). MatPlatform 1.3.0 (`MatSmtpSettings`) does this for the .NET apps.
+- **Mattiverse itself** sends no mail today, so it has nothing to connect.

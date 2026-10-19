@@ -16,20 +16,21 @@ x-mattiverse:
   tagline: Notes for the family
   description: A longer text for the install page.
   category: Productivity      # groups the store
-  role: app                   # app | proxy | ddns | docker  (the role of an engine: Matcad, Matddns, MatDock)
+  role: app                   # app | proxy | ddns | docker | identity | mail  (the role of an engine: Matcad, Matddns, MatDock, MatIdentity, MatSMTP)
   icon: wiki.svg              # a file below wwwroot/img/apps/, an https URL, or leave out for a generated tile
   homepage: https://example.com/wiki
   recommended: false          # offered first in the store (infrastructure roles only)
-  core: false                 # true for the three engines: installed by the wizard, cannot be uninstalled
+  core: false                 # true for the five engines: installed by the wizard, cannot be uninstalled
   ui:
     service: wiki             # the compose service with the web UI
     port: 3000                # its port inside the container
     hostPort: 3000            # tried first on the host; a free port from the pool is used when taken
     path: /login              # optional: appended when the app is opened
   shared: [proxy]             # more services that must be reachable by the reverse proxy (the UI service always is)
-  provision: matcad           # optional: a built-in provisioner to run after the install (matdock | matcad | matddns | matidentity)
+  provision: matcad           # optional: a built-in provisioner to run after the install (matdock | matcad | matddns | matidentity | matsmtp)
   platform: true              # optional: the app speaks the platform contract (MatDesign docs/PLATFORM.md): Mattiverse gives it MAT_API_KEY and a Manage page
   identity: {}                # optional: the app signs in through MatIdentity (callback /signin-oidc and signedOut /signout-callback-oidc can be changed)
+  mail: {}                    # optional: the app sends mail, through MatSMTP when it is installed: Mattiverse fills MATSMTP_* (sender: the part before the @, default the slug)
   notes:
     - Shown as a hint on the install page.
   variables:
@@ -76,15 +77,22 @@ volumes:
   `${MV_PROJECT}`, `${MV_PUBLIC_HOST}` and `${TZ}`. Values must not contain a single quote or a line break.
 - Every `${KEY}` in the compose file needs a variable or a default (`${KEY:-default}`); the unit tests check this for the
   built-in entries.
-- A catalog entry with `provision: matcad` (or `matddns`, `matdock`) connects the engine after the install; other provisioners are C# classes
+- A catalog entry with `provision: matcad` (or `matddns`, `matdock`, `matidentity`, `matsmtp`) connects the engine after the install; other provisioners are C# classes
   implementing `IAppProvisioner`. An engine also needs its API key as a generated, hidden variable (`MATCAD_API_KEY`, `MATDDNS_API_KEY`,
-  `MATDOCK_API_KEY`) that the compose file passes to the container the way the engine expects it (see [ENGINES.md](ENGINES.md)).
+  `MATDOCK_API_KEY`, `MATSMTP_API_KEY`; MatIdentity uses `MAT_API_KEY`) that the compose file passes to the container the way the engine expects it (see [ENGINES.md](ENGINES.md)).
+  The five engines are `core: true` (the wizard installs them, the app list cannot remove them); `EngineIds.All` names them in the order they are installed.
 
 ## The platform contract and MatIdentity
 
 - `platform: true` adds the hidden, generated variable `MAT_API_KEY`; the compose file passes it as `MAT_API_KEY: ${MAT_API_KEY}`. The app gets a tab **Manage**, drawn from its `/api`.
 - `identity: {}` adds the hidden variables `MATIDENTITY_AUTHORITY`, `MATIDENTITY_INTERNAL_URL`, `MATIDENTITY_CLIENT_ID` and `MATIDENTITY_CLIENT_SECRET` (pass them as `${MATIDENTITY_AUTHORITY:-}` ...).
   When MatIdentity is installed Mattiverse registers the app there and fills them on every install and update; without MatIdentity they are empty and the app signs people in itself.
+- `mail: {}` (an app that sends mail) adds the hidden variables `MATSMTP_HOST`, `MATSMTP_PORT`, `MATSMTP_USERNAME`, `MATSMTP_PASSWORD` (a secret), `MATSMTP_FROM` and
+  `MATSMTP_TLS` (pass them as `${MATSMTP_HOST:-}` ..., to the service that sends the mail; MatDesign docs/PLATFORM.md "Mail through MatSMTP"). When MatSMTP is installed Mattiverse
+  makes a relay user for the app there (id = the slug, `managedBy: mattiverse`) and fills them on every install and update: the host is MatSMTP's container on the shared
+  network, port and TLS mode come from its status, the sender is `<slug>@<domain>` (the domain of MatSMTP's settings, else the one of the wizard). Without MatSMTP they are
+  empty and the app sends its mail itself. `mail: { sender: noreply }` changes the part before the `@`. Needs neither `ui` nor `platform`. The service that sends the mail must
+  be on the shared network (the UI service always is, others through `shared`).
 - An entry may declare one of these variables itself; then its own declaration is kept.
 
 ## What Mattiverse adds

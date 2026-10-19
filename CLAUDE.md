@@ -6,8 +6,10 @@ interfaces or major data flow change.
 ## What Mattiverse is
 
 A launcher (iOS/Android look, one app open at a time) that **installs, updates and backs up Docker apps**. It is a thin layer on top of
-three **engines** that own the configuration and show it in their own UI: **MatDock** (stacks, backups, schedules), **Matcad** (routes,
-certificates, DNS providers) and **Matddns** (IP sources, DNS records, rules), plus the optional single sign-on **MatIdentity**, which Mattiverse installs and wires (docs/ARCHITECTURE.md, "MatIdentity"). Mattiverse calls their REST APIs (`docs/ENGINES.md`); the wizard
+five **engines** that own the configuration and show it in their own UI: **MatDock** (stacks, backups, schedules), **Matcad** (routes,
+certificates, DNS providers), **Matddns** (IP sources, DNS records, rules), **MatIdentity** (the single sign-on: a client per app, docs/ARCHITECTURE.md "MatIdentity")
+and **MatSMTP** (the mail relay: a relay user per app with `mail: {}`, docs/ARCHITECTURE.md "MatSMTP"). `EngineIds.All` names them in the order they are installed
+(MatDock first, MatSMTP last); all are `core: true`. Mattiverse calls their REST APIs (`docs/ENGINES.md`); the wizard
 installs them and asks once for the domain and the DNS account. They are fixed parts, not options. Every app is a compose project.
 
 Stack: ASP.NET Core on **.NET 10**, C#, **Razor Pages** + TagHelper controls, EF Core + **SQLite**, the `docker` CLI against the mounted
@@ -17,7 +19,7 @@ The look and the controls are **MatUi**, the toolkit of [MatDesign](https://gith
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing the design: it records the decisions (the engines own the
 configuration, reading goes to Docker and changes to the engines, catalog as data, ...). [docs/ENGINES.md](docs/ENGINES.md) is the API contract
-with MatDock, Matcad and Matddns, [docs/CATALOG.md](docs/CATALOG.md) the format of a catalog entry,
+with MatDock, Matcad, Matddns, MatIdentity and MatSMTP, [docs/CATALOG.md](docs/CATALOG.md) the format of a catalog entry (`platform`, `identity`, `mail`),
 [docs/INTEGRATION.md](docs/INTEGRATION.md) the state of the sibling repositories (the `mattiverse-integration` branches).
 
 ## Build / run / test
@@ -45,7 +47,7 @@ with MatDock, Matcad and Matddns, [docs/CATALOG.md](docs/CATALOG.md) the format 
 - **Updating the toolkit:** `./scripts/update-matui.ps1` copies `matui.css`, `matui.js`, `matui.boot.js` and `matui-icons.svg` from a running MatDesign (default http://localhost:8060) into
   `wwwroot/matui`. The files are a copy (rule CODE-03): never edit them here, a change belongs into MatDesign. The version is the first line of `matui.css`.
 - **Changing engine behaviour:** the engines' own repositories are where it happens (branch `mattiverse-integration`); keep `docs/ENGINES.md` and the
-  clients (`MatDockClient`, `MatcadClient`, `MatddnsClient`) in step with them.
+  clients (`MatDockClient`, `MatcadClient`, `MatddnsClient`, `MatIdentityClient`, `MatSmtpClient`) in step with them.
 
 ## Map
 
@@ -60,7 +62,8 @@ src/Mattiverse.Core        domain, no web types
                              them (ids local:<id>, matdock:<id>); BackupSchedulerService runs the local schedules
   Catalog/                   CatalogParser/Service/Models + apps/*.yml (embedded)
   Docker/                    DockerCli (process wrapper), DockerService (typed ops, parsing)
-  Integrations/              MatcadClient, MatddnsClient, ProxyPublisher (routes, wildcard), DnsPublisher (records), IAppProvisioner
+  Integrations/              MatcadClient, MatddnsClient, ProxyPublisher (routes, wildcard), DnsPublisher (records), IAppProvisioner (one per engine),
+                             MatIdentityClient + IdentityLink (MATIDENTITY_*), MatSmtpClient + MailLink (MATSMTP_*, relay users), PlatformClient (/api of an app)
   Jobs/                      JobService/Queue/RunnerService, AppJobs (the work per job kind), JobContext/log
   Auth/ Users/ Security/     login, sessions, PBKDF2 hasher, secret protector
   Configuration/             options, AppPaths, JsonConfigStore, SystemConfig

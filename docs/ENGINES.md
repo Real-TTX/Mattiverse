@@ -1,6 +1,6 @@
-# The engines: MatDock, Matcad, Matddns
+# The engines: MatDock, Matcad, Matddns, MatIdentity, MatSMTP
 
-Mattiverse is a layer **on top of** three programs. They are not catalog apps that happen to be installed; they are
+Mattiverse is a layer **on top of** five programs. They are not catalog apps that happen to be installed; they are
 the engines, and each of them **owns** one part of the configuration, so it is visible and editable in its own UI:
 
 | Engine | Owns | Mattiverse uses it for |
@@ -8,11 +8,14 @@ the engines, and each of them **owns** one part of the configuration, so it is v
 | **MatDock** | stacks (compose + env), containers, backups, schedules, updates | install / update / start / stop / remove an app, its logs, its backups |
 | **Matcad** | routes, certificates, DNS providers for certificates, logins | `app.example.com` for every app, wildcard certificates |
 | **Matddns** | sources of the IP, DNS records, rules | the DNS record `app.example.com` that follows the home IP |
+| **MatIdentity** | people, groups, the apps (OIDC clients) and who may open them | one sign-in for every app and for Mattiverse itself |
+| **MatSMTP** | relay users, the accounts mail leaves through, rules, the queue | one relay user per app that sends mail, so all mail leaves through one place |
 
 Mattiverse itself keeps only what no engine knows: users and sessions, shared links, the catalog, the wizard's choices, which
 catalog entry an app came from, and where it sits on the home screen.
 
-This page is the **contract**: what every engine offers to Mattiverse. All three speak the same small REST dialect.
+This page is the **contract**: what every engine offers to Mattiverse. All five speak the same small REST dialect. They are installed in the order of
+`EngineIds.All`: MatDock (it deploys the others), Matcad, Matddns, MatIdentity, MatSMTP (registered in MatIdentity as it is deployed); all five are `core: true`.
 
 ## Common rules
 
@@ -21,7 +24,7 @@ This page is the **contract**: what every engine offers to Mattiverse. All three
   configured = the API answers `503`** (`{"error":"..."}`), so it can never be reached unauthenticated. A wrong or missing key is `401`.
   The API ignores the session cookie.
 - **Errors** are `{"error": "readable message"}` with `400` (invalid input), `404`, `409` (conflict) or `5xx`.
-- **`GET /api/v1/status`** answers `{"ok": true, "app": "matdock|matcad|matddns", "version": "<informational version>", "apiVersion": 1}`
+- **`GET /api/v1/status`** answers `{"ok": true, "app": "matdock|matcad|matddns|matidentity|matsmtp", "version": "<informational version>", "apiVersion": 1}`
   (plus whatever the engine already returned). Mattiverse uses `apiVersion` to know what it may call; it must not call an endpoint that a lower
   `apiVersion` does not have.
 - **Idempotent writes:** `PUT` and the `POST` upserts can be repeated with the same body without a side effect.
@@ -136,12 +139,47 @@ What was built, and where it differs from the sketch above (branch `mattiverse-i
   `frequency` reads back as `custom` when the cron was edited in MatDock's UI.
 - The `kind` of a backup (`manual`, `scheduled`, `preUpdate`) is chosen by MatDock; Mattiverse's own pre-update and pre-restore backups carry a note and show as manual.
 
+## MatIdentity (`ghcr.io/real-ttx/matidentity`)
+
+The single sign-on of the family (MatDesign docs/PLATFORM.md, "Sign-in with MatIdentity"). Key: `MAT_API_KEY` (the key of its platform `/api`, also the key of its `/api/v1`).
+`PUT /api/v1/clients/{clientId}` (`displayName`, `homeUrl`, `redirectUris`, `postLogoutRedirectUris`, `allowSignIn`, `allowMachine`, `callsAllApps`, `managedBy`, `renewSecret`) →
+`clientSecret` only for a new client or a renewed one; `DELETE /api/v1/clients/{clientId}?managedBy=mattiverse`. Mattiverse sets `MATIDENTITY_ISSUER` (its public address) and registers
+every app with `identity: {}` and itself (`IdentityLink`, docs/ARCHITECTURE.md "MatIdentity, the single sign-on").
+
+## MatSMTP (`ghcr.io/real-ttx/matsmtp`)
+
+The mail relay of the family (MatDesign docs/PLATFORM.md, "Mail through MatSMTP"). Image tags `latest` and `release` from `main`, `nightly` from `dev`. In the container: web **2525**,
+SMTP **2025** (STARTTLS), submission **2587**. The catalog publishes only the submission port (`SUBMISSION_PORT`, default 2587) for devices in the network; the apps hand in their
+mail on the shared network and **relay users may authenticate on the SMTP port from the Docker network without TLS**.
+
+Environment: **`MATSMTP_API_KEY`** (the key of `/api/v1`; generated, hidden), `MATSMTP_ADMIN_PASSWORD` (at least 8 characters; seeds the administrator, so no first-run page is needed),
+`MAT_API_KEY` and the `MATIDENTITY_*` variables (it is a platform app with `identity: {}`). Volume `matsmtp-data:/data`.
+
+| Call | Body / answer |
+|---|---|
+| `GET /api/v1/status` | `{"app":"matsmtp","version":"…","apiVersion":1,"smtpPort":2025,"smtpTls":"starttls"}` (`none`, `starttls` or `tls`): where the apps hand in their mail |
+| `PUT /api/v1/relay-users/{id}` | `{"displayName","allowedSenders":["matbu@example.com"],"managedBy":"mattiverse","renewSecret":bool}` → `{"id","username","password","created":bool}`; `password` only when the user was created or `renewSecret` was set |
+| `GET /api/v1/relay-users` | the relay users (`managedBy` with each) |
+| `DELETE /api/v1/relay-users/{id}?managedBy=mattiverse` | `204`; `404` when it does not exist; `409` when it is not managed by Mattiverse (it stays) |
+| `GET`/`PUT /api/v1/settings` | `{"setupCompleted":bool,"defaultSenderDomain":"example.com"}` |
+
+What Mattiverse does (`MatSmtpClient`, `MatSmtpProvisioner`, `MailLink`):
+
+- **After the install** (`provision: matsmtp`): waits for the API, sets `setupCompleted: true` and `defaultSenderDomain` = the domain of the wizard (when there is one; otherwise
+  MatSMTP keeps its own), then connects every app with `mail: {}` and deploys it again. The account MatSMTP delivers through is set in MatSMTP's own UI.
+- **Every install and update of an app with `mail: {}`:** `PUT /relay-users/<slug>` (display name = the app, allowed sender = its sender) and the app's `MATSMTP_*` variables:
+  `HOST` = MatSMTP's container on the shared network, `PORT` and `TLS` from the status, `USERNAME` from the answer, `FROM` = `<slug>@<defaultSenderDomain>` (else the domain of the
+  wizard, else `localhost`), `PASSWORD` kept; `renewSecret` only when the app has no password. MatSMTP installed but not answering: the variables stay as they are. Not installed:
+  they are emptied and the app sends its mail itself.
+- **Uninstalling an app** deletes its relay user. **MatSMTP comes or goes:** every app with `mail: {}` is connected again and redeployed. **Connect again** (Settings, Engines) and a
+  new domain in the wizard set the domain of the senders again and redeploy the apps.
+
 ## What Mattiverse does with them
 
 - **Installing an app:** renders the catalog entry to one compose file and a `.env`, then `PUT /stacks/mattiverse-<app>` (MatDock),
   `POST /routes` (Matcad) and, with a domain, the DNS record (Matddns). Uninstalling removes all three.
 - **Without the engine API** (an older released image, or the engine is not installed yet) Mattiverse falls back to its own compose
   runner for the stack, so nothing stops working; the settings page says which engines are connected.
-- **The wizard** installs the three engines first (MatDock through Mattiverse's own compose runner, because nothing can deploy MatDock before
-  it exists; Matcad and Matddns then as MatDock stacks), hands each the API key it generated, and asks once for the domain and the DNS provider, which
+- **The wizard** installs the five engines first (MatDock through Mattiverse's own compose runner, because nothing can deploy MatDock before
+  it exists; Matcad, Matddns, MatIdentity and MatSMTP then as MatDock stacks), hands each the API key it generated, and asks once for the domain and the DNS provider, which
   goes to Matcad (certificates) and Matddns (records).

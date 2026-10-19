@@ -7,9 +7,10 @@
 **Install, update and back up your Docker apps. One launcher for the whole Mat universe.**
 
 A home screen for your Docker host: pick an app in the store, Mattiverse installs it, gives it a
-domain, keeps it up to date and backs it up. It is the friendly layer on top of three programs that do the real work and
+domain, keeps it up to date and backs it up. It is the friendly layer on top of five programs that do the real work and
 keep their own part of the configuration: [MatDock](https://github.com/Real-TTX/MatDock) (stacks, backups),
-[Matcad](https://github.com/Real-TTX/Matcad) (addresses, HTTPS) and [Matddns](https://github.com/Real-TTX/Matddns) (DNS records).
+[Matcad](https://github.com/Real-TTX/Matcad) (addresses, HTTPS), [Matddns](https://github.com/Real-TTX/Matddns) (DNS records),
+[MatIdentity](https://github.com/Real-TTX/MatIdentity) (one sign-in) and [MatSMTP](https://github.com/Real-TTX/MatSMTP) (the mail of all apps).
 Open one of them and you see what Mattiverse set up there.
 
 </div>
@@ -42,7 +43,7 @@ it there, and Mattiverse keeps your change when it updates the app.
   [MatDesign](https://github.com/Real-TTX/MatDesign), with its menu, lists, forms, dialogs and dark mode
 
 **Setup wizard** (first start, and again whenever you like)
-- Installs the three **engines**: MatDock (required), Matcad and Matddns (skip one if something else on the host does its job)
+- Installs the five **engines**: MatDock (required), Matcad, Matddns, MatIdentity (one sign-in) and MatSMTP (the mail of all apps); skip one if something else on the host does its job
 - Your **domain** and your **DNS provider** (Cloudflare, Hetzner, Netcup), asked once: Matcad gets one wildcard certificate through the
   DNS challenge and a route `app.example.com` per app, Matddns keeps the DNS records on your home IP
 - Everything the wizard created carries a **Managed by Mattiverse** badge in the engine
@@ -78,7 +79,7 @@ alone what is installed already. The DNS account is asked once and handed to Mat
 
 ### The engines
 
-![Settings, Engines: MatDock, Matcad and Matddns with their state](docs/images/engines.png)
+![Settings, Engines: the engines with their state](docs/images/engines.png)
 
 The *Engines* tab shows which engine answers, opens it, and hands the domain and the DNS account over again (*Connect again*).
 Each app page links to where its stack, route and DNS record live in the engines.
@@ -244,6 +245,7 @@ GitHub Action, which also builds the multi-arch image (`amd64`, `arm64`).
 | Apps as MatDock stacks, routes in Matcad, DNS records in Matddns, domain and DNS account asked once | ✅ |
 | Stack edited in MatDock survives an update | ✅ |
 | Single sign-on through MatIdentity (installed and wired by Mattiverse: the apps and Mattiverse itself) | ✅ |
+| Mail through MatSMTP (installed by the wizard; a relay user and the `MATSMTP_*` variables for every app that sends mail) | ✅ (the apps still have to read the variables) |
 | Apps that describe themselves (platform contract): the tab Manage with their tiles, settings and buttons | ✅ |
 | Microsoft Entra ID sign-in | planned (the login is already behind `AuthService` / `SessionService`) |
 | Remote backup targets (SMB, off-site) | MatDock's backup targets |
