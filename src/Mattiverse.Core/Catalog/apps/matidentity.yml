@@ -14,6 +14,8 @@ x-mattiverse:
   provision: matidentity
   core: true
   platform: true
+  # Sends mail (password reset, invitations, e-mail verification): through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
+  mail: {}
   ui:
     service: matidentity
     port: 2300
@@ -48,6 +50,12 @@ services:
       MatIdentity__Admin__Seed: "true"
       MatIdentity__Admin__Username: admin
       MatIdentity__Admin__Password: ${ADMIN_PASSWORD}
+      MATSMTP_HOST: ${MATSMTP_HOST:-}
+      MATSMTP_PORT: ${MATSMTP_PORT:-}
+      MATSMTP_USERNAME: ${MATSMTP_USERNAME:-}
+      MATSMTP_PASSWORD: ${MATSMTP_PASSWORD:-}
+      MATSMTP_FROM: ${MATSMTP_FROM:-}
+      MATSMTP_TLS: ${MATSMTP_TLS:-}
     volumes:
       # Database, settings and the keys that sign the tokens.
       - matidentity-data:/data
