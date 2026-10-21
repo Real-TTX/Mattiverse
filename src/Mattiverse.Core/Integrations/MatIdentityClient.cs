@@ -29,7 +29,8 @@ public sealed class MatIdentityClient : EngineClient
 
     /// <summary>
     /// Creates or changes the client <paramref name="clientId"/> (an upsert). MatIdentity returns a secret only for a new client or when
-    /// <paramref name="renewSecret"/> is set; the caller keeps it.
+    /// <paramref name="renewSecret"/> is set; the caller keeps it. <paramref name="backchannelLogoutUri"/> is where MatIdentity posts the logout tokens of
+    /// the app (<c>backchannelLogoutUri</c>; empty removes it, null leaves it as it is).
     /// </summary>
     public async Task<IdentityRegistration> UpsertClientAsync(
         string clientId,
@@ -39,6 +40,7 @@ public sealed class MatIdentityClient : EngineClient
         IReadOnlyList<string> postLogoutRedirectUris,
         bool callsAllApps,
         bool renewSecret,
+        string? backchannelLogoutUri,
         CancellationToken ct)
     {
         var body = new JsonObject
@@ -53,6 +55,11 @@ public sealed class MatIdentityClient : EngineClient
             ["managedBy"] = ManagedBy,
             ["renewSecret"] = renewSecret,
         };
+        if (backchannelLogoutUri is not null)
+        {
+            body["backchannelLogoutUri"] = backchannelLogoutUri;
+        }
+
         var answer = await SendAsync(HttpMethod.Put, "clients/" + Uri.EscapeDataString(clientId), body, null, ct);
         return new IdentityRegistration(clientId, answer?["clientSecret"]?.GetValue<string>());
     }

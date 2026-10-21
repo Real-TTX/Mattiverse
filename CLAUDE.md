@@ -65,13 +65,13 @@ src/Mattiverse.Core        domain, no web types
   Integrations/              MatcadClient, MatddnsClient, ProxyPublisher (routes, wildcard), DnsPublisher (records), IAppProvisioner (one per engine),
                              MatIdentityClient + IdentityLink (MATIDENTITY_*), MatSmtpClient + MailLink (MATSMTP_*, relay users), PlatformClient (/api of an app)
   Jobs/                      JobService/Queue/RunnerService, AppJobs (the work per job kind), JobContext/log
-  Auth/ Users/ Security/     login, sessions, PBKDF2 hasher, secret protector
+  Auth/ Users/ Security/     login, sessions (EndIdentitySessionsAsync: the back-channel logout), LogoutToken (the check of a logout token of MatIdentity), PBKDF2 hasher, secret protector
   Configuration/             options, AppPaths, JsonConfigStore, SystemConfig
 src/Mattiverse.Web         Razor Pages, controls, JS/CSS, Program.cs
   Controls/                  tag helpers icon (a use of the sprite), app-icon, mat-field (label, control, hint, error), tab-bar; ListModels (ToolbarModel, PagerModel, ListView, ListQuery)
   Pages/                     Index (launcher), Apps/, Store/, Backups/, Jobs/, Settings/, Wizard/, Users/, Account/, Share/
   Pages/Shared/              _Layout (the shell: menus, switcher, user, theme, breadcrumb), _Bare (no menu), _Head, _Toolbar, _Pager, _ValidationSummary, _StatusPill, _DnsFields
-  Infrastructure/            cookie session validation, setup guard, DB bootstrap, API endpoints, health check
+  Infrastructure/            cookie session validation, setup guard, DB bootstrap, API endpoints, health check, MatIdentitySignIn, BackchannelLogout (POST /signout-backchannel)
   Support/                   Toolkit (the icon sprite), Ui (Icon, Logo), Navigation (the menus: NavSet, NavItem, NavBadge), Crumbs, AppUrls, FrameProbe, AppStatus, Format
   wwwroot/matui/             the toolkit, a copy of MatDesign's; wwwroot/css/mattiverse.css the few classes only this app has (mv-*); wwwroot/js/mattiverse.js its behaviour
 tests/Mattiverse.Tests       unit tests + WebUiTests (they read the source of the pages)

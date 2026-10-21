@@ -54,6 +54,8 @@ public class MattiverseDbContext : DbContext
             e.Property(x => x.Token).HasMaxLength(64).IsRequired();
             e.HasIndex(x => x.Token).IsUnique();
             e.HasIndex(x => x.UserId);
+            e.Property(x => x.IdentitySessionId).HasMaxLength(128);
+            e.HasIndex(x => x.IdentitySessionId);
             e.HasOne(x => x.User)
                 .WithMany(u => u.Sessions)
                 .HasForeignKey(x => x.UserId)

@@ -459,6 +459,10 @@ namespace Mattiverse.Core.Data.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("IdentitySessionId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("IpAddress")
                         .HasColumnType("TEXT");
 
@@ -486,6 +490,8 @@ namespace Mattiverse.Core.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IdentitySessionId");
 
                     b.HasIndex("Token")
                         .IsUnique();

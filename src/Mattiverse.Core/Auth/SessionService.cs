@@ -23,7 +23,11 @@ public sealed class SessionService
         _options = options.Value;
     }
 
-    public async Task<UserSession> CreateAsync(long userId, string? userAgent, string? ipAddress, CancellationToken ct = default)
+    public Task<UserSession> CreateAsync(long userId, string? userAgent, string? ipAddress, CancellationToken ct = default)
+        => CreateAsync(userId, userAgent, ipAddress, null, ct);
+
+    /// <param name="identitySessionId">The claim <c>sid</c> of MatIdentity when the person signed in through it (<see cref="EndIdentitySessionsAsync"/>).</param>
+    public async Task<UserSession> CreateAsync(long userId, string? userAgent, string? ipAddress, string? identitySessionId, CancellationToken ct = default)
     {
         var session = new UserSession
         {
@@ -32,7 +36,8 @@ public sealed class SessionService
             ExpiresAt = DateTime.UtcNow.AddDays(Math.Max(1, _options.SessionLifetimeDays)),
             LastSeenAt = DateTime.UtcNow,
             UserAgent = Truncate(userAgent, 512),
-            IpAddress = Truncate(ipAddress, 64)
+            IpAddress = Truncate(ipAddress, 64),
+            IdentitySessionId = string.IsNullOrEmpty(identitySessionId) || identitySessionId.Length > 128 ? null : identitySessionId,
         };
 
         _db.UserSessions.Add(session);
@@ -81,6 +86,44 @@ public sealed class SessionService
             _db.UserSessions.Remove(session); // soft delete
             await _db.SaveChangesAsync(ct);
         }
+    }
+
+    /// <summary>
+    /// MatIdentity says sessions ended (back-channel logout, <see cref="LogoutToken"/>): with <paramref name="identitySessionId"/> the sessions that began
+    /// with that MatIdentity session (of the user linked to <paramref name="subject"/>, when it is given); a session without a sid (a local sign-in, or one
+    /// begun before Mattiverse kept it) is not one of them. With <paramref name="subject"/> alone (the person was signed out everywhere) every session of the
+    /// user linked to it, local sign-ins included. Returns how many ended; an unknown subject or sid ends nothing.
+    /// </summary>
+    public async Task<int> EndIdentitySessionsAsync(string? subject, string? identitySessionId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(subject) && string.IsNullOrEmpty(identitySessionId))
+        {
+            return 0;
+        }
+
+        var query = _db.UserSessions.Include(s => s.User).AsQueryable();
+        if (!string.IsNullOrEmpty(subject))
+        {
+            query = query.Where(s => s.User != null && s.User.ExternalSubject == subject);
+        }
+
+        List<UserSession> sessions;
+        if (string.IsNullOrEmpty(identitySessionId))
+        {
+            sessions = await query.ToListAsync(ct);
+        }
+        else
+        {
+            sessions = await query.Where(s => s.IdentitySessionId == identitySessionId).ToListAsync(ct);
+        }
+
+        if (sessions.Count > 0)
+        {
+            _db.UserSessions.RemoveRange(sessions); // soft delete
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return sessions.Count;
     }
 
     private static string? Truncate(string? value, int maxLength)

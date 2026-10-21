@@ -21,4 +21,10 @@ public class UserSession : AuditableEntity
     public string? UserAgent { get; set; }
 
     public string? IpAddress { get; set; }
+
+    /// <summary>
+    /// The claim <c>sid</c> of MatIdentity's ID token when the session began with a sign-in through MatIdentity: a logout token that names it ends this
+    /// session (back-channel logout). Null for a local sign-in.
+    /// </summary>
+    public string? IdentitySessionId { get; set; }
 }

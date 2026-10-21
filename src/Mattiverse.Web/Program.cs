@@ -96,6 +96,7 @@ builder.Services.AddAuthentication(AuthConstants.CookieScheme)
     })
     .AddOpenIdConnect(MatIdentitySignIn.Scheme, _ => { });
 builder.Services.AddSingleton<Microsoft.Extensions.Options.IConfigureOptions<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>, MatIdentitySignIn>();
+builder.Services.AddSingleton<Mattiverse.Core.Auth.LogoutReplayCache>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -158,6 +159,8 @@ app.MapRazorPages();
 
 app.MapGet("/healthz", () => Results.Text("ok " + AppVersion.Current)).AllowAnonymous();
 app.MapJobsApi();
+// MatIdentity ends the sessions of a person who signed out there (server to server).
+app.MapBackchannelLogout();
 
 // ---------------------------------------------------------------------------
 // Database migration + first-run seed

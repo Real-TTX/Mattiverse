@@ -2,6 +2,7 @@ using Mattiverse.Core.Apps;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Data;
+using Mattiverse.Core.Docker;
 using Mattiverse.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,9 +21,11 @@ public sealed class IdentityLink
     private readonly SystemConfigService _config;
     private readonly ProxyPublisher _proxy;
     private readonly ComposeFiles _files;
+    private readonly DockerService _docker;
 
-    public IdentityLink(MattiverseDbContext db, MatIdentityClient identity, SystemConfigService config, ProxyPublisher proxy, ComposeFiles files)
+    public IdentityLink(MattiverseDbContext db, MatIdentityClient identity, SystemConfigService config, ProxyPublisher proxy, ComposeFiles files, DockerService docker)
     {
+        _docker = docker;
         _db = db;
         _identity = identity;
         _config = config;
@@ -72,6 +75,8 @@ public sealed class IdentityLink
             bases.Select(b => b + catalog.Identity.SignedOut).ToList(),
             callsAllApps: false,
             renewSecret: !hasSecret,
+            // MatIdentity tells the app when a person signed out there, server to server: the app's address on the shared network.
+            BackchannelLogoutUriOf(app.UiService is null ? null : _files.UiHost(app), app.UiPort, catalog.Identity),
             ct);
 
         variables[ManagedVariables.IdentityAuthority] = await PublicUrlAsync(identityApp, ct) ?? string.Empty;
@@ -132,6 +137,8 @@ public sealed class IdentityLink
             origins.Select(o => o + "/signout-callback-oidc").ToList(),
             callsAllApps: true,
             renewSecret: string.IsNullOrEmpty(secret),
+            // MatIdentity ends Mattiverse's sessions of a person who signed out there: Mattiverse's container on the shared network (none outside Docker).
+            SelfBackchannelLogoutUriOf(await _docker.GetSelfContainerNameAsync(ct), ProxyPublisher.SelfPort()),
             ct);
 
         await _config.SetIdentityAsync(new IdentitySignIn
@@ -157,6 +164,29 @@ public sealed class IdentityLink
         await _identity.DeleteClientAsync(ClientIdOf(app), ct);
         log("Removed from MatIdentity.");
     }
+
+    /// <summary>The path of Mattiverse's own back-channel logout (the web project's <c>BackchannelLogout</c>).</summary>
+    public const string SelfBackchannelLogoutPath = "/signout-backchannel";
+
+    /// <summary>
+    /// Where MatIdentity posts the logout tokens of an app (OpenID Connect Back-Channel Logout): the container of its web service on the shared network and
+    /// the port inside it, with the path of the catalog entry (<c>http://mattiverse-matsplit-web:8080/signout-backchannel</c>). MatIdentity calls it server to
+    /// server, so it is never the public address. Empty (MatIdentity removes it) when the app has no web service or port.
+    /// </summary>
+    public static string BackchannelLogoutUriOf(string? uiHost, int? uiPort, CatalogIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        return string.IsNullOrEmpty(uiHost) || uiPort is not { } port || string.IsNullOrWhiteSpace(identity.Backchannel)
+            ? string.Empty
+            : $"http://{uiHost}:{port}/{identity.Backchannel.Trim().TrimStart('/')}";
+    }
+
+    /// <summary>
+    /// Where MatIdentity posts the logout tokens of Mattiverse itself: its own container on the shared network (<paramref name="selfContainer"/>) and the port
+    /// it listens on there. Empty (MatIdentity removes it) when Mattiverse does not run in Docker (development): MatIdentity could not reach it.
+    /// </summary>
+    public static string SelfBackchannelLogoutUriOf(string? selfContainer, int port)
+        => string.IsNullOrEmpty(selfContainer) ? string.Empty : $"http://{selfContainer}:{port}{SelfBackchannelLogoutPath}";
 
     /// <summary>The client id of an app in MatIdentity: its slug (the id of the app in this Mattiverse; at least two characters).</summary>
     public static string ClientIdOf(InstalledApp app) => app.Slug.Length >= 2 ? app.Slug : app.Slug + "-app";

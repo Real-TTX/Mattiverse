@@ -170,10 +170,21 @@ groups and who may open which app stay in MatIdentity's own pages (the Manage ta
   addresses for the route and the host port) and fills its `MATIDENTITY_*` variables before the stack is deployed; the client is removed with the app.
   When MatIdentity is installed (or removed) the apps that are there are connected (or disconnected) and redeployed (`AppService.ConnectIdentityAppsAsync`,
   also run by *Connect again* on the Engines page).
+- **Back-channel logout.** Signing out at MatIdentity (or an administrator ending a person's sessions there) ends the person's sessions in every app: MatIdentity
+  posts a signed logout token (OpenID Connect Back-Channel Logout 1.0) to the client's `backchannelLogoutUri`. `IdentityLink` registers it for every app as the
+  app's **internal** address on the shared network, `http://<container of the ui service>:<its port><identity.backchannel>` (default `/signout-backchannel`,
+  `IdentityLink.BackchannelLogoutUriOf`), since MatIdentity calls it server to server; an app without a web service or port gets none (`""` removes it). The
+  apps on MatPlatform 1.4.0 answer it (MatDesign `src/MatPlatform`, `IMatIdentitySessions`); an older app answers 404 and keeps its session until it expires.
+  Mattiverse registers its own as `http://<its container>:<its port>/signout-backchannel` (`SelfBackchannelLogoutUriOf`; none when it runs outside Docker).
 - **Mattiverse itself** is the client `mattiverse` (it may call every app). The login page goes straight to MatIdentity when it is connected (`?local=1`
   keeps the local form); `/Account/External` turns the answer into a session: the person is found by `sub` (`User.ExternalSubject`), else by the user
   name, else created, and the role follows the claim `role`. Signing out ends the session at MatIdentity too. The OpenID Connect options are read from the
-  settings when they are built, so nothing needs a restart (`MatIdentitySignIn`).
+  settings when they are built, so nothing needs a restart (`MatIdentitySignIn`). The session keeps the claim `sid` of the ID token (`UserSession.IdentitySessionId`);
+  `POST /signout-backchannel` (`Infrastructure/BackchannelLogout.cs`, anonymous, no anti-forgery) checks the logout token (`Core/Auth/LogoutToken.cs`, the same checks
+  as MatPlatform's: signature with the keys of the handler's discovery document, `typ` `logout+jwt`, `iss`, `aud` = `mattiverse`, `iat` at most five minutes old,
+  `exp`, the back-channel event, `sub`/`sid`, no `nonce`, a `jti` replay cache in memory) and ends the sessions (`SessionService.EndIdentitySessionsAsync`): with `sid`
+  the sessions that began with it, with `sub` alone every session of the linked user, local ones too. Sessions live in SQLite and the cookie is checked against
+  its session on every request, so the next request is signed out. `200`; `400` for an invalid token; `404` while Mattiverse is not connected; `no-store`.
 - **Manage.** An app with `platform: true` gets the tab *Manage*: `PlatformClient` reads its MatApiDefinition (`GET /api`) and its values with `MAT_API_KEY`,
   and the page draws its pages (tiles, settings form, buttons) with MatUi without knowing the app.
 

@@ -160,6 +160,12 @@ public sealed class CatalogIdentity
     public string Callback { get; set; } = "/signin-oidc";
 
     public string SignedOut { get; set; } = "/signout-callback-oidc";
+
+    /// <summary>
+    /// Where MatIdentity posts its logout tokens (OpenID Connect Back-Channel Logout; MatPlatform 1.4.0 maps it): registered with the app's address on the
+    /// shared network, since MatIdentity calls it server to server.
+    /// </summary>
+    public string Backchannel { get; set; } = "/signout-backchannel";
 }
 
 /// <summary>How an app sends its mail through MatSMTP (MatDesign docs/PLATFORM.md, "Mail through MatSMTP").</summary>

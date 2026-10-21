@@ -142,9 +142,13 @@ What was built, and where it differs from the sketch above (branch `mattiverse-i
 ## MatIdentity (`ghcr.io/real-ttx/matidentity`)
 
 The single sign-on of the family (MatDesign docs/PLATFORM.md, "Sign-in with MatIdentity"). Key: `MAT_API_KEY` (the key of its platform `/api`, also the key of its `/api/v1`).
-`PUT /api/v1/clients/{clientId}` (`displayName`, `homeUrl`, `redirectUris`, `postLogoutRedirectUris`, `allowSignIn`, `allowMachine`, `callsAllApps`, `managedBy`, `renewSecret`) →
-`clientSecret` only for a new client or a renewed one; `DELETE /api/v1/clients/{clientId}?managedBy=mattiverse`. Mattiverse sets `MATIDENTITY_ISSUER` (its public address) and registers
+`PUT /api/v1/clients/{clientId}` (`displayName`, `homeUrl`, `redirectUris`, `postLogoutRedirectUris`, `allowSignIn`, `allowMachine`, `callsAllApps`, `managedBy`, `renewSecret`,
+`backchannelLogoutUri`) → `clientSecret` only for a new client or a renewed one; `DELETE /api/v1/clients/{clientId}?managedBy=mattiverse`. Mattiverse sets `MATIDENTITY_ISSUER` (its public address) and registers
 every app with `identity: {}` and itself (`IdentityLink`, docs/ARCHITECTURE.md "MatIdentity, the single sign-on").
+`backchannelLogoutUri` is where MatIdentity posts its logout tokens (OpenID Connect Back-Channel Logout 1.0: form field `logout_token`, a JWT of type `logout+jwt` with
+`iss`, `aud`, `iat`, `exp`, `jti`, `events`, `sub` and, unless the person was signed out everywhere, `sid`; five seconds, one more try). Mattiverse always sends it: the app's
+address on the shared network (`http://<container>:<port>/signout-backchannel`), Mattiverse's own (`http://<its container>:<its port>/signout-backchannel`), or `""` (removes
+it) when there is none; a missing field would leave what MatIdentity has.
 
 ## MatSMTP (`ghcr.io/real-ttx/matsmtp`)
 

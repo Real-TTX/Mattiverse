@@ -29,7 +29,7 @@ x-mattiverse:
   shared: [proxy]             # more services that must be reachable by the reverse proxy (the UI service always is)
   provision: matcad           # optional: a built-in provisioner to run after the install (matdock | matcad | matddns | matidentity | matsmtp)
   platform: true              # optional: the app speaks the platform contract (MatDesign docs/PLATFORM.md): Mattiverse gives it MAT_API_KEY and a Manage page
-  identity: {}                # optional: the app signs in through MatIdentity (callback /signin-oidc and signedOut /signout-callback-oidc can be changed)
+  identity: {}                # optional: the app signs in through MatIdentity (callback /signin-oidc, signedOut /signout-callback-oidc and backchannel /signout-backchannel can be changed)
   mail: {}                    # optional: the app sends mail, through MatSMTP when it is installed: Mattiverse fills MATSMTP_* (sender: the part before the @, default the slug)
   notes:
     - Shown as a hint on the install page.
@@ -87,6 +87,8 @@ volumes:
 - `platform: true` adds the hidden, generated variable `MAT_API_KEY`; the compose file passes it as `MAT_API_KEY: ${MAT_API_KEY}`. The app gets a tab **Manage**, drawn from its `/api`.
 - `identity: {}` adds the hidden variables `MATIDENTITY_AUTHORITY`, `MATIDENTITY_INTERNAL_URL`, `MATIDENTITY_CLIENT_ID` and `MATIDENTITY_CLIENT_SECRET` (pass them as `${MATIDENTITY_AUTHORITY:-}` ...).
   When MatIdentity is installed Mattiverse registers the app there and fills them on every install and update; without MatIdentity they are empty and the app signs people in itself.
+  The registration names the back-channel logout of the app (`backchannel`, default `/signout-backchannel`) at its address on the shared network, so MatIdentity can end the
+  app's sessions when a person signs out there (MatPlatform 1.4.0 answers it).
 - `mail: {}` (an app that sends mail) adds the hidden variables `MATSMTP_HOST`, `MATSMTP_PORT`, `MATSMTP_USERNAME`, `MATSMTP_PASSWORD` (a secret), `MATSMTP_FROM` and
   `MATSMTP_TLS` (pass them as `${MATSMTP_HOST:-}` ..., to the service that sends the mail; MatDesign docs/PLATFORM.md "Mail through MatSMTP"). When MatSMTP is installed Mattiverse
   makes a relay user for the app there (id = the slug, `managedBy: mattiverse`) and fills them on every install and update: the host is MatSMTP's container on the shared

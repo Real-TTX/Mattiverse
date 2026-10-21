@@ -45,7 +45,9 @@ public class ExternalModel : PageModel
             return Page();
         }
 
-        var session = await _sessions.CreateAsync(user.Id, Request.Headers.UserAgent.ToString(), HttpContext.Connection.RemoteIpAddress?.ToString(), HttpContext.RequestAborted);
+        // The sid of MatIdentity's session: a logout token that names it ends this one (Infrastructure/BackchannelLogout.cs).
+        var session = await _sessions.CreateAsync(
+            user.Id, Request.Headers.UserAgent.ToString(), HttpContext.Connection.RemoteIpAddress?.ToString(), principal.FindFirst("sid")?.Value, HttpContext.RequestAborted);
         await HttpContext.SignInAsync(AuthConstants.CookieScheme, PrincipalFactory.Build(user, session.Token), new AuthenticationProperties { IsPersistent = true });
         return LocalRedirect(!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
     }
