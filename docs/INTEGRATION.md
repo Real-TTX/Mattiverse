@@ -65,8 +65,8 @@ which is wider than needed; Mattiverse leaves it off.)
 ### Conventions that would make the catalog simpler
 
 - **`<APP>_ADMIN_PASSWORD`** on every app (MatFile, MatMail, MatTrakr, Matddns and now Matcad have it; MatPlay, MatSplit, MatCMS, MatBu
-  start as `admin`/`admin`; MatPaper, Matdo and Matgate use a first-visit wizard).
-- **`/healthz`** returning `200` anonymously (MatPaper, MatPlay, MatCMS, Matdo, MatTrakr have none).
+  start as `admin`/`admin`; MatPaper, MatDo and Matgate use a first-visit wizard).
+- **`/healthz`** returning `200` anonymously (MatPaper, MatPlay, MatCMS, MatDo, MatTrakr have none).
 - **An `x-mattiverse` block in each project's own compose file**, so the catalog entry comes from the app's repo and cannot
   drift from it ([CATALOG.md](CATALOG.md)).
 - **MatPaper**: the database password is the fixed `matpaper`; an environment variable for it would allow a generated one.
