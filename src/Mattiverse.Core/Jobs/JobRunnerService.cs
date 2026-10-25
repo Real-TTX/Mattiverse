@@ -1,3 +1,4 @@
+using Mattiverse.Core.Engines;
 using Mattiverse.Core.Data;
 using Mattiverse.Core.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -83,6 +84,8 @@ public sealed class JobRunnerService : BackgroundService
             return;
         }
 
+        // A job may wait for an engine that is being redeployed; a page never does (see EngineClient.StartGrace).
+        EngineClient.InJob.Value = true;
         using var scope = _scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MattiverseDbContext>();
         var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == id, stoppingToken);

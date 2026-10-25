@@ -48,6 +48,7 @@ public class EngineRestartTests
     {
         var (oldGrace, oldDelay) = (EngineClient.StartGrace, EngineClient.RetryDelay);
         EngineClient.StartGrace = grace;
+        EngineClient.InJob.Value = true;
         EngineClient.RetryDelay = TimeSpan.FromMilliseconds(10);
         try
         {
@@ -81,6 +82,17 @@ public class EngineRestartTests
 
         Assert.Contains("not reachable", ex.Message);
         Assert.True(handler.Calls > 1);
+    }
+
+    [Fact]
+    public async Task A_page_does_not_wait_only_a_job_does()
+    {
+        // Outside a job (a page) a refused connection fails at once instead of hanging the page while the engine restarts.
+        var handler = new RefusingHandler(refusals: 3);
+        var client = new MatSmtpClient(new Locator(), new Factory(handler));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.ListRelayUsersAsync(CancellationToken.None));
+        Assert.Equal(1, handler.Calls);
     }
 
     [Fact]

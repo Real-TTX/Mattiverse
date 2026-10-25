@@ -133,7 +133,8 @@ public abstract class EngineClient
 
         // An engine that is being redeployed (an update, or a new MatSMTP connecting the apps that send mail, MatDock among them) refuses connections for
         // a few seconds: a job that needs it then waits for it instead of failing. Only "status" answers at once: it is how Mattiverse asks whether an engine is there.
-        var deadline = DateTime.UtcNow + (path == "status" ? TimeSpan.Zero : StartGrace);
+        // Only a job waits (an install or update right after another one); a page answers at once instead of hanging while an engine restarts.
+        var deadline = DateTime.UtcNow + (path == "status" || !InJob.Value ? TimeSpan.Zero : StartGrace);
         HttpResponseMessage response;
         while (true)
         {
@@ -178,7 +179,10 @@ public abstract class EngineClient
         }
     }
 
-    /// <summary>How long a request waits for an engine that refuses connections because it is starting.</summary>
+    /// <summary>Set by the job runner for the work of a job: only then does a request wait for an engine that is starting.</summary>
+    public static readonly AsyncLocal<bool> InJob = new();
+
+    /// <summary>How long a request of a job waits for an engine that refuses connections because it is starting.</summary>
     public static TimeSpan StartGrace { get; set; } = TimeSpan.FromSeconds(90);
 
     /// <summary>The pause between two attempts while an engine is starting.</summary>
