@@ -70,16 +70,16 @@ it there, and Mattiverse keeps your change when it updates the app.
 
 ### The store and the setup wizard
 
-| Store | Wizard: the engines | Wizard: domain and DNS |
+| Store | Wizard: the engines | Wizard: the DNS account |
 |---|---|---|
-| ![Store](docs/images/store.png) | ![Setup wizard: the three engines](docs/images/wizard.png) | ![Setup wizard: the DNS account](docs/images/wizard-dns.png) |
+| ![The store: the Mat apps with their category, installed ones marked](docs/images/store.png) | ![Setup wizard: the five engines, MatDock required](docs/images/wizard.png) | ![Setup wizard: the DNS provider and its API token](docs/images/wizard-dns.png) |
 
 The wizard warns when a port it needs is taken (for example when another proxy holds 80 and 443) and leaves
 alone what is installed already. The DNS account is asked once and handed to Matcad and Matddns.
 
 ### The engines
 
-![Settings, Engines: the engines with their state](docs/images/engines.png)
+![Settings, Engines: the five engines with their version and state, and what Mattiverse hands over](docs/images/engines.png)
 
 The *Engines* tab shows which engine answers, opens it, and hands the domain and the DNS account over again (*Connect again*).
 Each app page links to where its stack, route and DNS record live in the engines.
@@ -88,15 +88,30 @@ Each app page links to where its stack, route and DNS record live in the engines
 
 | An app | The install log |
 |---|---|
-| ![App details with credentials, containers and actions](docs/images/app-details.png) | ![Live log of an install](docs/images/install-log.png) |
+| ![App details with credentials, address, stack and actions](docs/images/app-details.png) | ![Live log of an install](docs/images/install-log.png) |
 
 Buttons read from positive to negative: **Open, Stop, Restart, Update, Back up**, then a gap, then **Uninstall**.
 
+### Manage an app
+
+| Overview | Settings |
+|---|---|
+| ![Manage MatDock: the tiles and actions its /api describes](docs/images/manage.png) | ![Manage MatSplit: its settings as a form](docs/images/manage-settings.png) |
+
+The *Manage* tab of an app that speaks the Mat platform contract is drawn from the app's own `/api`: the tiles with its numbers,
+the actions it offers and its settings as a form. Mattiverse knows nothing about the app beforehand.
+
+### Activity
+
+![The activity: installs, updates and backups with their state and duration](docs/images/jobs.png)
+
+Every install, update and backup is a task with a log of its own; the list filters by state.
+
 ### Backups
 
-| History | Schedules |
+| History | A schedule |
 |---|---|
-| ![Backup history](docs/images/backups.png) | ![Backup schedules](docs/images/backup-schedules.png) |
+| ![Backup history: app, time, kind, size and state](docs/images/backups.png) | ![A new backup schedule: apps, time, how many are kept](docs/images/backup-schedules.png) |
 
 One list for all backups: those MatDock made (kept by *MatDock*, also visible in MatDock) next to those of Mattiverse's own runner.
 Every list has its toolbar on top (a search field, *Filter* and *Sort* open dialogs), its actions below and pagination directly under the table.
@@ -109,7 +124,7 @@ Every list has its toolbar on top (a search field, *Filter* and *Sort* open dial
 
 | Light | Phone | Phone menu |
 |---|---|---|
-| ![Light theme](docs/images/home-light.png) | ![Phone home screen](docs/images/mobile-home.png) | ![Phone menu](docs/images/mobile-menu.png) |
+| ![The home screen in the light theme](docs/images/home-light.png) | ![The home screen on a phone](docs/images/mobile-home.png) | ![The menu as a drawer on a phone](docs/images/mobile-menu.png) |
 
 The hero picture above is the dark theme; *System* follows the device. On a phone tables become cards and dialogs fill the screen.
 
