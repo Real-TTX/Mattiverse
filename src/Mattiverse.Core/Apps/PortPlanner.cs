@@ -60,6 +60,11 @@ public sealed class PortPlanner
         throw new InvalidOperationException("No free host port is left in the configured range.");
     }
 
+    /// <summary>The container of another project that publishes this host port now, or null when the port is free (or this project's own).</summary>
+    public async Task<string?> HolderOfAsync(int hostPort, string ownProject, CancellationToken ct = default)
+        => (await _docker.ListPublishedPortsAsync(ct))
+            .FirstOrDefault(p => p.HostPort == hostPort && !p.Container.StartsWith(ownProject, StringComparison.Ordinal))?.Container;
+
     /// <summary>The host ports the compose file publishes by itself (with the variables applied) that a running container already uses.</summary>
     public async Task<List<PortConflict>> FindConflictsAsync(CatalogApp app, IReadOnlyDictionary<string, string> variables, string ownProject, CancellationToken ct = default)
     {

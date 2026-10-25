@@ -189,9 +189,8 @@ public sealed partial class AppService
 
             // The host port of the web page was planned when the install was started; on "Try again" another container may have taken it since:
             // plan a free one instead of failing the same way again.
-            if (app.HostPort is { } planned && conflicts.Any(c => c.Port == planned))
+            if (app.HostPort is { } planned && await _ports.HolderOfAsync(planned, app.ProjectName, ct) is { } taken)
             {
-                var taken = conflicts.First(c => c.Port == planned).Container;
                 app.HostPort = await _ports.PlanHostPortAsync(catalog, ProxyPublisher.SelfPort(), ct);
                 await _db.SaveChangesAsync(ct);
                 log($"Host port {planned} is used by '{taken}' now: the app gets port {app.HostPort} instead.");
