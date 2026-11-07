@@ -232,7 +232,7 @@ dotnet test                           # unit tests (catalog, installer files, ba
 ```
 
 The dev stack is the app plus a SQLite web viewer (the SQLite counterpart of pgAdmin) on
-`http://localhost:8021`. In `Development` a ready-made account **`tester` / `Tester123!`** exists, so testing never
+`http://localhost:8021`. In `Development` a ready-made account **`admin@example.com` / `Start12345`** exists, so testing never
 touches the real administrator. `MATTIVERSE_PORT` changes the host port when 8030 is taken.
 
 Testing means rebuilding the container and redeploying the stack, nothing else.

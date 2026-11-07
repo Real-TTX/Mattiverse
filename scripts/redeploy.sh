@@ -28,4 +28,4 @@ docker compose -f docker-compose.dev.yml up -d --build --remove-orphans
 
 echo
 echo "Mattiverse local-${MATTIVERSE_BUILD_DATE} is running on http://localhost:${port}"
-echo "Dev login: tester / Tester123!   |   SQLite web: http://localhost:8021"
+echo "Dev login: admin@example.com / Start12345   |   SQLite web: http://localhost:8021"

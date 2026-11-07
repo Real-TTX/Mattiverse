@@ -31,7 +31,7 @@ with MatDock, Matcad, Matddns, MatIdentity and MatSMTP, [docs/CATALOG.md](docs/C
   the theme button, the list tools, validation, the flash message, the wizard, the drawer. It removes what it creates.
 - **Run / test the app: always rebuild the container and redeploy the stack** (project rule): `./scripts/redeploy.ps1`
   (`-Fresh` wipes the volume, `-Port` changes the host port). Dev stack: `docker-compose.dev.yml` (app + `sqlite-web` on 8021).
-  In `Development` the account `tester` / `Tester123!` exists.
+  In `Development` the account `admin@example.com` / `Start12345` exists (the test account of every Mat app).
 - **Release stack:** `docker-compose.yml`, image `ghcr.io/real-ttx/mattiverse`, one service and one volume: keep it that simple.
 - **Real tests are end-to-end against Docker.** The pattern that worked: install apps through the UI with Playwright
   (installed Edge, see the `screenshots` skill), then check with `docker ps` / `docker exec` / `curl`. Remember

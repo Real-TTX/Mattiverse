@@ -1,12 +1,12 @@
 // End-to-end checks of the pages of Mattiverse in a real browser (the installed Edge, or Chrome) against a running stack.
 //   ./scripts/redeploy.ps1 && cd tests/e2e && npm install && node run.js [http://localhost:8030]
-// It signs in with the account of the development stack (tester / Tester123!, set MATTIVERSE_USER and MATTIVERSE_PASSWORD for another one) and
+// It signs in with the account of the development stack (admin@example.com / Start12345, set MATTIVERSE_USER and MATTIVERSE_PASSWORD for another one) and
 // changes nothing that it does not remove again: the one schedule it creates is deleted at the end. Exit code 1 when a check fails.
 const { chromium } = require('playwright-core');
 
 const BASE = (process.argv[2] || process.env.BASE || 'http://localhost:8030').replace(/\/$/, '');
-const USER = process.env.MATTIVERSE_USER || 'tester';
-const PASSWORD = process.env.MATTIVERSE_PASSWORD || 'Tester123!';
+const USER = process.env.MATTIVERSE_USER || 'admin@example.com';
+const PASSWORD = process.env.MATTIVERSE_PASSWORD || 'Start12345';
 const results = [];
 
 async function check(name, fn) {
