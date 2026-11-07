@@ -28,7 +28,7 @@ x-mattiverse:
       default: Europe/Berlin
       advanced: true
   notes:
-    - The files lie in the volume web-data (/data/files); back it up together with the database.
+    - The files lie in the volume matdrive-data (/data/files); back it up together with the database volume matdrive-db.
     - Storage locations of the NAS are bind-mounted below /storage and added under Administration → Storage locations.
     - MatOffice opens the office files after you connect it under Administration → Integrations (a key made in MatOffice).
   credentials:
