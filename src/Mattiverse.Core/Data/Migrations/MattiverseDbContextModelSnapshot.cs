@@ -431,6 +431,13 @@ namespace Mattiverse.Core.Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Wallpaper")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("orbit");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ExternalSubject")

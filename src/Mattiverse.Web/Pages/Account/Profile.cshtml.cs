@@ -36,11 +36,18 @@ public class ProfileModel : PageModel
     /// <summary>The password tab is shown when a change is required or the last submit failed.</summary>
     public bool PasswordTab => MustChange || Tab == "password" || !ModelState.IsValid;
 
+    /// <summary>The tab of the home screen: the wallpaper.</summary>
+    public bool HomeTab => !PasswordTab && Tab == "home";
+
+    /// <summary>The wallpaper of the account (an id of <see cref="Wallpapers.All"/>).</summary>
+    public string Wallpaper { get; private set; } = Wallpapers.Default;
+
     public TabBarModel Tabs => new()
     {
         Tabs =
         [
-            new TabItem { Title = "General", Href = "/Account/Profile", Icon = "user", Active = !PasswordTab },
+            new TabItem { Title = "General", Href = "/Account/Profile", Icon = "user", Active = !PasswordTab && !HomeTab },
+            new TabItem { Title = "Home screen", Href = "/Account/Profile?tab=home", Icon = "image", Active = HomeTab },
             new TabItem { Title = "Password", Href = "/Account/Profile?tab=password", Icon = "key", Active = PasswordTab },
         ],
     };
@@ -99,6 +106,35 @@ public class ProfileModel : PageModel
         return RedirectToPage();
     }
 
+    /// <summary>Saves the wallpaper of the home screen and refreshes the cookie, which carries it (like the theme).</summary>
+    public async Task<IActionResult> OnPostWallpaperAsync([FromForm] string? wallpaper)
+    {
+        // The password fields are bound on every post of this page; they belong to the other form.
+        ModelState.Clear();
+        var userId = User.GetUserId();
+        if (userId is null || !await LoadAsync())
+        {
+            return Forbid();
+        }
+
+        if (!Wallpapers.IsKnown(wallpaper))
+        {
+            StatusMessage = "Please choose one of the wallpapers.";
+            TempData["IsError"] = true;
+            return RedirectToPage(new { tab = "home" });
+        }
+
+        var user = await _userService.SetWallpaperAsync(userId.Value, wallpaper!, HttpContext.RequestAborted);
+        if (user is null)
+        {
+            return Forbid();
+        }
+
+        await HttpContext.SignInAsync(AuthConstants.CookieScheme, PrincipalFactory.Build(user, User.GetSessionToken() ?? string.Empty));
+        StatusMessage = "Wallpaper changed. You see it on the home screen.";
+        return RedirectToPage(new { tab = "home" });
+    }
+
     private async Task<bool> LoadAsync()
     {
         var userId = User.GetUserId();
@@ -117,6 +153,7 @@ public class ProfileModel : PageModel
         DisplayName = user.DisplayName;
         Role = user.Role;
         MustChange = user.MustChangePassword;
+        Wallpaper = Wallpapers.Normalize(user.Wallpaper);
         return true;
     }
 }

@@ -115,6 +115,25 @@ public sealed class UserService
         return user;
     }
 
+    /// <summary>Stores the wallpaper of the home screen (an id of <see cref="Wallpapers.All"/>). Returns the user, or <c>null</c> if it does not exist.</summary>
+    public async Task<User?> SetWallpaperAsync(long id, string wallpaper, CancellationToken ct = default)
+    {
+        if (!Wallpapers.IsKnown(wallpaper))
+        {
+            throw new ArgumentException("Unknown wallpaper: " + wallpaper, nameof(wallpaper));
+        }
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+        if (user is null)
+        {
+            return null;
+        }
+
+        user.Wallpaper = wallpaper;
+        await _db.SaveChangesAsync(ct);
+        return user;
+    }
+
     /// <summary>
     /// The local account of a person who signed in through MatIdentity: found by the claim <c>sub</c>, else the local account with the same user name that is
     /// not linked yet (the administrator who set Mattiverse up is the administrator of MatIdentity too), else a new account. The role follows the claim

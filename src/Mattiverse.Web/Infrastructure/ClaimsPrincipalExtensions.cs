@@ -32,6 +32,10 @@ public static class ClaimsPrincipalExtensions
     public static string GetTheme(this ClaimsPrincipal principal)
         => principal.FindFirstValue(AuthConstants.ThemeClaim) ?? "system";
 
+    /// <summary>The picture behind the home screen (an id of <c>Wallpapers.All</c>); a cookie from before it existed has the default.</summary>
+    public static string GetWallpaper(this ClaimsPrincipal principal)
+        => Mattiverse.Core.Users.Wallpapers.Normalize(principal.FindFirstValue(AuthConstants.WallpaperClaim));
+
     public static bool IsAdmin(this ClaimsPrincipal principal)
         => principal.IsInRole(nameof(UserRole.Admin));
 }

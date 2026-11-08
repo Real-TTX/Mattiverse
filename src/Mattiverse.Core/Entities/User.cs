@@ -25,5 +25,8 @@ public class User : AuditableEntity
     /// <summary>Preferred theme: system, light or dark (stored in the browser as well, so it applies before login).</summary>
     public string Theme { get; set; } = "system";
 
+    /// <summary>The picture behind the home screen: an id of <c>Wallpapers.All</c>.</summary>
+    public string Wallpaper { get; set; } = "orbit";
+
     public ICollection<UserSession> Sessions { get; set; } = new List<UserSession>();
 }

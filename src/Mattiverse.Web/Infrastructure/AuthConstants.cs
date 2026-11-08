@@ -9,4 +9,5 @@ public static class AuthConstants
     public const string DisplayNameClaim = "mattiverse:display-name";
     public const string MustChangePasswordClaim = "mattiverse:must-change-password";
     public const string ThemeClaim = "mattiverse:theme";
+    public const string WallpaperClaim = "mattiverse:wallpaper";
 }

@@ -139,8 +139,8 @@ SQLite (`mattiverse.db`) holds the logic, JSON (`config/system.json`) the config
 Mattiverse uses **MatUi**, the UI toolkit of [MatDesign](https://github.com/Real-TTX/MatDesign), so that it looks and behaves like the other Mat apps; the rules are MatDesign's rulebook.
 
 - **The toolkit is a copy** in `src/Mattiverse.Web/wwwroot/matui` (CSS, one script, the icon sprite): the app works offline and as a PWA, and nothing is loaded from another site.
-  `scripts/update-matui.ps1` brings a newer release from MatDesign. The app adds only what is its own: `mv-*` classes (app icons, home tiles, the app frame, the wizard) in `mattiverse.css`
-  and a small script (clock, job log, wizard).
+  `scripts/update-matui.ps1` brings a newer release from MatDesign. The app adds only what is its own: `mv-*` classes (app icons, the launcher of the home screen, the app frame, the wizard) in `mattiverse.css`
+  and a small script (clock, the search of the home screen, job log, wizard).
 - **Shell:** the layout draws the menu (one menu for a user; Administration is a second menu behind the switcher for an administrator; Settings is a submenu), the user menu, the 3-state theme button,
   the version and the breadcrumb. Sign-in, setup, shared links and errors have no menu (`_Bare`). The theme is kept on the account (`/api/theme`) and in the browser.
 - **Controls:** the tag helpers `<icon>` (a use of the sprite), `<app-icon>`, `<mat-field>` and `<tab-bar>` and the partials `_Toolbar`, `_Pager`, `_ValidationSummary` and `_StatusPill` are the one code base for them.
@@ -150,6 +150,25 @@ Mattiverse uses **MatUi**, the UI toolkit of [MatDesign](https://github.com/Real
   a summary at the top links to the fields. After a save the page redirects and shows a toast. Dependent fields are shown only when needed (`data-show-if`).
 - **The logo** stays the planet with its orbit, not the flat glyph tile that MatDesign's rule IDENT-03 describes: the owner prefers it.
 - Mobile first where it counts: a drawer for the menu, tables become cards, dialogs are full screen, safe-area insets for notches.
+
+### The home screen
+
+The home screen is a **launcher like a phone** (the owner's choice of 2026-11-08, "variant B", modelled on umbrelOS and iOS), not a page in the shell:
+
+- **No menu on the left.** `Pages/Shared/_Launcher.cshtml` draws a bar with the logo, the theme button and the person (whose menu holds the account, the wallpaper,
+  the password, sign-out and the version) instead of the menu. This is a deliberate exception to MatDesign's SHELL-01 and SHELL-03 for the home screen only,
+  approved by the owner like the logo: do not bring the menu back to it. Every other page keeps the shell for now.
+- **Everything is an app.** The installed apps are icons without a frame (a badge on the corner tells a state other than running, with an icon); the parts of
+  Mattiverse are apps too (`Support/Launcher.cs`): Activity and Users on the screen, Store, Apps, Backups and Settings in the dock (a user gets Apps and the account).
+- **Widgets** are cards of two cells in the same grid (`mv-grid`, `mv-span-2`): apps running, the last backup (amber after seven days or with none), the activity, Docker.
+  The search above the dock narrows the apps (key `/`); while it has a term the widgets step aside.
+- **The wallpaper** is a picture of the account (`User.Wallpaper`, the claim `mattiverse:wallpaper`, `Core/Users/Wallpapers.cs`, the tab *Home screen* of the account).
+  The default is *Orbit*, the planet of the logo, in a light and a dark version that follow the theme; Earth, Jungle, Lagoon and Mountains are views from above; *None* is
+  the plain background. A wallpaper is content, not a surface (MatDesign COLOR-06 is about surfaces): widgets, the dock and the menus stay solid on it, a veil of the theme's
+  background keeps text readable (stronger for a dark picture in the light theme) and text on the picture has a soft shadow of that background.
+  The pictures are drawn, not downloaded: `scripts/wallpapers` (SVG with noise filters, rendered to JPEG with Edge; `node scripts/wallpapers/render.js`).
+- Next (planned): parts of Mattiverse open as a full-screen "window" over the home screen, apps can open in a new tab or in such a window, and the widgets
+  can be placed, sized and taken from the apps' `/api`. Only one app is ever open; the window is a look, not a window manager.
 
 ## What is deliberately not here
 

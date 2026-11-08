@@ -46,38 +46,168 @@
 /* The logo of Mattiverse is a picture of its own with rounded corners: the tile of the toolkit shows no colour behind it. */
 .mat-logo.mv-logo { background: none; }
 
-/* ---- Home ---- */
-.mv-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--mat-space-4); }
-.mv-clock { font-size: var(--mat-fs-3xl); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.mv-clockdate { color: var(--mat-text-muted); }
-.mv-greeting { margin-top: var(--mat-space-1); font-size: var(--mat-fs-lg); font-weight: 600; }
-.mv-search { flex: 0 1 320px; }
+/* ---- The home screen: a launcher like a phone (Pages/Shared/_Launcher.cshtml) ----
+   No menu on the left: the owner chose it over SHELL-01 for the home screen (docs/ARCHITECTURE.md, "The home screen").
+   Apps are icons without a frame, widgets are cards of two cells, the parts of Mattiverse sit in a dock at the bottom. */
 
-.mv-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: var(--mat-space-3); }
-.mv-tile {
+/* The wallpaper: a picture the person chose (data-wallpaper, kept on the account). It is content, not a surface (COLOR-06 is about surfaces):
+   widgets, the dock and the menus stay solid on top of it. A thin veil of the theme's background keeps text readable; a dark picture gets a
+   stronger veil in the light theme. The picture sits in a fixed layer, so it does not move when the page scrolls (also on a phone). */
+.mv-launcher {
+  --mv-veil: 8%;
+  --mv-wall: none;
   position: relative;
-  display: flex; flex-direction: column; align-items: center; gap: var(--mat-space-2);
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--mat-bg);
+}
+.mv-launcher::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--mat-bg);
+  background-image: linear-gradient(color-mix(in srgb, var(--mat-bg) var(--mv-veil), transparent), color-mix(in srgb, var(--mat-bg) var(--mv-veil), transparent)), var(--mv-wall);
+  background-size: cover;
+  background-position: center;
+}
+.mv-launcher[data-wallpaper="orbit"] { --mv-wall: url("../img/wallpapers/orbit-light.jpg"); }
+:root[data-theme="dark"] .mv-launcher[data-wallpaper="orbit"] { --mv-wall: url("../img/wallpapers/orbit-dark.jpg"); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .mv-launcher[data-wallpaper="orbit"] { --mv-wall: url("../img/wallpapers/orbit-dark.jpg"); } }
+.mv-launcher[data-wallpaper="earth"] { --mv-wall: url("../img/wallpapers/earth.jpg"); }
+.mv-launcher[data-wallpaper="jungle"] { --mv-wall: url("../img/wallpapers/jungle.jpg"); }
+.mv-launcher[data-wallpaper="lagoon"] { --mv-wall: url("../img/wallpapers/lagoon.jpg"); }
+.mv-launcher[data-wallpaper="mountains"] { --mv-wall: url("../img/wallpapers/mountains.jpg"); }
+:root:not([data-theme="dark"]) .mv-launcher.mv-launcher--dark-wall { --mv-veil: 42%; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .mv-launcher.mv-launcher--dark-wall { --mv-veil: 8%; } }
+/* Text on the picture: a soft shadow of the theme's background, so it reads on light and dark spots alike. */
+.mv-launcher:not([data-wallpaper="none"]) :is(.mv-bar__brand, .mv-home__head, .mv-app__label) {
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--mat-bg) 90%, transparent), 0 0 14px color-mix(in srgb, var(--mat-bg) 55%, transparent);
+}
+
+/* The bar on top: the logo, the theme button and the person (the version is in the person's menu, SHELL-06). */
+.mv-bar {
+  display: flex; align-items: center; gap: var(--mat-space-3);
+  width: 100%; max-width: 1180px; margin: 0 auto;
+  padding: calc(var(--mat-space-3) + env(safe-area-inset-top)) var(--mat-content-pad) var(--mat-space-3);
+}
+.mv-bar__brand { display: flex; align-items: center; gap: var(--mat-space-3); min-width: 0; color: var(--mat-text); font-size: var(--mat-fs-lg); font-weight: 700; text-decoration: none; }
+.mv-bar__brand:hover { text-decoration: none; }
+.mv-bar__end { margin-left: auto; display: flex; align-items: center; gap: var(--mat-space-2); }
+.mv-bar__user { display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0; border: 0; background: none; border-radius: var(--mat-radius); cursor: pointer; }
+.mv-bar__user:focus-visible { box-shadow: var(--mat-focus-ring); outline: none; }
+.mv-menuversion { padding: var(--mat-space-2) var(--mat-space-3) var(--mat-space-1); color: var(--mat-text-muted); font-family: var(--mat-mono); font-size: var(--mat-fs-xs); }
+
+.mv-home {
+  flex: 1 0 auto;
+  width: 100%; max-width: 1180px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: var(--mat-space-5);
+  padding: var(--mat-space-3) var(--mat-content-pad) 0;
+}
+.mv-home__head { text-align: center; }
+.mv-home__head h1 { font-size: var(--mat-fs-3xl); line-height: 1.15; }
+.mv-home__sub { margin-top: var(--mat-space-1); font-weight: 500; }
+
+/* The grid: cells like on a phone. An app takes one cell, a widget two side by side; empty cells are filled by what comes later. */
+.mv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); grid-auto-rows: 112px; gap: var(--mat-space-4); grid-auto-flow: dense; }
+.mv-span-2 { grid-column: span 2; }
+
+/* An app: its icon and its name, no frame around it. The state is a badge on the corner, with an icon (COLOR-04); a running app has none. */
+.mv-app {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--mat-space-2);
   min-width: 0;
-  padding: var(--mat-space-4) var(--mat-space-2) var(--mat-space-3);
+  border-radius: var(--mat-radius-xl);
+  color: var(--mat-text);
+  text-decoration: none;
+}
+.mv-app:hover { background: color-mix(in srgb, var(--mat-surface) 70%, transparent); text-decoration: none; }
+.mv-app:focus-visible { box-shadow: var(--mat-focus-ring); outline: none; }
+.mv-app[hidden] { display: none; }
+.mv-app__icon { position: relative; width: 64px; height: 64px; }
+.mv-app__icon > .mv-appicon { width: 100%; height: 100%; font-size: var(--mat-fs-lg); }
+.mv-app__icon > .mv-appicon .mat-icon { font-size: 30px; }
+.mv-app__label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--mat-fs-sm); font-weight: 600; }
+.mv-app__badge {
+  position: absolute; top: -6px; right: -6px;
+  display: grid; place-items: center; width: 22px; height: 22px;
+  border-radius: var(--mat-radius-pill);
+  background: var(--mat-text-muted); color: var(--mat-bg);
+  box-shadow: 0 0 0 2px var(--mat-bg);
+}
+.mv-app__badge .mat-icon { font-size: 12px; }
+.mv-app__badge--warn { background: var(--mat-warning); }
+.mv-app__badge--offline { background: var(--mat-danger); color: var(--mat-on-danger); }
+.mv-app__badge--busy { background: var(--mat-info); animation: mat-pulse 1.2s ease-in-out infinite; }
+.mv-app__count {
+  position: absolute; top: -6px; right: -8px;
+  min-width: 22px; height: 22px; padding: 0 6px;
+  display: grid; place-items: center;
+  border-radius: var(--mat-radius-pill);
+  background: var(--mat-accent); color: var(--mat-on-accent);
+  box-shadow: 0 0 0 2px var(--mat-bg);
+  font-size: var(--mat-fs-xs); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+/* A part of Mattiverse as an app: a tile with its icon. */
+.mv-appicon--accent { background: var(--mat-accent); color: var(--mat-on-accent); }
+.mv-appicon--grey { background: var(--mat-text-muted); color: var(--mat-bg); }
+
+/* A widget: a card of two cells with a small head, a value and a note. Solid on the wallpaper. */
+.mv-widget {
+  display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  min-width: 0; min-height: 0; overflow: hidden;
+  padding: var(--mat-space-3) var(--mat-space-4);
   background: var(--mat-surface);
   border: 1px solid var(--mat-border);
-  border-radius: var(--mat-radius-lg);
+  border-radius: var(--mat-radius-xl);
   color: var(--mat-text);
-  text-align: center;
   text-decoration: none;
-  transition: border-color var(--mat-dur) var(--mat-ease), background var(--mat-dur) var(--mat-ease);
 }
-.mv-tile:hover { background: var(--mat-surface-2); border-color: var(--mat-text-faint); text-decoration: none; }
-.mv-tile .mv-appicon { width: 56px; height: 56px; font-size: var(--mat-fs-lg); }
-.mv-tile__label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--mat-fs-sm); font-weight: 600; }
-.mv-tile[hidden] { display: none; }
+a.mv-widget:hover { background: var(--mat-surface-2); text-decoration: none; }
+a.mv-widget:focus-visible { box-shadow: var(--mat-focus-ring); outline: none; }
+.mv-widget[hidden] { display: none; }
+.mv-widget__head { display: flex; align-items: center; gap: var(--mat-space-2); min-width: 0; color: var(--mat-text-muted); font-size: var(--mat-fs-xs); font-weight: 650; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+.mv-widget__head .mat-icon { flex: none; font-size: 1rem; color: var(--mat-accent-text); }
+.mv-widget__value { font-size: var(--mat-fs-2xl); font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-widget__value small { font-size: var(--mat-fs-md); font-weight: 500; color: var(--mat-text-muted); }
+.mv-widget__note { color: var(--mat-text-muted); font-size: var(--mat-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-widget--warn .mv-widget__head .mat-icon, .mv-widget--warn .mv-widget__note { color: var(--mat-warning-text); }
+.mv-widget--error .mv-widget__head .mat-icon, .mv-widget--error .mv-widget__note { color: var(--mat-danger-text); }
 
-/* The state of an app on its tile: a dot, and its word for a screen reader (COLOR-04). */
-.mv-dot { position: absolute; top: 10px; right: 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--mat-text-faint); box-shadow: 0 0 0 2px var(--mat-surface); }
-.mv-dot--online { background: var(--mat-success); }
-.mv-dot--offline { background: var(--mat-danger); }
-.mv-dot--warn { background: var(--mat-warning); }
-.mv-dot--busy { background: var(--mat-info); animation: mat-pulse 1.2s ease-in-out infinite; }
+/* The search and the dock stay at the bottom of the screen. */
+.mv-dockbar {
+  position: sticky; bottom: 0;
+  margin-top: auto;
+  display: flex; flex-direction: column; align-items: center; gap: var(--mat-space-3);
+  padding: var(--mat-space-5) 0 calc(var(--mat-space-3) + env(safe-area-inset-bottom));
+}
+.mv-find { width: min(100%, 420px); }
+.mv-dock { display: flex; align-items: center; gap: var(--mat-space-3); padding: var(--mat-space-3) var(--mat-space-4); background: var(--mat-surface); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-xl); }
+.mv-dock__app { position: relative; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 22%; }
+.mv-dock__app > .mv-appicon { width: 100%; height: 100%; }
+.mv-dock__app > .mv-appicon .mat-icon { font-size: 26px; }
+.mv-dock__app:focus-visible { box-shadow: var(--mat-focus-ring); outline: none; }
+
+/* The wallpaper picker (Account, Home screen): a small picture in each choice. */
+.mv-wallthumb { display: block; width: 100%; margin-bottom: var(--mat-space-2); aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-bg); }
+.mv-wallthumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mv-wallthumb--none { display: grid; place-items: center; color: var(--mat-text-muted); }
+.mv-wallthumb--none .mat-icon { font-size: 1.6rem; }
+.mv-wallchoices .mat-choice { flex-direction: column; align-items: stretch; }
+
+@media (max-width: 600px) {
+  .mv-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 96px; gap: var(--mat-space-3) var(--mat-space-2); }
+  .mv-app__icon { width: 58px; height: 58px; }
+  .mv-app__label { font-size: var(--mat-fs-xs); }
+  .mv-widget { padding: var(--mat-space-2) var(--mat-space-3); gap: 2px; }
+  .mv-widget__value { font-size: var(--mat-fs-lg); }
+  .mv-home__head h1 { font-size: var(--mat-fs-2xl); }
+  .mv-dock { width: 100%; justify-content: space-around; padding: var(--mat-space-3) var(--mat-space-2); }
+  .mv-dock__app { width: 56px; height: 56px; }
+}
 
 /* What is going on at a glance: cards that show a number, two in a row on a phone. */
 .mv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: var(--mat-gap); }

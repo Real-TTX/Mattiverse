@@ -1,33 +1,35 @@
 using Mattiverse.Core.Apps;
+using Mattiverse.Core.Backups;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
-using Mattiverse.Core.Data;
 using Mattiverse.Core.Docker;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Jobs;
 using Mattiverse.Web.Support;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
 
 namespace Mattiverse.Web.Pages;
 
-/// <summary>The home screen: a launcher with the installed apps as icons, a few widgets, and shortcuts to the system apps.</summary>
+/// <summary>The home screen: a launcher with the installed apps as icons, a few widgets, and the parts of Mattiverse as apps (on the screen and in the dock).</summary>
 public class IndexModel : PageModel
 {
+    /// <summary>A backup older than this is worth a look (the widget turns amber).</summary>
+    public static readonly TimeSpan BackupIsOld = TimeSpan.FromDays(7);
+
     private readonly AppService _apps;
     private readonly SystemConfigService _config;
     private readonly JobService _jobs;
     private readonly DockerService _docker;
-    private readonly MattiverseDbContext _db;
+    private readonly BackupService _backups;
     private readonly CatalogService _catalog;
 
-    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, MattiverseDbContext db, CatalogService catalog)
+    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, CatalogService catalog)
     {
         _apps = apps;
         _config = config;
         _jobs = jobs;
         _docker = docker;
-        _db = db;
+        _backups = backups;
         _catalog = catalog;
     }
 
@@ -43,9 +45,16 @@ public class IndexModel : PageModel
     public DateTime? LastBackup { get; private set; }
     public bool Busy => Tiles.Any(t => t.App.Lifecycle is AppLifecycle.Installing or AppLifecycle.Removing);
 
+    /// <summary>No backup at all, or the newest one is older than <see cref="BackupIsOld"/>.</summary>
+    public bool BackupNeedsLook => LastBackup is not { } last || DateTime.UtcNow - last > BackupIsOld;
+
+    public IReadOnlyList<SystemApp> Dock { get; private set; } = [];
+    public IReadOnlyList<SystemApp> SystemApps { get; private set; } = [];
+
     public async Task OnGetAsync()
     {
         var ct = HttpContext.RequestAborted;
+        var isAdmin = User.IsAdmin();
         Config = await _config.GetAsync(ct);
         Engine = await _docker.GetEngineInfoAsync(ct);
 
@@ -63,13 +72,13 @@ public class IndexModel : PageModel
 
         Running = Tiles.Count(t => t.Status.Css == "online");
 
-        if (User.IsAdmin())
+        if (isAdmin)
         {
             ActiveJobs = await _jobs.CountActiveAsync(ct);
-            LastBackup = await _db.Backups.Where(b => b.Status == BackupStatus.Succeeded)
-                .OrderByDescending(b => b.CreateDate)
-                .Select(b => (DateTime?)b.CreateDate)
-                .FirstOrDefaultAsync(ct);
+            LastBackup = await _backups.LastSucceededAtAsync(ct);
         }
+
+        Dock = Launcher.Dock(isAdmin);
+        SystemApps = Launcher.OnScreen(isAdmin, ActiveJobs);
     }
 }

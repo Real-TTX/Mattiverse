@@ -33,12 +33,15 @@ it there, and Mattiverse keeps your change when it updates the app.
 ## At a glance
 
 **Launcher**
-- Installed apps as **icons on a home screen** with a status dot, a search field and widgets (apps running, last
-  backup, activity, Docker)
+- A **home screen like a phone**: installed apps as icons (a badge when one is not running), widgets for the apps
+  running, the last backup, the activity and Docker, a search (key `/`) and a **dock** with the store, the apps, the
+  backups and the settings. The parts of Mattiverse are apps too
+- **Wallpapers** behind it, drawn for Mattiverse: *Orbit* (the planet of the logo, light or dark with the theme, the
+  default), the Earth from orbit, a jungle, a lagoon and mountains seen from above, or none; each person picks their own
 - **One app open at a time**: the app fills the screen with a bar to go back (apps that forbid being embedded
   open in a new tab)
-- Account, theme (**System / Light / Dark**) and sign-out at the **bottom left** of the menu; on a phone the menu
-  is a drawer
+- Theme (**System / Light / Dark**) and the person on the bar of the home screen; on the other pages account, theme
+  and sign-out are at the **bottom left** of the menu, which is a drawer on a phone
 - Looks and behaves like every other Mat app: it is built on **MatUi**, the toolkit of
   [MatDesign](https://github.com/Real-TTX/MatDesign), with its menu, lists, forms, dialogs and dark mode
 

@@ -17,6 +17,7 @@ public static class PrincipalFactory
             new(AuthConstants.SessionTokenClaim, sessionToken),
             new(AuthConstants.MustChangePasswordClaim, user.MustChangePassword ? "true" : "false"),
             new(AuthConstants.ThemeClaim, user.Theme),
+            new(AuthConstants.WallpaperClaim, user.Wallpaper),
         };
 
         var identity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);

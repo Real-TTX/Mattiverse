@@ -1,0 +1,75 @@
+@inject Mattiverse.Core.Configuration.SystemConfigService ConfigSvc
+@inject Toolkit Toolkit
+@using Mattiverse.Core.Users
+@{
+    // The layout of the home screen: no menu on the left (the owner chose it over SHELL-01 for the launcher, docs/ARCHITECTURE.md "The home screen"),
+    // a bar with the logo, the theme button and the person on top, and the wallpaper of the account behind everything. The page draws its own head (one h1).
+    var config = await ConfigSvc.GetAsync(Context.RequestAborted);
+    var name = config.InstanceName;
+    var title = ViewData["Title"] as string ?? name;
+    var displayName = User.GetDisplayName();
+    var role = User.GetRole().ToString();
+    var theme = User.GetTheme();
+    var wallpaper = User.GetWallpaper();
+    var darkWall = Wallpapers.All.FirstOrDefault(w => w.Id == wallpaper)?.Dark == true;
+
+    var flash = TempData["StatusMessage"] as string;
+    var flashIsError = TempData["IsError"] is true;
+}
+<!DOCTYPE html>
+<html lang="en" data-app="@Ui.App.Id" @(theme is "light" or "dark" ? Html.Raw($"data-theme=\"{theme}\"") : null)>
+<partial name="_Head" model="@(string.IsNullOrEmpty(title) || title == name ? name : $"{title} · {name}")" />
+<body>
+    <a class="mat-skip" href="#main">Skip to the content</a>
+    @Html.Raw(Toolkit.Sprite)
+
+    <div class="mv-launcher @(darkWall ? "mv-launcher--dark-wall" : "")" data-wallpaper="@wallpaper">
+        <header class="mv-bar">
+            <a class="mv-bar__brand" href="/" aria-label="@name, start page">@Ui.Logo()<span>@name</span></a>
+            <div class="mv-bar__end">
+                <button type="button" class="mat-theme" data-theme-toggle data-theme-save-url="/api/theme" data-theme-state="system" aria-label="Theme: System. Click for Light." title="Theme: System. Click for Light.">
+                    <svg class="mat-icon" data-theme-icon="system" aria-hidden="true" focusable="false"><use href="#mat-i-monitor"></use></svg>
+                    <svg class="mat-icon" data-theme-icon="light" aria-hidden="true" focusable="false"><use href="#mat-i-sun"></use></svg>
+                    <svg class="mat-icon" data-theme-icon="dark" aria-hidden="true" focusable="false"><use href="#mat-i-moon"></use></svg>
+                </button>
+                <button type="button" class="mv-bar__user" data-menu-toggle="user-menu" aria-haspopup="menu" aria-expanded="false" aria-label="@displayName, @role" title="@displayName">
+                    <span class="mat-avatar" aria-hidden="true">@Ui.Initials(displayName)</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="mv-home" id="main">
+            @if (!string.IsNullOrEmpty(flash) && flashIsError)
+            {
+                <div class="mat-alert mat-alert--danger" role="alert">@Ui.Icon("x-circle")<div class="mat-alert__body">@flash</div></div>
+            }
+            @RenderBody()
+        </main>
+    </div>
+
+    <div class="mat-menu" id="user-menu" role="menu" aria-label="@displayName" hidden>
+        <div class="mat-menu__head">
+            <span class="mat-avatar" aria-hidden="true">@Ui.Initials(displayName)</span>
+            <div><strong>@displayName</strong><small>@User.GetUsername() · @role</small></div>
+        </div>
+        <a class="mat-menu__item" role="menuitem" href="/Account/Profile">@Ui.Icon("user")<span>Show account</span></a>
+        <a class="mat-menu__item" role="menuitem" href="/Account/Profile?tab=home">@Ui.Icon("image")<span>Wallpaper</span></a>
+        <a class="mat-menu__item" role="menuitem" href="/Account/Profile?tab=password">@Ui.Icon("key")<span>Change password</span></a>
+        <div class="mat-menu__sep" role="separator"></div>
+        <form method="post" action="/Account/Logout">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="mat-menu__item" role="menuitem">@Ui.Icon("logout")<span>Sign out</span></button>
+        </form>
+        <div class="mv-menuversion">@Ui.App.Name @AppVersion.Current</div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(flash) && !flashIsError)
+    {
+        <div data-toast="@flash" data-tone="success" hidden></div>
+    }
+
+    <script src="~/matui/matui.js" asp-append-version="true"></script>
+    <script src="~/js/mattiverse.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

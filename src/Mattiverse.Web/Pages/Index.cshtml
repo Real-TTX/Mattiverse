@@ -2,148 +2,137 @@
 @model Mattiverse.Web.Pages.IndexModel
 @{
     ViewData["Title"] = "Home";
-    ViewData["OwnHead"] = true;
+    Layout = "_Launcher";
     var isAdmin = User.IsAdmin();
+
+    // The badge on the corner of an app: nothing while it runs; otherwise an icon that tells the state together with its colour (COLOR-04).
+    string? BadgeIcon(string css) => css switch
+    {
+        "online" => null,
+        "warn" => "alert",
+        "offline" => "x",
+        "busy" => "refresh",
+        _ => "pause",
+    };
 }
 
-<div class="mat-stack" @(Model.Busy ? "data-autorefresh=4000" : "")>
-    <div class="mv-hero">
-        <div>
-            <div class="mv-clock" data-clock>--:--</div>
-            <div class="mv-clockdate" data-clock-date></div>
-            <h1 class="mv-greeting" data-greeting="@User.GetDisplayName()">Hello, @User.GetDisplayName()</h1>
+<div class="mv-home__head" @(Model.Busy ? "data-autorefresh=4000" : "")>
+    <h1 data-greeting="@User.GetDisplayName()">Hello, @User.GetDisplayName()</h1>
+    <p class="mv-home__sub"><span data-clock-date></span> · <span data-clock>--:--</span></p>
+</div>
+
+@if (!Model.Engine.Available)
+{
+    <div class="mat-alert mat-alert--danger" role="alert">
+        <icon name="x-circle" />
+        <div class="mat-alert__body">
+            <span class="mat-alert__title">Mattiverse cannot reach Docker</span>
+            @Model.Engine.Error. Start the container with the Docker socket: <code>-v /var/run/docker.sock:/var/run/docker.sock</code>
         </div>
-        @if (Model.Tiles.Count > 4)
-        {
-            <div class="mat-input-icon mv-search">
-                <icon name="search" />
-                <input type="search" class="mat-input" id="tile-filter" placeholder="Search apps" data-tile-filter aria-label="Search apps" autocomplete="off" />
-            </div>
-        }
     </div>
+}
 
-    @if (!Model.Engine.Available)
-    {
-        <div class="mat-alert mat-alert--danger" role="alert">
-            <icon name="x-circle" />
-            <div class="mat-alert__body">
-                <span class="mat-alert__title">Mattiverse cannot reach Docker</span>
-                @Model.Engine.Error. Start the container with the Docker socket: <code>-v /var/run/docker.sock:/var/run/docker.sock</code>
-            </div>
+@if (isAdmin && !Model.Config.WizardCompleted)
+{
+    <div class="mat-alert mat-alert--info">
+        <icon name="sparkles" />
+        <div class="mat-alert__body">
+            <span class="mat-alert__title">Mattiverse is not set up yet</span>
+            Run the setup wizard to install the engines and to give your apps a domain.
+            <div class="mat-alert__actions"><a class="mat-btn mat-btn--primary mat-btn--sm" href="/Wizard"><icon name="sparkles" /><span>Run the setup wizard</span></a></div>
         </div>
-    }
+    </div>
+}
 
-    @if (isAdmin && !Model.Config.WizardCompleted)
+<nav class="mv-grid" aria-label="Your apps">
+    <a class="mv-widget mv-span-2" href="/Apps" data-widget>
+        <span class="mv-widget__head"><icon name="apps" />Apps</span>
+        <span class="mv-widget__value">@Model.Running<small> / @Model.Tiles.Count</small></span>
+        <span class="mv-widget__note">running</span>
+    </a>
+    @if (isAdmin)
     {
-        <div class="mat-alert mat-alert--info">
-            <icon name="sparkles" />
-            <div class="mat-alert__body">
-                <span class="mat-alert__title">Mattiverse is not set up yet</span>
-                Run the setup wizard to choose your reverse proxy, DynDNS client and Docker management.
-                <div class="mat-alert__actions"><a class="mat-btn mat-btn--primary mat-btn--sm" href="/Wizard"><icon name="sparkles" /><span>Run the setup wizard</span></a></div>
-            </div>
-        </div>
-    }
-
-    <div class="mv-stats">
-        <a class="mat-card mat-card--link" href="/Apps">
-            <div class="mat-card__body mv-stat">
-                <span class="mv-stat__icon"><icon name="apps" /></span>
-                <div class="mat-stat">
-                    <span class="mat-stat__value">@Model.Running<small> / @Model.Tiles.Count</small></span>
-                    <span class="mat-stat__label">apps running</span>
-                </div>
-            </div>
+        <a class="mv-widget mv-span-2 @(Model.BackupNeedsLook ? "mv-widget--warn" : "")" href="/Backups" data-widget>
+            <span class="mv-widget__head"><icon name="save" />Backups</span>
+            <span class="mv-widget__value">@(Model.LastBackup is { } last ? Format.Ago(last) : "Never")</span>
+            <span class="mv-widget__note">@(Model.LastBackup is null ? "Back up your apps" : Model.BackupNeedsLook ? "Time for a new one" : "The newest one")</span>
         </a>
-        @if (isAdmin)
+        <a class="mv-widget mv-span-2" href="/Jobs" data-widget>
+            <span class="mv-widget__head"><icon name="activity" />Activity</span>
+            <span class="mv-widget__value">@(Model.ActiveJobs == 0 ? "All quiet" : $"{Model.ActiveJobs} running")</span>
+            <span class="mv-widget__note">@(Model.ActiveJobs == 0 ? "Nothing is running" : Model.ActiveJobs == 1 ? "A task is running" : "Tasks are running")</span>
+        </a>
+    }
+    @if (Model.Engine.Available)
+    {
+        <div class="mv-widget mv-span-2" data-widget>
+            <span class="mv-widget__head"><icon name="whale" />Docker</span>
+            <span class="mv-widget__value">@Model.Engine.ContainersRunning</span>
+            <span class="mv-widget__note">containers · Docker @Model.Engine.Version</span>
+        </div>
+    }
+
+    @if (Model.Tiles.Count == 0)
+    {
+        if (isAdmin)
         {
-            <a class="mat-card mat-card--link" href="/Backups">
-                <div class="mat-card__body mv-stat">
-                    <span class="mv-stat__icon"><icon name="save" /></span>
-                    <div class="mat-stat">
-                        <span class="mat-stat__value">@(Model.LastBackup is { } last ? Format.Ago(last) : "never")</span>
-                        <span class="mat-stat__label">last backup</span>
-                    </div>
-                </div>
-            </a>
-            <a class="mat-card mat-card--link" href="/Jobs">
-                <div class="mat-card__body mv-stat">
-                    <span class="mv-stat__icon"><icon name="activity" /></span>
-                    <div class="mat-stat">
-                        <span class="mat-stat__value">@(Model.ActiveJobs == 0 ? "All quiet" : $"{Model.ActiveJobs} running")</span>
-                        <span class="mat-stat__label">activity</span>
-                    </div>
-                </div>
+            <a class="mv-widget mv-span-2" href="/Store" data-widget>
+                <span class="mv-widget__head"><icon name="rocket" />Get started</span>
+                <span class="mv-widget__value">Install an app</span>
+                <span class="mv-widget__note">The store has your Mat apps and more</span>
             </a>
         }
-        @if (Model.Engine.Available)
+        else
         {
-            <div class="mat-card">
-                <div class="mat-card__body mv-stat">
-                    <span class="mv-stat__icon"><icon name="whale" /></span>
-                    <div class="mat-stat">
-                        <span class="mat-stat__value">@Model.Engine.ContainersRunning</span>
-                        <span class="mat-stat__label">containers · Docker @Model.Engine.Version</span>
-                    </div>
-                </div>
+            <div class="mv-widget mv-span-2" data-widget>
+                <span class="mv-widget__head"><icon name="apps" />No apps yet</span>
+                <span class="mv-widget__note">Ask an administrator to install some.</span>
             </div>
         }
-    </div>
+    }
 
-    @if (Model.Tiles.Count > 0)
+    @foreach (var tile in Model.Tiles)
     {
-        <section class="mat-section" aria-labelledby="apps-title">
-            <div class="mat-section__head"><h2 id="apps-title">Your apps</h2></div>
-            <div class="mv-tiles">
-                @foreach (var tile in Model.Tiles)
+        var badge = BadgeIcon(tile.Status.Css);
+        <a class="mv-app" href="@tile.Href" data-name="@tile.App.Name.ToLowerInvariant()" title="@tile.App.Name · @tile.Status.Text">
+            <span class="mv-app__icon">
+                <app-icon name="@tile.App.Name" icon="@Model.IconOf(tile.App)" />
+                @if (badge is not null)
                 {
-                    <a class="mv-tile" href="@tile.Href" data-name="@tile.App.Name.ToLowerInvariant()" title="@tile.App.Name · @tile.Status.Text">
-                        <span class="mv-dot mv-dot--@tile.Status.Css"></span>
-                        <app-icon name="@tile.App.Name" icon="@Model.IconOf(tile.App)" />
-                        <span class="mv-tile__label">@tile.App.Name</span>
-                        <span class="mat-sr-only">@tile.Status.Text</span>
-                    </a>
+                    <span class="mv-app__badge mv-app__badge--@tile.Status.Css">@Ui.Icon(badge)</span>
                 }
-            </div>
-        </section>
-    }
-    else if (isAdmin)
-    {
-        <div class="mat-card">
-            <div class="mat-empty">
-                <span class="mat-empty__icon"><icon name="rocket" /></span>
-                <div class="mat-empty__title">Install your first app</div>
-                <p>The store has your Mat apps and a few more, installed with one click.</p>
-                <a class="mat-btn mat-btn--primary" href="/Store"><icon name="store" /><span>Open the store</span></a>
-            </div>
-        </div>
-    }
-    else
-    {
-        <div class="mat-card">
-            <div class="mat-empty">
-                <span class="mat-empty__icon"><icon name="apps" /></span>
-                <div class="mat-empty__title">No apps yet</div>
-                <p>Ask an administrator to install some.</p>
-            </div>
-        </div>
+            </span>
+            <span class="mv-app__label">@tile.App.Name</span>
+            <span class="mat-sr-only">@tile.Status.Text</span>
+        </a>
     }
 
-    <section class="mat-section" aria-labelledby="system-title">
-        <div class="mat-section__head"><h2 id="system-title">Mattiverse</h2></div>
-        <div class="mv-tiles">
-            @if (isAdmin)
-            {
-                <a class="mv-tile" href="/Store"><span class="mv-appicon" aria-hidden="true"><icon name="store" /></span><span class="mv-tile__label">Store</span></a>
-            }
-            <a class="mv-tile" href="/Apps"><span class="mv-appicon" aria-hidden="true"><icon name="apps" /></span><span class="mv-tile__label">Apps</span></a>
-            @if (isAdmin)
-            {
-                <a class="mv-tile" href="/Backups"><span class="mv-appicon" aria-hidden="true"><icon name="save" /></span><span class="mv-tile__label">Backups</span></a>
-                <a class="mv-tile" href="/Jobs"><span class="mv-appicon" aria-hidden="true"><icon name="activity" /></span><span class="mv-tile__label">Activity</span></a>
-                <a class="mv-tile" href="/Users"><span class="mv-appicon" aria-hidden="true"><icon name="users" /></span><span class="mv-tile__label">Users</span></a>
-                <a class="mv-tile" href="/Settings"><span class="mv-appicon" aria-hidden="true"><icon name="settings" /></span><span class="mv-tile__label">Settings</span></a>
-            }
-        </div>
-    </section>
+    @foreach (var app in Model.SystemApps)
+    {
+        <a class="mv-app" href="@app.Href" data-name="@app.Name.ToLowerInvariant()">
+            <span class="mv-app__icon">
+                <span class="mv-appicon @app.Look" aria-hidden="true">@Ui.Icon(app.Icon)</span>
+                @if (app.Count is { } count)
+                {
+                    <span class="mv-app__count">@count<span class="mat-sr-only"> @app.CountLabel</span></span>
+                }
+            </span>
+            <span class="mv-app__label">@app.Name</span>
+        </a>
+    }
+</nav>
+
+<div class="mv-dockbar">
+    <div class="mat-input-icon mv-find">
+        <icon name="search" />
+        <input type="search" class="mat-input" id="home-find" placeholder="Search apps" data-tile-filter aria-label="Search apps" autocomplete="off" />
+    </div>
+    <nav class="mv-dock" aria-label="Mattiverse">
+        @foreach (var app in Model.Dock)
+        {
+            <a class="mv-dock__app" href="@app.Href" aria-label="@app.Name" data-tip="@app.Name">
+                <span class="mv-appicon @app.Look" aria-hidden="true">@Ui.Icon(app.Icon)</span>
+            </a>
+        }
+    </nav>
 </div>

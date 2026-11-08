@@ -32,7 +32,7 @@ function expectEqual(actual, expected, what) {
 
 const pages = [
   '/', '/Apps', '/Store', '/Store/Install?id=matfile', '/Backups', '/Backups?tab=schedules', '/Backups/Create', '/Backups/ScheduleEdit', '/Jobs',
-  '/Users', '/Users/Edit', '/Settings', '/Settings/Engines', '/Settings/System', '/Wizard', '/Account/Profile', '/Account/Profile?tab=password',
+  '/Users', '/Users/Edit', '/Settings', '/Settings/Engines', '/Settings/System', '/Wizard', '/Account/Profile', '/Account/Profile?tab=home', '/Account/Profile?tab=password',
 ];
 
 (async () => {
@@ -88,6 +88,55 @@ const pages = [
     }
     expectTrue(new Set(seen.slice(0, 3)).size === 3 && seen[3] === seen[0], 'system, light and dark, then the first again: ' + seen.join(' > '));
   });
+  console.log('The home screen');
+  await check('the home screen is a launcher: no menu, the parts of Mattiverse as apps, the dock', async () => {
+    await page.goto(BASE + '/');
+    expectEqual(await page.locator('.mat-nav').count(), 0, 'no menu on the left');
+    expectEqual(await page.locator('.mv-launcher[data-wallpaper]').count(), 1, 'the launcher with a wallpaper');
+    for (const href of ['/Store', '/Apps', '/Backups', '/Settings']) {
+      expectEqual(await page.locator(`.mv-dock a[href="${href}"]`).count(), 1, href + ' in the dock');
+    }
+    for (const href of ['/Jobs', '/Users']) {
+      expectEqual(await page.locator(`.mv-grid .mv-app[href="${href}"]`).count(), 1, href + ' on the screen');
+    }
+    expectTrue(await page.locator('.mv-grid [data-widget]').count() >= 3, 'widgets for the apps, the backups and the activity');
+  });
+  await check('the search of the home screen: / focuses it, it narrows the apps and the widgets step aside', async () => {
+    await page.goto(BASE + '/');
+    const all = await page.locator('.mv-grid .mv-app:visible').count();
+    await page.keyboard.press('/');
+    expectEqual(await page.evaluate(() => document.activeElement && document.activeElement.id), 'home-find', 'the search has the focus');
+    await page.keyboard.type('users');
+    expectEqual(await page.locator('.mv-grid .mv-app:visible').count(), 1, 'only Users is left');
+    expectEqual(await page.locator('.mv-grid [data-widget]:visible').count(), 0, 'the widgets step aside');
+    await page.fill('#home-find', '');
+    await page.dispatchEvent('#home-find', 'input');
+    expectEqual(await page.locator('.mv-grid .mv-app:visible').count(), all, 'all apps again');
+  });
+  await check('the person in the bar opens the menu with the account, the wallpaper and the version', async () => {
+    await page.goto(BASE + '/');
+    await page.click('.mv-bar__user');
+    expectTrue(await page.locator('#user-menu').isVisible(), 'the menu opens');
+    expectTrue(await page.locator('#user-menu a[href="/Account/Profile?tab=home"]').count() === 1, 'the wallpaper');
+    expectTrue(/Mattiverse \S+/.test(await page.locator('#user-menu .mv-menuversion').innerText()), 'the version (SHELL-06)');
+    await page.keyboard.press('Escape');
+  });
+  await check('the wallpaper is chosen on the account and drawn on the home screen', async () => {
+    const choose = async (id) => {
+      await page.goto(BASE + '/Account/Profile?tab=home');
+      await page.check(`input[name=wallpaper][value=${id}]`);
+      await Promise.all([page.waitForURL(/tab=home/), page.click('form[action*="handler=Wallpaper"] button[type=submit]')]);
+    };
+    await choose('jungle');
+    await page.goto(BASE + '/');
+    expectEqual(await page.getAttribute('.mv-launcher', 'data-wallpaper'), 'jungle', 'the picture of the account');
+    const image = await page.evaluate(() => getComputedStyle(document.querySelector('.mv-launcher'), '::before').backgroundImage);
+    expectTrue(image.includes('wallpapers/jungle.jpg'), 'the picture is drawn: ' + image.slice(0, 120));
+    await choose('orbit');
+    await page.goto(BASE + '/');
+    expectEqual(await page.getAttribute('.mv-launcher', 'data-wallpaper'), 'orbit', 'back to the default');
+  });
+
   await check('an administrator has two menus, the switcher shows the one with the page', async () => {
     await page.goto(BASE + '/Users');
     expectEqual(await page.locator('.mat-switcher__name').innerText(), 'Administration', 'the menu of the page');

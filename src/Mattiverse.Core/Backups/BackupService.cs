@@ -348,6 +348,13 @@ public sealed class BackupService
         await _db.SaveChangesAsync(ct);
     }
 
+    /// <summary>When the newest backup that succeeded was made (any app), or <c>null</c> when there is none: the backup widget of the home screen.</summary>
+    public async Task<DateTime?> LastSucceededAtAsync(CancellationToken ct = default)
+        => await _db.Backups.Where(b => b.Status == BackupStatus.Succeeded)
+            .OrderByDescending(b => b.CreateDate)
+            .Select(b => (DateTime?)b.CreateDate)
+            .FirstOrDefaultAsync(ct);
+
     /// <summary>Keeps the newest <paramref name="keep"/> scheduled backups of an app and deletes the older ones.</summary>
     public async Task ApplyRetentionAsync(string slug, int keep, Action<string> log, CancellationToken ct = default)
     {

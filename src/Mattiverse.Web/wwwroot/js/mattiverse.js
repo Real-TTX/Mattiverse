@@ -33,11 +33,20 @@
     setInterval(tick, 15000);
   }
 
+  // The search of the home screen: it narrows the apps to the name typed; while it has a term the widgets step aside. The key / puts the focus there.
   var filter = $('[data-tile-filter]');
   if (filter) {
     filter.addEventListener('input', function () {
       var q = filter.value.trim().toLowerCase();
-      $$('.mv-tile[data-name]').forEach(function (t) { t.hidden = q !== '' && t.getAttribute('data-name').indexOf(q) === -1; });
+      $$('.mv-app[data-name]').forEach(function (t) { t.hidden = q !== '' && t.getAttribute('data-name').indexOf(q) === -1; });
+      $$('[data-widget]').forEach(function (w) { w.hidden = q !== ''; });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) { return; }
+      var t = e.target;
+      if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) { return; }
+      e.preventDefault();
+      filter.focus();
     });
   }
 
