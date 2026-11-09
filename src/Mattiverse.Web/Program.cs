@@ -154,6 +154,12 @@ app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = staticContentTy
 // A 404 or 403 shows a page of the app (with the original status code) instead of an empty response.
 app.UseStatusCodePagesWithReExecute("/StatusCode/{0}");
 app.UseRouting();
+// The options of the sign-in through MatIdentity follow the settings before the authentication middleware builds its handler for this request.
+app.Use(async (context, next) =>
+{
+    await Mattiverse.Web.Infrastructure.MatIdentitySignIn.EnsureCurrentAsync(context);
+    await next(context);
+});
 app.UseAuthentication();
 // First run: redirect everything to /Setup until an administrator exists.
 app.UseMiddleware<SetupGuardMiddleware>();

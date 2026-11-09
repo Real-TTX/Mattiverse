@@ -33,7 +33,8 @@
     }
 }
 @* The home screen of Mattiverse OS (layout _Launcher): widgets of glass, the apps as icons, search and dock at the bottom.
-   data-window: the page that opens in the window; an installed app opens in a new tab (target=_blank) unless the person chose the window in its menu. *@
+   data-window: the page that opens in the window; an installed app opens there too (its target=_blank is for a click without the script and the middle button)
+   unless the person chose a new tab in its menu. *@
 
 @* data-autorefresh only when there is a value: Razor writes data-x="" for a null, and the script would reload every 5 seconds. *@
 <div class="os-grid" @(Model.RefreshMs is { } refreshMs ? Html.Raw($"data-autorefresh=\"{refreshMs}\"") : null)>

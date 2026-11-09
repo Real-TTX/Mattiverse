@@ -56,6 +56,12 @@ public sealed class CatalogApp
     /// <summary>Services that are also attached to the shared network (the UI service always is).</summary>
     public List<string> Shared { get; set; } = new();
 
+    /// <summary>
+    /// A provider of <c>web.route</c> (the reverse proxy): the service that listens for the routes. Without a domain every app gets a port route, and Mattiverse
+    /// publishes those ports on this service (the apps publish none themselves).
+    /// </summary>
+    public CatalogRoutes? Routes { get; set; }
+
     /// <summary>Key of a built-in provisioner that runs after the install (for example <c>matcad</c>).</summary>
     public string? Provision { get; set; }
 
@@ -164,6 +170,12 @@ public sealed class CatalogPort
 }
 
 /// <summary>A capability an app uses, as the catalog writes it: its name, the version it speaks and what it passes to the provider (`sender` of `mail.smtp`, ...).</summary>
+/// <summary>The service of a reverse proxy that listens for the routes of the apps (<c>routes: { service: caddy }</c>).</summary>
+public sealed class CatalogRoutes
+{
+    public string Service { get; set; } = string.Empty;
+}
+
 public sealed class CatalogConsumes
 {
     public string Capability { get; set; } = string.Empty;

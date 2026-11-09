@@ -7,9 +7,11 @@ namespace Mattiverse.Web.Infrastructure;
 
 /// <summary>
 /// Mattiverse's own sign-in through MatIdentity (OpenID Connect, code flow with PKCE). The scheme always exists; its options are read from the settings
-/// (<see cref="SystemConfig.Identity"/>) whenever they are built, so installing or removing MatIdentity needs no restart: the login page drops the cached
-/// options before it sends someone to MatIdentity (<see cref="Refresh"/>). The browser goes to MatIdentity's public address; Mattiverse's own calls (discovery,
-/// keys, token) go to its address inside Docker (<see cref="InternalUrlRewriter"/>).
+/// (<see cref="SystemConfig.Identity"/>) whenever they are built, so installing or removing MatIdentity needs no restart: every request first checks whether the
+/// options were built for the settings as they are now (<see cref="EnsureCurrentAsync"/>, before authentication: the authentication middleware builds the handler
+/// of the scheme with the options of that moment, and a page cannot change them for its own request any more), and the login page drops them once more before
+/// it sends someone to MatIdentity (<see cref="Refresh"/>). The browser goes to MatIdentity's public address; Mattiverse's own calls (discovery, keys, token) go to
+/// its address inside Docker (<see cref="InternalUrlRewriter"/>).
 /// </summary>
 public sealed class MatIdentitySignIn : IConfigureNamedOptions<OpenIdConnectOptions>
 {
@@ -20,6 +22,9 @@ public sealed class MatIdentitySignIn : IConfigureNamedOptions<OpenIdConnectOpti
 
     private readonly JsonConfigStore _store;
     private readonly SystemConfigService _config;
+
+    // What the cached options were built for: the connection and the protected secret (a new secret of the same client counts too).
+    private static string? _builtFor;
 
     public MatIdentitySignIn(JsonConfigStore store, SystemConfigService config)
     {
@@ -39,6 +44,7 @@ public sealed class MatIdentitySignIn : IConfigureNamedOptions<OpenIdConnectOpti
         // Options are built synchronously; the settings are a small cached JSON file.
         var config = _store.GetAsync<SystemConfig>(SystemConfig.FileName).GetAwaiter().GetResult();
         var identity = config.Identity;
+        _builtFor = Fingerprint(config);
         options.SignInScheme = ExternalScheme;
         options.CallbackPath = "/signin-oidc";
         options.SignedOutCallbackPath = "/signout-callback-oidc";
@@ -85,6 +91,21 @@ public sealed class MatIdentitySignIn : IConfigureNamedOptions<OpenIdConnectOpti
     /// <summary>Drops the cached options, so the next use reads the settings again.</summary>
     public static void Refresh(IServiceProvider services)
         => services.GetRequiredService<IOptionsMonitorCache<OpenIdConnectOptions>>().TryRemove(Scheme);
+
+    /// <summary>Drops the cached options when they were built for other settings (MatIdentity came, went or gave a new client or secret). Runs before authentication.</summary>
+    public static async Task EnsureCurrentAsync(HttpContext context)
+    {
+        var config = await context.RequestServices.GetRequiredService<JsonConfigStore>().GetAsync<SystemConfig>(SystemConfig.FileName, context.RequestAborted);
+        if (_builtFor is not null && _builtFor != Fingerprint(config))
+        {
+            Refresh(context.RequestServices);
+        }
+    }
+
+    private static string Fingerprint(SystemConfig config)
+        => config.Identity is not { } identity
+            ? "none"
+            : string.Join('|', identity.Authority, identity.InternalUrl, identity.ClientId, config.ProtectedSecrets.GetValueOrDefault("matidentity"));
 }
 
 /// <summary>

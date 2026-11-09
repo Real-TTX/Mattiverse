@@ -114,7 +114,7 @@ public sealed class BindingBroker
                 continue;
             }
 
-            if (await BindAsync(app, provider, capability, existing, log, ct))
+            if (await BindOrFallBackAsync(app, provider, capability, existing, log, ct))
             {
                 changed.Add(app.Id);
             }
@@ -148,7 +148,7 @@ public sealed class BindingBroker
                     continue;
                 }
 
-                if (await BindAsync(consumer, app, capability, existing, log, ct))
+                if (await BindOrFallBackAsync(consumer, app, capability, existing, log, ct))
                 {
                     changed.Add(consumer.Id);
                 }
@@ -253,13 +253,54 @@ public sealed class BindingBroker
             wanted[consumed.Capability] = consumed.Params is { Count: > 0 } || fromCatalog is null ? consumed : consumed with { Params = fromCatalog };
         }
 
-        if (app.UiService is not null && app.UiPort is not null && app.Role != AppRoles.Proxy && !string.IsNullOrWhiteSpace(config.BaseDomain))
+        // Every app with a web page is reached through the reverse proxy: under the domain (host), else on a port of this machine (port, and the name of the machine
+        // when the settings know it: the proxy tells the app its address only then).
+        if (app.UiService is not null && app.UiPort is not null && app.Role != AppRoles.Proxy)
         {
-            wanted[Capabilities.WebRoute] = new PlatformCapability(Capabilities.WebRoute, 1,
-                Params: new Dictionary<string, string> { ["host"] = ProxyPublisher.HostFor(app.Slug, config.BaseDomain) });
+            if (!string.IsNullOrWhiteSpace(config.BaseDomain))
+            {
+                wanted[Capabilities.WebRoute] = new PlatformCapability(Capabilities.WebRoute, 1,
+                    Params: new Dictionary<string, string> { ["host"] = ProxyPublisher.HostFor(app.Slug, config.BaseDomain) });
+            }
+            else if (app.HostPort is { } port)
+            {
+                var parameters = new Dictionary<string, string> { ["port"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+                if (!string.IsNullOrWhiteSpace(config.PublicHost))
+                {
+                    parameters["publicHost"] = config.PublicHost.Trim();
+                }
+
+                wanted[Capabilities.WebRoute] = new PlatformCapability(Capabilities.WebRoute, 1, Params: parameters);
+            }
         }
 
         return [.. wanted.Values];
+    }
+
+    /// <summary>
+    /// Who publishes which host port of the app: an app with a route (a binding of <c>web.route</c>) publishes none of its own, the proxy publishes it; a
+    /// proxy (an entry with <c>routes.service</c>) publishes the ports of the port routes it serves, i.e. of its consumers while there is no domain.
+    /// </summary>
+    public async Task<ComposePorts> PortsAsync(InstalledApp app, CatalogApp catalog, CancellationToken ct)
+    {
+        if (app.Id == 0)
+        {
+            return ComposePorts.Own;
+        }
+
+        var routed = await _db.AppBindings.AnyAsync(b => b.ConsumerAppId == app.Id && b.Capability == Capabilities.WebRoute, ct);
+        var routePorts = new List<int>();
+        if (catalog.Routes is not null && string.IsNullOrWhiteSpace((await _config.GetAsync(ct)).BaseDomain))
+        {
+            var consumers = await _db.AppBindings.Where(b => b.ProviderAppId == app.Id && b.Capability == Capabilities.WebRoute).Select(b => b.ConsumerAppId).ToListAsync(ct);
+            routePorts = await _db.InstalledApps
+                .Where(a => consumers.Contains(a.Id) && a.Lifecycle == AppLifecycle.Installed && a.HostPort != null)
+                .Select(a => a.HostPort!.Value)
+                .OrderBy(port => port)
+                .ToListAsync(ct);
+        }
+
+        return new ComposePorts(!routed, routePorts);
     }
 
     /// <summary>True when <paramref name="definition"/> provides the capability in the version the consumer speaks or newer.</summary>
@@ -365,7 +406,30 @@ public sealed class BindingBroker
 
     // ------------------------------------------------------------------ helpers
 
-    private async Task<bool> BindAsync(InstalledApp consumer, InstalledApp provider, PlatformCapability wanted, AppBinding? existing, Action<string> log, CancellationToken ct)
+    /// <summary>
+    /// Binds, and when the provider refuses a route the app had (an older proxy that knows no port routes, a port taken by hand), the old binding goes: the app
+    /// publishes its own port again instead of being unreachable. True when the app has to be deployed again.
+    /// </summary>
+    private async Task<bool> BindOrFallBackAsync(InstalledApp consumer, InstalledApp provider, PlatformCapability wanted, AppBinding? existing, Action<string> log, CancellationToken ct)
+    {
+        var outcome = await BindAsync(consumer, provider, wanted, existing, log, ct);
+        if (outcome == BindOutcome.Failed && wanted.Capability == Capabilities.WebRoute && existing is not null)
+        {
+            log($"{consumer.Name} is reached on its own port again.");
+            return await DropAsync(consumer, existing, log, ct);
+        }
+
+        return outcome == BindOutcome.Changed;
+    }
+
+    private enum BindOutcome
+    {
+        Unchanged,
+        Changed,
+        Failed,
+    }
+
+    private async Task<BindOutcome> BindAsync(InstalledApp consumer, InstalledApp provider, PlatformCapability wanted, AppBinding? existing, Action<string> log, CancellationToken ct)
     {
         var sameProvider = existing?.ProviderAppId == provider.Id;
         var stored = sameProvider ? Read(existing!) : new Dictionary<string, string>();
@@ -381,7 +445,7 @@ public sealed class BindingBroker
         if (!answer.Ok || variables is null)
         {
             log($"Warning: {provider.Name} did not bind {consumer.Name} for {wanted.Capability}: {answer.Error ?? "a secret is missing"}.");
-            return false;
+            return BindOutcome.Failed;
         }
 
         if (existing is not null && !sameProvider && await _db.InstalledApps.FindAsync([existing.ProviderAppId], ct) is { } old)
@@ -397,7 +461,7 @@ public sealed class BindingBroker
 
         if (sameProvider && Same(stored, variables))
         {
-            return false;
+            return BindOutcome.Unchanged;
         }
 
         var binding = existing ?? new AppBinding { ConsumerAppId = consumer.Id, Capability = wanted.Capability };
@@ -412,7 +476,7 @@ public sealed class BindingBroker
         await _db.SaveChangesAsync(ct);
         _manifests.Forget(consumer);
         log($"{consumer.Name} uses {provider.Name} for {wanted.Capability}{(wanted.Label is { Length: > 0 } label ? $" ({label})" : string.Empty)}.");
-        return true;
+        return BindOutcome.Changed;
     }
 
     /// <summary>Removes a binding at its provider (when it is still there) and here. False when there was none.</summary>

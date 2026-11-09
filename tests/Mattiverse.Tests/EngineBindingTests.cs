@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Mattiverse.Core.Apps;
 using Mattiverse.Core.Auth;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
@@ -20,8 +21,8 @@ public class EngineBindingTests
 {
     private static readonly PlatformDefinition NoWord = new(2, new PlatformAppInfo("x", "X", null, "1"), [], [], [], []);
 
-    private static InstalledApp App(string slug = "matdrive", string role = AppRoles.App, string? ui = "web")
-        => new() { Id = 7, Slug = slug, Name = slug, CatalogId = slug, Role = role, UiService = ui, UiPort = ui is null ? null : 8080 };
+    private static InstalledApp App(string slug = "matdrive", string role = AppRoles.App, string? ui = "web", int? hostPort = null)
+        => new() { Id = 7, Slug = slug, Name = slug, CatalogId = slug, Role = role, UiService = ui, UiPort = ui is null ? null : 8080, HostPort = hostPort };
 
     private static CatalogApp Entry(params CatalogConsumes[] consumes) => new() { Id = "matdrive", Name = "MatDrive", Consumes = [.. consumes] };
 
@@ -58,16 +59,75 @@ public class EngineBindingTests
     }
 
     [Fact]
-    public void Every_app_with_a_web_page_wants_its_route_when_there_is_a_domain()
+    public void Every_app_with_a_web_page_wants_its_route_under_the_domain_or_on_its_port()
     {
         var withDomain = new SystemConfig { BaseDomain = "example.com" };
-        var route = Assert.Single(BindingBroker.Wanted(Entry(), App(), null, withDomain));
+        var route = Assert.Single(BindingBroker.Wanted(Entry(), App(hostPort: 4810), null, withDomain));
         Assert.Equal(Capabilities.WebRoute, route.Capability);
         Assert.Equal("matdrive.example.com", route.Params!["host"]);
+        Assert.False(route.Params.ContainsKey("port"));
+
+        // Without a domain the proxy serves the app on its port; the name of the machine only when the settings know it (else the app is not told localhost).
+        var port = Assert.Single(BindingBroker.Wanted(Entry(), App(hostPort: 4810), null, new SystemConfig()));
+        Assert.Equal(Capabilities.WebRoute, port.Capability);
+        Assert.Equal(new Dictionary<string, string> { ["port"] = "4810" }, port.Params);
+        var named = Assert.Single(BindingBroker.Wanted(Entry(), App(hostPort: 4810), null, new SystemConfig { PublicHost = " nas.local " }));
+        Assert.Equal(new Dictionary<string, string> { ["port"] = "4810", ["publicHost"] = "nas.local" }, named.Params);
 
         Assert.Empty(BindingBroker.Wanted(Entry(), App(), null, new SystemConfig()));
         Assert.Empty(BindingBroker.Wanted(Entry(), App(ui: null), null, withDomain));
-        Assert.Empty(BindingBroker.Wanted(Entry(), App("matcad", AppRoles.Proxy), null, withDomain));
+        Assert.Empty(BindingBroker.Wanted(Entry(), App("matcad", AppRoles.Proxy, hostPort: 4433), null, withDomain));
+        Assert.Empty(BindingBroker.Wanted(Entry(), App("matcad", AppRoles.Proxy, hostPort: 4433), null, new SystemConfig()));
+    }
+
+    [Fact]
+    public async Task A_routed_app_publishes_no_port_and_the_proxy_publishes_the_ports_of_its_port_routes()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "mattiverse-ports-" + Guid.NewGuid().ToString("N") + ".db");
+        try
+        {
+            await using var db = new MattiverseDbContext(new DbContextOptionsBuilder<MattiverseDbContext>().UseSqlite("Data Source=" + file).Options, new SystemCurrentUserAccessor());
+            await db.Database.MigrateAsync();
+            var proxy = new InstalledApp { Slug = "matcad", Name = "Matcad", CatalogId = "matcad", Role = AppRoles.Proxy, Lifecycle = AppLifecycle.Installed, ProjectName = "p1", HostPort = 4433 };
+            var drive = new InstalledApp { Slug = "matdrive", Name = "MatDrive", CatalogId = "matdrive", Lifecycle = AppLifecycle.Installed, ProjectName = "p2", HostPort = 4810 };
+            var todo = new InstalledApp { Slug = "matdo", Name = "MatDo", CatalogId = "matdo", Lifecycle = AppLifecycle.Installed, ProjectName = "p3", HostPort = 6006 };
+            var alone = new InstalledApp { Slug = "matpaper", Name = "MatPaper", CatalogId = "matpaper", Lifecycle = AppLifecycle.Installed, ProjectName = "p4", HostPort = 8080 };
+            db.InstalledApps.AddRange(proxy, drive, todo, alone);
+            await db.SaveChangesAsync();
+            db.AppBindings.AddRange(
+                new AppBinding { ConsumerAppId = todo.Id, ProviderAppId = proxy.Id, Capability = Capabilities.WebRoute },
+                new AppBinding { ConsumerAppId = drive.Id, ProviderAppId = proxy.Id, Capability = Capabilities.WebRoute });
+            await db.SaveChangesAsync();
+
+            var config = Config();
+            var broker = new BindingBroker(db, null!, null!, null!, new DataProtectionSecretProtector(new EphemeralDataProtectionProvider()), null!, config, null!);
+            var withRoutes = new CatalogApp { Id = "matcad", Name = "Matcad", Routes = new CatalogRoutes { Service = "caddy" } };
+            var plain = new CatalogApp { Id = "x", Name = "X" };
+
+            Assert.Equal(new ComposePorts(false, []), await broker.PortsAsync(drive, plain, default) with { RoutePorts = [] });
+            Assert.False((await broker.PortsAsync(todo, plain, default)).OwnPort);
+            // An app the proxy does not route (its route was refused, or there is no proxy) publishes its own port.
+            Assert.True((await broker.PortsAsync(alone, plain, default)).OwnPort);
+            Assert.Equal([4810, 6006], (await broker.PortsAsync(proxy, withRoutes, default)).RoutePorts);
+            Assert.True((await broker.PortsAsync(proxy, withRoutes, default)).OwnPort);
+
+            // Under a domain the routes are host routes: the proxy publishes no port for them.
+            await config.UpdateAsync(c => c.BaseDomain = "example.com");
+            Assert.Empty((await broker.PortsAsync(proxy, withRoutes, default)).RoutePorts);
+            Assert.False((await broker.PortsAsync(drive, plain, default)).OwnPort);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(file);
+        }
+    }
+
+    private static SystemConfigService Config()
+    {
+        var paths = new AppPaths(Path.Combine(Path.GetTempPath(), "mattiverse-tests-" + Guid.NewGuid().ToString("N")));
+        return new SystemConfigService(new JsonConfigStore(paths, Microsoft.Extensions.Logging.Abstractions.NullLogger<JsonConfigStore>.Instance),
+            new DataProtectionSecretProtector(new EphemeralDataProtectionProvider()));
     }
 
     [Fact]

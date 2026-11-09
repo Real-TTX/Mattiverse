@@ -191,9 +191,10 @@
 
   // ------------------------------------------------------------------ opening things
 
+  // An app opens in the window of the home screen unless the person chose a new tab for it in its menu (an app that cannot be framed shows the way to a tab there).
   function prefersWindow(el) {
     var key = el.getAttribute('data-app-key');
-    try { return !!key && localStorage.getItem(PREFS + key) === '1'; } catch (e) { return false; }
+    try { return !key || localStorage.getItem(PREFS + key) !== 'tab'; } catch (e) { return true; }
   }
 
   var suppressClick = false;
@@ -275,10 +276,10 @@
     menu.appendChild(item('monitor', 'Open in the window', { run: function () { open(target, { source: el, title: name }); } }));
     menu.appendChild(item('external', 'Open in a new tab', { run: function () { window.open(tab || target, '_blank', 'noopener'); } }));
     if (key && tab) {
-      var always = prefersWindow(el);
-      menu.appendChild(item('check', 'Always open in the window', {
-        check: always,
-        run: function () { try { if (always) { localStorage.removeItem(PREFS + key); } else { localStorage.setItem(PREFS + key, '1'); } } catch (e) { /* private mode */ } }
+      var inTab = !prefersWindow(el);
+      menu.appendChild(item('check', 'Always open in a new tab', {
+        check: inTab,
+        run: function () { try { if (inTab) { localStorage.removeItem(PREFS + key); } else { localStorage.setItem(PREFS + key, 'tab'); } } catch (e) { /* private mode */ } }
       }));
     }
     // The quick actions of an app (contract 2, contributes.quickActions): an address of the app, opened like the app itself (a tab, or the window when it prefers it).

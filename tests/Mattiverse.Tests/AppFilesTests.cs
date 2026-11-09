@@ -37,6 +37,32 @@ public class AppFilesTests
         => (IDictionary<object, object>)((IDictionary<object, object>)compose["services"])[name];
 
     [Fact]
+    public void An_app_the_proxy_routes_publishes_no_port_and_the_proxy_publishes_its_port_routes()
+    {
+        var own = Parse(Renderer().Render(Entry("matdo"), AppOf("matdo", "web", 6006, 6006)));
+        Assert.Contains("6006:6006", ((IEnumerable<object>)Service(own, "web")["ports"]).Select(p => p.ToString()));
+
+        var routed = Parse(Renderer().Render(Entry("matdo"), AppOf("matdo", "web", 6006, 6006), ports: new ComposePorts(false, [])));
+        Assert.False(Service(routed, "web").ContainsKey("ports"));
+
+        // Matcad: its UI keeps its own port; the route service publishes 80 and 443 and the port of every app it serves without a domain.
+        var proxy = Parse(Renderer().Render(Entry("matcad"), AppOf("matcad", "matcad", 4433, 4433), ports: new ComposePorts(true, [6006, 8080])));
+        Assert.Contains("4433:4433", ((IEnumerable<object>)Service(proxy, "matcad")["ports"]).Select(p => p.ToString()));
+        Assert.Equal(["80:80", "443:443", "443:443/udp", "6006:6006", "8080:8080"], ((IEnumerable<object>)Service(proxy, "caddy")["ports"]).Select(p => p.ToString()));
+    }
+
+    [Fact]
+    public void The_ports_an_entry_declares_are_read_with_the_defaults_of_their_variables()
+    {
+        Assert.Equal(new HashSet<int> { 80, 443 }, ComposeRenderer.DeclaredHostPorts(Entry("matcad"), "caddy"));
+        Assert.Contains(2587, ComposeRenderer.DeclaredHostPorts(Entry("matsmtp"), "matsmtp"));
+        Assert.Empty(ComposeRenderer.DeclaredHostPorts(Entry("matcad"), "matcad"));
+        Assert.Empty(ComposeRenderer.DeclaredHostPorts(Entry("matcad"), "nothing"));
+        Assert.Equal("caddy", Entry("matcad").Routes?.Service);
+        Assert.Null(Entry("matdo").Routes);
+    }
+
+    [Fact]
     public void Render_NamesEveryContainer_AndLabelsIt()
     {
         var compose = Parse(Renderer().Render(Entry("matcad"), AppOf("matcad", "matcad", 4433, 4433)));

@@ -120,7 +120,7 @@
       var host = $('[name="PublicHost"]', wiz), domain = $('[name="BaseDomain"]', wiz);
       var rows = [
         ['Address of this host', host && host.value ? host.value : 'from the browser'],
-        ['Domain for your apps', domain && domain.value ? '*.' + domain.value : 'none (apps use ports)'],
+        ['Domain for your apps', domain && domain.value ? '*.' + domain.value : 'none (every app on a port of this host, through Matcad)'],
         ['Engines', engines()],
         ['DNS provider', dnsProvider()]
       ];

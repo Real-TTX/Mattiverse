@@ -4,7 +4,8 @@ using Mattiverse.Core.Engines;
 namespace Mattiverse.Core.Integrations;
 
 /// <summary>A route of the Matcad proxy as far as Mattiverse needs it.</summary>
-public sealed record MatcadRoute(long Id, string Host, string? Upstream, bool Wildcard, string? ManagedBy);
+/// <summary>A route of Matcad; <see cref="Binding"/> is the consumer when the route is a binding of <c>web.route</c> (the broker owns it), null for a route made through <c>/api/v1</c>.</summary>
+public sealed record MatcadRoute(long Id, string Host, string? Upstream, bool Wildcard, string? ManagedBy, string? Binding = null);
 
 /// <summary>A DNS provider of Matcad (the account its certificates are issued with).</summary>
 public sealed record MatcadProvider(long Id, string Name, string Type, string? ManagedBy);
@@ -60,7 +61,8 @@ public sealed class MatcadClient : EngineClient
                     host,
                     node["upstream"]?.GetValue<string>(),
                     node["wildcard"]?.GetValue<bool>() ?? false,
-                    node["managedBy"]?.GetValue<string>()));
+                    node["managedBy"]?.GetValue<string>(),
+                    node["binding"]?.GetValue<string>()));
             }
         }
 
@@ -136,7 +138,8 @@ public sealed class MatcadClient : EngineClient
         var removed = new List<string>();
         foreach (var route in await ListRoutesAsync(ct))
         {
-            if (route.ManagedBy == ManagedBy && !wantedHosts.Contains(route.Host))
+            // A binding is the broker's: it moves the route itself (under a domain to a host, without one to a port) and keeps what an administrator set on it.
+            if (route.ManagedBy == ManagedBy && route.Binding is null && !wantedHosts.Contains(route.Host))
             {
                 await SendAsync(HttpMethod.Delete, $"routes/{route.Id}", null, null, ct);
                 removed.Add(route.Host);

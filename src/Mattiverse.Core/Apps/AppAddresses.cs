@@ -1,3 +1,4 @@
+using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Integrations;
@@ -25,17 +26,22 @@ public sealed class AppAddresses
     public async Task<string?> PublicUrlAsync(InstalledApp app, CancellationToken ct)
         => (await AddressesAsync(app, ct)).FirstOrDefault();
 
-    /// <summary>Every address the browser may use for the app: the route (when a proxy and a domain are set up) and this host with the app's port.</summary>
+    /// <summary>
+    /// Every address the browser may use for the app: the route under the domain (when a proxy and a domain are set up), else this host with the app's port,
+    /// which the proxy serves when there is one (a port route) and the app itself when there is none.
+    /// </summary>
     public async Task<IReadOnlyList<string>> AddressesAsync(InstalledApp app, CancellationToken ct)
     {
         var config = await _config.GetAsync(ct);
         var result = new List<string>();
-        if (!string.IsNullOrWhiteSpace(config.BaseDomain) && await _proxy.IsActiveAsync(ct))
+        // Under a domain the proxy routes the app there, and the app publishes no port of its own (the proxy itself keeps its port).
+        var underDomain = !string.IsNullOrWhiteSpace(config.BaseDomain) && app.Role != AppRoles.Proxy && await _proxy.IsActiveAsync(ct);
+        if (underDomain)
         {
-            result.Add(ProxyPublisher.UrlFor(ProxyPublisher.HostFor(app.Slug, config.BaseDomain)));
+            result.Add(ProxyPublisher.UrlFor(ProxyPublisher.HostFor(app.Slug, config.BaseDomain!)));
         }
 
-        if (app.HostPort is { } port)
+        if (app.HostPort is { } port && !underDomain)
         {
             var host = string.IsNullOrWhiteSpace(config.PublicHost) ? "localhost" : config.PublicHost.Trim();
             result.Add($"http://{(host.Contains(':') && !host.StartsWith('[') ? $"[{host}]" : host)}:{port}");

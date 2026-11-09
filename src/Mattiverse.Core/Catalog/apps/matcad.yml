@@ -23,8 +23,13 @@ x-mattiverse:
     port: 4433
     hostPort: 4433
   shared: [caddy]
+  # The service that listens for the routes of the apps: without a domain every app gets a port route, and Mattiverse publishes those ports here
+  # (the apps publish none themselves). With a domain the apps are reached under it on 80 and 443.
+  routes:
+    service: caddy
   notes:
     - Needs the host ports 80 and 443. Stop any other web server or proxy that uses them first.
+    - Every app is reached through Matcad - under your domain, or without one on a port of this machine that Mattiverse picks.
     - Keep the Matcad UI (port 4433) off the public internet.
   variables:
     - key: MATCAD_API_KEY

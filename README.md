@@ -86,7 +86,7 @@ bar at the bottom goes home.
 
 | The folder *System* | The menu of an app | Your wallpaper |
 |---|---|---|
-| ![The folder System: the five engines and all engines](docs/images/folder-system.png) | ![The menu of an app: open in the window or a new tab, always in the window, details, manage](docs/images/app-menu.png) | ![Your account, Home screen: the wallpapers to choose from](docs/images/wallpapers.png) |
+| ![The folder System: the five engines and all engines](docs/images/folder-system.png) | ![The menu of an app: open in the window or a new tab, always in a new tab, details, manage](docs/images/app-menu.png) | ![Your account, Home screen: the wallpapers to choose from](docs/images/wallpapers.png) |
 
 | Orbit | Earth | Jungle | Lagoon | Mountains |
 |---|---|---|---|---|

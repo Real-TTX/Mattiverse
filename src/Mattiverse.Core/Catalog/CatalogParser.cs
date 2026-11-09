@@ -66,6 +66,11 @@ public static partial class CatalogParser
             throw new FormatException($"{source}: shared service '{shared}' is not a service of the compose file.");
         }
 
+        if (app.Routes is { } routes && !app.ServiceNames.Contains(routes.Service))
+        {
+            throw new FormatException($"{source}: routes.service '{routes.Service}' is not a service of the compose file.");
+        }
+
         if (app.Mail?.Sender is { } sender && !SenderRegex().IsMatch(sender))
         {
             throw new FormatException($"{source}: mail.sender must be the part of an address before the @ (letters, digits, dots, dashes; got '{sender}').");

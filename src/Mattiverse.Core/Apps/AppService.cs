@@ -395,10 +395,13 @@ public sealed partial class AppService
         // ... and what the broker gives it: its bindings and its addresses (MatDesign docs/PLATFORM.md "Bindings"), the same for every app.
         var injected = await _broker.VariablesAsync(app, ct);
 
+        // ... and who publishes its port: the reverse proxy for an app it routes, the proxy the ports of its port routes.
+        var ports = await _broker.PortsAsync(app, catalog, ct);
+
         var config = await _config.GetAsync(ct);
         app.VariablesJson = AppVariables.Serialize(catalog, variables, _protector);
         await _db.SaveChangesAsync(ct);
-        return (_files.Build(app, catalog, variables, config.PublicHost ?? "localhost", injected), variables);
+        return (_files.Build(app, catalog, variables, config.PublicHost ?? "localhost", injected, ports), variables);
     }
 
     /// <summary>The hash of the compose text as the engine stores it (an engine may re-format the YAML), falling back to what was sent.</summary>
@@ -584,10 +587,27 @@ public sealed partial class AppService
         await RedeployAsync(changed, log, ct);
     }
 
-    /// <summary>Deploys the apps again with their variables as they are now (a new binding, one that is gone).</summary>
+    /// <summary>
+    /// Deploys the apps again with their variables as they are now (a new binding, one that is gone). The apps go first and the reverse proxy last: an app
+    /// that is routed now gives up its port before the proxy publishes it. The proxy is deployed too when the ports it publishes are not those of its port
+    /// routes (an app came, went or moved under a domain).
+    /// </summary>
     private async Task RedeployAsync(IEnumerable<long> appIds, Action<string> log, CancellationToken ct)
     {
-        foreach (var id in appIds.Distinct())
+        var ids = appIds.Distinct().ToList();
+        var proxies = (await _db.InstalledApps.Where(a => a.Lifecycle == AppLifecycle.Installed).ToListAsync(ct))
+            .Where(a => _catalog.Get(a.CatalogId)?.Routes is not null)
+            .ToList();
+        var order = ids.Where(id => proxies.All(p => p.Id != id)).ToList();
+        foreach (var proxy in proxies)
+        {
+            if (ids.Contains(proxy.Id) || !await RoutePortsPublishedAsync(proxy, ct))
+            {
+                order.Add(proxy.Id);
+            }
+        }
+
+        foreach (var id in order)
         {
             var app = await _db.InstalledApps.FirstOrDefaultAsync(a => a.Id == id && a.Lifecycle == AppLifecycle.Installed, ct);
             var catalog = app is null ? null : _catalog.Get(app.CatalogId);
@@ -610,6 +630,25 @@ public sealed partial class AppService
                 log($"Warning: {app.Name} could not be deployed again: {ex.Message}");
             }
         }
+    }
+
+    /// <summary>True when the route service of the proxy publishes exactly the ports of its port routes (besides the ports its catalog entry declares).</summary>
+    private async Task<bool> RoutePortsPublishedAsync(InstalledApp proxy, CancellationToken ct)
+    {
+        var catalog = _catalog.Get(proxy.CatalogId);
+        if (catalog?.Routes is not { } routes)
+        {
+            return true;
+        }
+
+        var wanted = (await _broker.PortsAsync(proxy, catalog, ct)).RoutePorts.ToHashSet();
+        var container = _files.ContainerName(proxy.Slug, routes.Service);
+        var declared = ComposeRenderer.DeclaredHostPorts(catalog, routes.Service);
+        var published = (await _docker.ListPublishedPortsAsync(ct))
+            .Where(p => p.Container == container && !declared.Contains(p.HostPort))
+            .Select(p => p.HostPort)
+            .ToHashSet();
+        return published.SetEquals(wanted);
     }
 
     /// <summary>

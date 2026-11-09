@@ -27,6 +27,8 @@ x-mattiverse:
     hostPort: 3000            # tried first on the host; a free port from the pool is used when taken
     path: /login              # optional: appended when the app is opened
   shared: [proxy]             # more services that must be reachable by the reverse proxy (the UI service always is)
+  routes:                     # only for the reverse proxy (a provider of web.route): the service that listens for the routes;
+    service: caddy            # without a domain Mattiverse publishes the port of every app here (the apps publish none)
   provision: matcad           # optional: a built-in provisioner to run after the install (matdock | matcad | matddns | matidentity | matsmtp)
   platform: true              # optional: the app speaks the platform contract (MatDesign docs/PLATFORM.md): Mattiverse gives it MAT_API_KEY and a Manage page
   consumes:                   # optional: what the app uses of other apps (MatDesign docs/PLATFORM.md "Capabilities"); the broker binds each when a provider is installed
@@ -115,5 +117,5 @@ Mattiverse renders the entry into one compose file (`ComposeRenderer`). For ever
 | `container_name` | `mattiverse-<app>-<service>`: a stable name on the shared network |
 | labels | `mattiverse.managed`, `mattiverse.app`, `mattiverse.instance`, `mattiverse.service` |
 | networks | `default` plus the shared `mattiverse` network, for the UI service and the services listed in `shared` |
-| `ports` | `<host port>:<ui.port>` for the UI service |
+| `ports` | `<host port>:<ui.port>` for the UI service, **only while no reverse proxy routes the app**; with Matcad the app publishes no port: under a domain it is `<app>.<domain>` on 80/443, without one Matcad's route service (`routes.service`) publishes `<host port>:<host port>` for it. The host port is picked by Mattiverse (`ui.hostPort` first, else a free one of the pool); nobody chooses it |
 | `x-matdock` | one block for the stack (name, description, category), so MatDock's launchpad shows it as an app |

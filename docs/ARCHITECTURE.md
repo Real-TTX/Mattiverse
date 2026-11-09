@@ -68,9 +68,18 @@ Matddns support). The credentials are stored protected (Data Protection) and han
 - **Matddns** gets a source *public IP*, a domain group with a record for every app that has a route and a rule per record, so the record follows the home IP
   (`DnsPublisher`, after the bindings). The records are not a capability: the account, the zone and the list belong to Mattiverse's domain, and a record gives an app nothing.
 
+**Every app is reached through Matcad** (the owner's decision, 2026-11-09), with or without a domain. Under a domain the binding of `web.route` is a host route
+`app.domain`; without one it is a **port route**: Matcad's Caddy listens on the app's host port (picked by Mattiverse, `PortPlanner`; nobody chooses it) and
+proxies to the app's internal address, with `publicHost` (the address of the settings) when there is one, so the app learns its address only when it is real. An app
+with a route publishes no port of its own (`BindingBroker.PortsAsync`, `ComposePorts`); Matcad publishes the ports of its port routes on its route service
+(`routes.service` of its catalog entry, `caddy`). A redeploy deploys the apps first and Matcad last, so an app gives up its port before Matcad publishes it, and
+deploys Matcad whenever the ports it publishes are not those of its port routes (an app came, went, or moved under a domain). A route Matcad refuses (an older Matcad
+without port routes, a port taken by a route made by hand) is dropped and the app publishes its own port again. Matcad's own UI keeps its own port. Installed apps open in
+the window of the home screen (`js/os.js`; *Always open in a new tab* in the menu of an app), the address served by Matcad.
+
 When the domain or the account changes (also when the domain is removed), or from the Engines tab (*Connect again*), the job `ConnectEngines` brings both in line
 again and removes what Mattiverse created earlier and does not want any more (routes of an old domain; without a domain every route Mattiverse made, and the bindings
-of `web.route` with the public addresses they gave).
+of `web.route` move from hosts to ports and back; the old cleanup leaves routes that are bindings alone).
 
 ## Where are the backups?
 

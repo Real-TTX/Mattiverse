@@ -56,7 +56,8 @@ apps' launchers, quick actions and widgets on the home screen). **No code that k
 ```
 src/Mattiverse.Core        domain, no web types
   Entities/ Data/            EF entities (AuditableEntity, soft delete), DbContext, migrations
-  Apps/                      AppService (install/update/uninstall/lifecycle), ComposeRenderer (catalog entry -> the one compose file),
+  Apps/                      AppService (install/update/uninstall/lifecycle; redeploys the apps first and the reverse proxy last), ComposeRenderer (catalog entry -> the one
+                             compose file; ComposePorts: a routed app publishes no port, the proxy the ports of its port routes),
                              ComposeFiles, ComposeRunner, AppReconciler (adopt MatDock stacks), AppVariables, PortPlanner, AppAddresses (public and internal address of an app)
   Engines/                   IStackEngine: LocalComposeEngine (own docker compose) and MatDockEngine; StackEngines picks one;
                              EngineClient/EngineLocator (address + API key of an installed engine), MatDockClient, EngineIds
@@ -67,7 +68,8 @@ src/Mattiverse.Core        domain, no web types
   Integrations/              MatcadClient, MatddnsClient, ProxyPublisher (routes, wildcard), DnsPublisher (records), IAppProvisioner (one per engine),
                              MatIdentityClient + IdentityLink (Mattiverse's own sign-in, the issuer of MatIdentity), MatSmtpClient + MailLink (the setup of MatSMTP), FrameLink (Mattiverse's
                              shell.embed: MAT_FRAME_ANCESTORS), PlatformClient (/api of an app, contract 2),
-                             BindingBroker (the bindings between the apps and of the engines: identity.oidc, mail.smtp, web.route; one class for every capability, AppBinding;
+                             BindingBroker (the bindings between the apps and of the engines: identity.oidc, mail.smtp, web.route (a host under the domain, else a port of
+                             this machine: every app behind Matcad; PortsAsync); one class for every capability, AppBinding;
                              catalog consumes + /api + implicit web.route; AdoptAsync takes over the variables of an earlier Mattiverse), AppManifests + ManifestCache (definitions and values, short
                              timeouts, kept a while), ShellRules (who sees a contribution, which addresses it may open)
   Jobs/                      JobService/Queue/RunnerService, AppJobs (the work per job kind), JobContext/log
@@ -115,7 +117,7 @@ tests/e2e                    run.js: the pages in a real browser against the run
 - **The home screen is Mattiverse OS, on purpose** (owner, 2026-11-08/09; docs/ARCHITECTURE.md "The home screen"): `_Launcher` with `css/os.css` and `js/os.js`, its own look
   (status bar, glass, the system font; colours only as `--os-*` in `os.css`), NOT the toolkit: do not bring the menu of MatUi back there. ONE window at a time: `data-window` opens a page of
   Mattiverse in it (an iframe); `js/window-mode.js` drops the menu, header and breadcrumb of a page in there (`mv-in-window`, `mv-window-only`), `_Bare` pages (`data-top-level`) leave it.
-  A page reached only through the menu needs a way inside the window (the settings have `_SettingsTabs`). Installed apps open in a new tab unless their menu says otherwise; the engines
+  A page reached only through the menu needs a way inside the window (the settings have `_SettingsTabs`). Installed apps open in the window too (the address Matcad serves; *Always open in a new tab* in the menu of an app); the engines
   live in the folder *System* and open `/Engines?id=` (`Support/EngineOverview.cs`); their own pages open there in the window when they allow Mattiverse to frame them
   (`MAT_FRAME_ANCESTORS`, filled by `Core/Integrations/FrameLink.cs` for apps whose compose file names it; `FrameProbe`/`FramePolicy` check before a frame). Wallpapers are drawn by `scripts/wallpapers` (`node scripts/wallpapers/render.js`);
   a new one needs its id in `Wallpapers.All`, its rule in `os.css` and its pictures (`WallpaperTests` checks all three).

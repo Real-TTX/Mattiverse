@@ -14,7 +14,7 @@ namespace Mattiverse.Core.Apps;
 /// MatDock's launchpad shows the stack as an app. It is one self-contained file, because the engines (MatDock) keep exactly one
 /// compose text per stack, and it is also the file that <c>docker compose</c> runs when Mattiverse deploys it itself.
 /// </summary>
-public sealed class ComposeRenderer
+public sealed partial class ComposeRenderer
 {
     private readonly MattiverseOptions _options;
 
@@ -35,7 +35,11 @@ public sealed class ComposeRenderer
     /// <param name="injected">
     /// Variables the broker gives the app (its bindings, its addresses): passed to its web service as <c>NAME: ${NAME:-}</c>; the values are in the <c>.env</c>.
     /// </param>
-    public string Render(CatalogApp catalog, InstalledApp app, IEnumerable<string>? injected = null)
+    /// <param name="ports">
+    /// Who publishes what (the broker decides): an app the reverse proxy routes publishes no port of its own; the proxy publishes the ports of its port routes
+    /// on its route service. Null: the app publishes its own port, as without a proxy.
+    /// </param>
+    public string Render(CatalogApp catalog, InstalledApp app, IEnumerable<string>? injected = null, ComposePorts? ports = null)
     {
         var names = injected?.ToList() ?? [];
         var stream = new YamlStream();
@@ -73,9 +77,17 @@ public sealed class ComposeRenderer
                 MergeEnvironment(service, names);
             }
 
-            if (isUi && app.HostPort is { } hostPort && catalog.Ui is { } ui)
+            if (isUi && app.HostPort is { } hostPort && catalog.Ui is { } ui && ports?.OwnPort != false)
             {
                 AppendToSequence(service, "ports", $"{hostPort}:{ui.Port}");
+            }
+
+            if (catalog.Routes?.Service == name)
+            {
+                foreach (var port in ports?.RoutePorts ?? [])
+                {
+                    AppendToSequence(service, "ports", $"{port}:{port}");
+                }
             }
         }
 
@@ -99,6 +111,41 @@ public sealed class ComposeRenderer
 
         return text + "\n";
     }
+
+    /// <summary>The host ports the catalog entry itself publishes on a service (<c>"80:80"</c>, <c>"443:443/udp"</c>; a port from a variable, <c>${X:-2587}:2587</c>, by its default).</summary>
+    public static IReadOnlySet<int> DeclaredHostPorts(CatalogApp catalog, string service)
+    {
+        var stream = new YamlStream();
+        using (var reader = new StringReader(catalog.ComposeYaml))
+        {
+            stream.Load(reader);
+        }
+
+        var result = new HashSet<int>();
+        if (stream.Documents[0].RootNode is not YamlMappingNode root
+            || !root.Children.TryGetValue(new YamlScalarNode("services"), out var servicesNode) || servicesNode is not YamlMappingNode services
+            || !services.Children.TryGetValue(new YamlScalarNode(service), out var serviceNode) || serviceNode is not YamlMappingNode map
+            || !map.Children.TryGetValue(new YamlScalarNode("ports"), out var portsNode) || portsNode is not YamlSequenceNode ports)
+        {
+            return result;
+        }
+
+        foreach (var entry in ports.Children.OfType<YamlScalarNode>().Select(n => n.Value ?? string.Empty))
+        {
+            // host:container[/proto], or ip:host:container; a variable with a default stands for its default
+            var text = DefaultOfVariable().Replace(entry, m => m.Groups["default"].Value);
+            var parts = text.Split('/')[0].Split(':');
+            if (parts.Length >= 2 && int.TryParse(parts[^2], out var host))
+            {
+                result.Add(host);
+            }
+        }
+
+        return result;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\$\{[A-Za-z0-9_]+:-(?<default>[^}]*)\}")]
+    private static partial System.Text.RegularExpressions.Regex DefaultOfVariable();
 
     // ------------------------------------------------------------------ YAML helpers
 
@@ -206,4 +253,14 @@ public sealed class ComposeRenderer
 
         root.Children[new YamlScalarNode(key)] = map;
     }
+}
+
+/// <summary>
+/// Who publishes which host port of an app: <see cref="OwnPort"/> false when the reverse proxy routes the app (its web service publishes no port), and the
+/// ports of the port routes a proxy serves (published on its route service, <c>routes.service</c> of its catalog entry).
+/// </summary>
+public sealed record ComposePorts(bool OwnPort, IReadOnlyList<int> RoutePorts)
+{
+    /// <summary>An app without a proxy: its own port, no routes.</summary>
+    public static readonly ComposePorts Own = new(true, []);
 }
