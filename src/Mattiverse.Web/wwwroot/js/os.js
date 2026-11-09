@@ -170,7 +170,8 @@
     var h = location.hash;
     if (h.length > 2 && h.charAt(1) === '/') {
       var path = decodeURIComponent(h.slice(1));
-      if (!state.open) { open(path, { fromAddress: true, title: '' }); }
+      // Closed, or open on another page (an address typed while a window is open): that page in the window.
+      if (!state.open || path !== currentPath()) { open(path, { fromAddress: true, title: '' }); }
     } else if (state.open) {
       home(false, true);
     }

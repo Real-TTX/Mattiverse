@@ -139,6 +139,9 @@ const pages = [
     await page.goto(BASE + '/#/Settings/Engines');
     await page.waitForFunction(() => document.querySelector('#os-window [data-win-title]').textContent === 'Engines');
     expectTrue(await win().locator('.mv-window-only .mat-tabs').isVisible(), 'the tabs of the settings');
+    await page.evaluate(() => { location.hash = '#/Jobs'; });
+    await page.waitForFunction(() => document.querySelector('#os-window [data-win-title]').textContent === 'Activity');
+    expectEqual(new URL(page.url()).hash, '#/Jobs', 'another address while the window is open: that page in it');
     await page.click('#os-window .os-lights [data-win-close]');
   });
   await check('an engine opens its own window in Mattiverse', async () => {

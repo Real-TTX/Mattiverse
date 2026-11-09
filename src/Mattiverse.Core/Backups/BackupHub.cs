@@ -61,6 +61,13 @@ public sealed class BackupHub
         return items.OrderByDescending(i => i.CreatedUtc).ToList();
     }
 
+    /// <summary>
+    /// When the newest backup that succeeded was made, in any provider (the widget of the home screen): with MatDock the backups are kept there,
+    /// not in Mattiverse's database. Null when there is none.
+    /// </summary>
+    public async Task<DateTime?> LastSucceededAtAsync(CancellationToken ct = default)
+        => (await ListAsync(ct)).Where(i => i.Status == BackupStatus.Succeeded).Select(i => (DateTime?)i.CreatedUtc).FirstOrDefault();
+
     public Task<BackupItem?> GetAsync(string id, CancellationToken ct = default)
         => ForId(id).GetAsync(SplitId(id).Raw, ct);
 

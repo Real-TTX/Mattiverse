@@ -22,12 +22,14 @@ public class IndexModel : PageModel
     private readonly JobService _jobs;
     private readonly DockerService _docker;
     private readonly BackupService _backups;
+    private readonly BackupHub _backupHub;
     private readonly CatalogService _catalog;
     private readonly AppUrls _urls;
     private readonly EngineOverview _engines;
 
-    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, CatalogService catalog, AppUrls urls, EngineOverview engines)
+    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, BackupHub backupHub, CatalogService catalog, AppUrls urls, EngineOverview engines)
     {
+        _backupHub = backupHub;
         _engines = engines;
         _apps = apps;
         _config = config;
@@ -93,7 +95,7 @@ public class IndexModel : PageModel
         if (isAdmin)
         {
             ActiveJobs = await _jobs.CountActiveAsync(ct);
-            LastBackup = await _backups.LastSucceededAtAsync(ct);
+            LastBackup = await LastBackupAsync(ct);
         }
 
         if (isAdmin)
@@ -106,5 +108,18 @@ public class IndexModel : PageModel
 
         Dock = Launcher.Dock(isAdmin);
         SystemApps = Launcher.OnScreen(isAdmin, ActiveJobs);
+    }
+
+    /// <summary>The newest backup in any engine (MatDock keeps its own); a MatDock that does not answer in time leaves the widget at what Mattiverse knows itself.</summary>
+    private async Task<DateTime?> LastBackupAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await _backupHub.LastSucceededAtAsync(ct);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return await _backups.LastSucceededAtAsync(ct);
+        }
     }
 }
