@@ -117,7 +117,9 @@ tests/e2e                    run.js: the pages in a real browser against the run
 - Mobile matters: check phone width (390 px) for every new page; secondary table columns get `mat-hide-sm`.
 - After a change to a CSS/cshtml file the container must be rebuilt (they are baked into the image).
 - Take screenshots of real data only; never real user data in `docs/images`. The pictures of the README come from a second Mattiverse (own volume, port 8130, own subnets) with two apps installed
-  through the UI; remove it afterwards.
+  through the UI; remove it afterwards. With `Mattiverse__ProjectPrefix` and `Mattiverse__NetworkName` of its own (`mvshots`) it installs its own engines beside the dev stack's: catalog copies in
+  `/data/catalog` with a subnet each, Matcad's proxy on other ports than 80/443, MatIdentity and MatSMTP from local images (`pull_policy: never`; their GHCR images are private).
+  Shoot with Edge started with `--lang=en-GB` (the clock and the dates follow the browser's language, not Playwright's `locale`) and a fixed clock (`page.clock.setFixedTime`).
 
 **Git**
 - Commit and push **under the user's name**, never add a Claude/Anthropic co-author trailer or "generated with" line.

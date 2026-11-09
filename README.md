@@ -4,47 +4,46 @@
 
 # Mattiverse
 
-**Install, update and back up your Docker apps. One launcher for the whole Mat universe.**
+**Your Docker host as a home screen. Install, update and back up your apps with a tap.**
 
-A home screen for your Docker host: pick an app in the store, Mattiverse installs it, gives it a
-domain, keeps it up to date and backs it up. It is the friendly layer on top of five programs that do the real work and
-keep their own part of the configuration: [MatDock](https://github.com/Real-TTX/MatDock) (stacks, backups),
+Mattiverse OS is a home screen for your server, like the one on your phone: widgets on a wallpaper, your apps as icons, a dock,
+and one window for everything else. Pick an app in the store and Mattiverse installs it, gives it an address, keeps it up to date and backs it up.
+Underneath, five programs do the real work and keep their own part of the configuration: [MatDock](https://github.com/Real-TTX/MatDock) (stacks, backups),
 [Matcad](https://github.com/Real-TTX/Matcad) (addresses, HTTPS), [Matddns](https://github.com/Real-TTX/Matddns) (DNS records),
 [MatIdentity](https://github.com/Real-TTX/MatIdentity) (one sign-in) and [MatSMTP](https://github.com/Real-TTX/MatSMTP) (the mail of all apps).
-Open one of them and you see what Mattiverse set up there.
+They live in the folder *System*; open one and you see what Mattiverse set up there.
 
 </div>
 
-![The home screen: installed apps as icons, widgets for the state of the host](docs/images/home.png)
+![Mattiverse OS: the status bar, widgets on the Orbit wallpaper, the apps, the search and the dock](docs/images/home.png)
 
 ---
 
 ## What this is about
 
-Self-hosting usually means a terminal, a pile of `docker-compose.yml` files and a browser full of
-`:8080` tabs. Mattiverse is a calm layer on top: a launcher that looks like a phone, a **store** with
-one-click installs, a **setup wizard** that asks for your domain and DNS account once and wires the engines together,
-and **backups** you can actually restore.
+Self-hosting usually means a terminal, a pile of `docker-compose.yml` files and a browser full of `:8080` tabs. Mattiverse is a calm
+layer on top: a **home screen** that feels like a phone or a tablet, a **store** with one-click installs, a **setup wizard** that asks for your
+domain and DNS account once and wires the engines together, and **backups** you can actually restore.
 
-It is the small, mobile-friendly sibling to **MatOS**. Where MatOS is a desktop with windows, Mattiverse
-shows one app at a time, like a website or a phone. Every app is a plain `docker compose` stack in MatDock: you can edit
-it there, and Mattiverse keeps your change when it updates the app.
+It is the small, mobile-friendly sibling of **MatOS**. Where MatOS is a desktop with many windows, Mattiverse has **one window at a time**,
+like a phone: it opens over the home screen, and the home button brings you back. Every app is a plain `docker compose` stack in MatDock:
+you can edit it there, and Mattiverse keeps your change when it updates the app.
 
 ## At a glance
 
 **Mattiverse OS**
-- A **home screen like a phone**: a status bar with the time, the theme and you, widgets of glass (today, the
-  engines, apps running, the last backup, the activity, Docker), the apps as icons (a badge when one is not running),
-  a search (key `/`) and a **dock** with the store, the apps, the backups and the settings
-- **One window at a time**: the store, the backups, the settings ... open in a window over the home screen, with a
-  title, Back, Reload, a new tab and three lights: close, home (the app stays open), full screen. On a phone it fills
-  the screen with a bar to go home. The address keeps the window, so a reload opens it again
-- **The engines are part of the system**: a widget with their state, a folder *System*, and a window for each that
-  shows what it keeps for Mattiverse and which apps it serves
-- An installed app opens in a new tab, or in the window when you choose that in its menu (right click, long press)
-- **Wallpapers** behind it, drawn for Mattiverse: *Orbit* (the planet of the logo, light or dark with the theme, the
-  default), the Earth from orbit, a jungle, a lagoon and mountains seen from above, or none; each person picks their own
-- Inside the windows Mattiverse looks and behaves like every other Mat app: it is built on **MatUi**, the toolkit of
+- A **home screen**: a status bar with the time, running tasks, the theme and you; widgets of glass for today, the engines, the apps
+  that run, the last backup, the activity and Docker; the apps as icons (a badge when one is not running), a search (key `/`) and a
+  **dock** with the store, the apps, the backups and the settings
+- **One window at a time**: the store, an app, the backups, the settings ... open in a window over the home screen, with a title, Back,
+  Reload, *open in a new tab* and three lights: close, home (the window stays open in the background, its icon shows a dot) and full size.
+  On a phone it fills the screen, with a bar at the bottom to go home. The address keeps the window (`/#/Store`), so a reload opens it again
+- **The engines are part of the system**: a widget with their state, the folder *System*, and a window for each that shows what it keeps
+  for which app. An engine whose image allows it (`MAT_FRAME_ANCESTORS`, see [How it works](#how-it-works)) opens right there in the window
+- An installed app opens in a new tab, or in the window when you choose that in its menu (right click or long press)
+- **Wallpapers** drawn for Mattiverse: *Orbit* (the planet of the logo, light or dark with the theme; the default), the Earth from orbit,
+  a jungle, a lagoon and mountains seen from above, or none. Each person picks their own
+- Inside the window Mattiverse looks and behaves like every other Mat app: it is built on **MatUi**, the toolkit of
   [MatDesign](https://github.com/Real-TTX/MatDesign), with its lists, forms, dialogs and dark mode
 
 **Setup wizard** (first start, and again whenever you like)
@@ -54,13 +53,13 @@ it there, and Mattiverse keeps your change when it updates the app.
 - Everything the wizard created carries a **Managed by Mattiverse** badge in the engine
 
 **Store**
-- Catalog of your Mat apps (MatMail, MatFile, MatPaper, MatPlay, MatSplit, Matmon, MatCMS, MatDo, MatBu,
-  MatTrakr), [MatDesign](https://github.com/Real-TTX/MatDesign) (the design and identity of all of them) and the infrastructure apps
+- Catalog of the Mat apps (MatMail, MatFile, MatDrive, MatOffice, MatPaper, MatPlay, MatSplit, MatTrakr, Matmon, MatCMS, MatDo, MatBu),
+  [MatDesign](https://github.com/Real-TTX/MatDesign) (the design and identity of all of them) and a few infrastructure apps
 - **Passwords are generated** and shown (hidden until you ask) on the app's page
 - Add your **own apps** by dropping a compose file into `/data/catalog` (see [docs/CATALOG.md](docs/CATALOG.md))
 
 **Operations**
-- **Install, update, start, stop, restart, uninstall**: every long task is a job with a **live log**
+- **Install, update, start, stop, restart, uninstall**: every long task is a job with a **live log**, and the status bar shows that it runs
 - **Update** pulls newer images, re-creates only what changed, and backs up first if you want
 - **Backups** are MatDock's: compose + `.env` + all volumes, optionally with the app stopped (consistent databases),
   **schedules with retention**, restore even after the app was uninstalled, download as `.tar`. They show up in MatDock too
@@ -68,70 +67,82 @@ it there, and Mattiverse keeps your change when it updates the app.
 - **Shared links** let someone without an account open one app
 
 **Users**
-- Local sign-in, **roles Admin / User / Anonymous (shared link)**, sessions that **survive a restart**
-  (Microsoft Entra ID is prepared, see [Status](#status))
+- Local sign-in or **one sign-in through MatIdentity**, roles **Admin / User / Anonymous (shared link)**, sessions that **survive a restart**
 
 ## Screenshots
 
-### The store and the setup wizard
+### The home screen
 
-| Store | Wizard: the engines | Wizard: the DNS account |
+| Light | On a phone | A window on a phone |
 |---|---|---|
-| ![The store: the Mat apps with their category, installed ones marked](docs/images/store.png) | ![Setup wizard: the five engines, MatDock required](docs/images/wizard.png) | ![Setup wizard: the DNS provider and its API token](docs/images/wizard-dns.png) |
+| ![The home screen in the light theme](docs/images/home-light.png) | ![The home screen on a phone: widgets, apps and the dock](docs/images/mobile-home.png) | ![The store in the window on a phone, with the bar to go home](docs/images/mobile-window.png) |
 
-The wizard warns when a port it needs is taken (for example when another proxy holds 80 and 443) and leaves
-alone what is installed already. The DNS account is asked once and handed to Matcad and Matddns.
+The picture at the top is the dark theme; *System* follows the device. On a phone the widgets stack, the window fills the screen and the
+bar at the bottom goes home.
+
+| The folder *System* | The menu of an app | Your wallpaper |
+|---|---|---|
+| ![The folder System: the five engines and all engines](docs/images/folder-system.png) | ![The menu of an app: open in the window or a new tab, always in the window, details, manage](docs/images/app-menu.png) | ![Your account, Home screen: the wallpapers to choose from](docs/images/wallpapers.png) |
+
+| Orbit | Earth | Jungle | Lagoon | Mountains |
+|---|---|---|---|---|
+| ![Orbit](src/Mattiverse.Web/wwwroot/img/wallpapers/orbit-dark-thumb.jpg) | ![Earth](src/Mattiverse.Web/wwwroot/img/wallpapers/earth-thumb.jpg) | ![Jungle](src/Mattiverse.Web/wwwroot/img/wallpapers/jungle-thumb.jpg) | ![Lagoon](src/Mattiverse.Web/wwwroot/img/wallpapers/lagoon-thumb.jpg) | ![Mountains](src/Mattiverse.Web/wwwroot/img/wallpapers/mountains-thumb.jpg) |
+
+### One window at a time
+
+![The store in the window over the home screen: the traffic lights, Back, the title, Reload and open in a new tab](docs/images/store.png)
+
+Everything that is not the home screen opens in **the window**: the store above, an app, the activity, the settings. The yellow light
+goes home and keeps the window (its icon gets a dot), the red one closes it, the green one makes it full size.
+
+| An app | Installing, with a live log |
+|---|---|
+| ![App details: address, credentials, stack and actions](docs/images/app-details.png) | ![The live log of an install](docs/images/install-log.png) |
+
+Buttons read from positive to negative: **Open, Stop, Restart, Update, Back up**, then a gap, then **Uninstall**.
 
 ### The engines
 
-![Settings, Engines: the five engines with their version and state, and what Mattiverse hands over](docs/images/engines.png)
-
-The *Engines* tab shows which engine answers, opens it, and hands the domain and the DNS account over again (*Connect again*).
-Each app page links to where its stack, route and DNS record live in the engines.
-
-### Apps, installs with a live log
-
-| An app | The install log |
+| An engine in the window | Settings, Engines |
 |---|---|
-| ![App details with credentials, address, stack and actions](docs/images/app-details.png) | ![Live log of an install](docs/images/install-log.png) |
+| ![MatDock in the window: its state and what it keeps for each app](docs/images/engine-window.png) | ![Settings, Engines: the five engines, their version and state, and what Mattiverse hands over](docs/images/engines.png) |
 
-Buttons read from positive to negative: **Open, Stop, Restart, Update, Back up**, then a gap, then **Uninstall**.
+The window of an engine says what it keeps for which app (a stack in MatDock, a route in Matcad, a record in Matddns, a client in
+MatIdentity, a relay user in MatSMTP). It opens the engine itself in the window when the engine allows Mattiverse to frame it, otherwise in a
+new tab. The *Engines* tab of the settings hands the domain and the DNS account over again (*Connect again*).
 
 ### Manage an app
 
 | Overview | Settings |
 |---|---|
-| ![Manage MatDock: the tiles and actions its /api describes](docs/images/manage.png) | ![Manage MatSplit: its settings as a form](docs/images/manage-settings.png) |
+| ![Manage MatDock: the tiles and actions its /api describes](docs/images/manage.png) | ![Manage MatDock: its settings as a form](docs/images/manage-settings.png) |
 
 The *Manage* tab of an app that speaks the Mat platform contract is drawn from the app's own `/api`: the tiles with its numbers,
 the actions it offers and its settings as a form. Mattiverse knows nothing about the app beforehand.
 
-### Activity
+### Activity and backups
 
 ![The activity: installs, updates and backups with their state and duration](docs/images/jobs.png)
 
-Every install, update and backup is a task with a log of its own; the list filters by state.
-
-### Backups
-
-| History | A schedule |
+| Backups | A schedule |
 |---|---|
-| ![Backup history: app, time, kind, size and state](docs/images/backups.png) | ![A new backup schedule: apps, time, how many are kept](docs/images/backup-schedules.png) |
+| ![Backups: app, time, kind, size and state](docs/images/backups.png) | ![A backup schedule: apps, time, how many are kept](docs/images/backup-schedules.png) |
 
-One list for all backups: those MatDock made (kept by *MatDock*, also visible in MatDock) next to those of Mattiverse's own runner.
+One list for all backups: those MatDock made (also visible in MatDock) next to those of Mattiverse's own runner.
 Every list has its toolbar on top (a search field, *Filter* and *Sort* open dialogs), its actions below and pagination directly under the table.
 
 | Apps | The tools of a list |
 |---|---|
 | ![The apps list](docs/images/apps.png) | ![The filter dialog of a list](docs/images/toolbar-filter.png) |
 
-### Light theme and phone
+### The setup wizard
 
-| Light | Phone | Phone menu |
-|---|---|---|
-| ![The home screen in the light theme](docs/images/home-light.png) | ![The home screen on a phone](docs/images/mobile-home.png) | ![The menu as a drawer on a phone](docs/images/mobile-menu.png) |
+| The engines | The DNS account |
+|---|---|
+| ![Setup wizard: the five engines, MatDock required](docs/images/wizard.png) | ![Setup wizard: the DNS provider and its API token](docs/images/wizard-dns.png) |
 
-The hero picture above is the dark theme; *System* follows the device. On a phone tables become cards and dialogs fill the screen.
+The wizard warns when a port it needs is taken (for example when another proxy holds 80 and 443) and leaves
+alone what is installed already. The DNS account is asked once and handed to Matcad and Matddns.
 
 ## Quick start
 
@@ -183,6 +194,7 @@ setup wizard. An update is `docker compose pull && docker compose up -d`; everyt
 | `Mattiverse__SessionLifetimeDays` | `30` | How long a sign-in stays valid |
 | `Mattiverse__NetworkName` | `mattiverse` | Shared Docker network of the engines and the apps' UIs |
 | `Mattiverse__NetworkSubnet` | – | Subnet (like `10.253.200.0/24`) for that network, if Docker's default address pools are used up |
+| `Mattiverse__ProjectPrefix` | `mattiverse` | The start of the compose project names (`mattiverse-<app>`); a second Mattiverse on the same host needs its own |
 | `Mattiverse__HostPortRangeStart` / `End` | `8100` / `8999` | Pool for app ports when the preferred port is taken |
 | `Mattiverse__Admin__Seed` | `false` | Create the admin from `__Username` / `__Password` (headless installs; the password must be changed at the first sign-in) |
 | `Mattiverse__DockerHost` | – | Use another Docker endpoint than the mounted socket |
@@ -203,22 +215,26 @@ setup wizard. An update is `docker compose pull && docker compose up -d`; everyt
 - An app is a **compose project** named `mattiverse-<app>`. Mattiverse renders the catalog entry into one compose file (container
   names, labels, the shared network, the host port of the UI, an `x-matdock` block) plus a `.env` with your answers and creates it as a
   **stack in MatDock** through MatDock's REST API. The stack is yours to edit there; an update keeps your version.
-- Status, containers and logs are read straight from Docker, so the launcher stays correct when an engine is down.
+- Status, containers and logs are read straight from Docker, so the home screen stays correct when an engine is down.
 - Containers of an app are only attached to the **shared network** `mattiverse` when they must be reachable by
   the proxy (the UI service); databases stay private to their stack.
 - With a domain, every install creates the route `<app>.<domain>` in **Matcad** and the record in **Matddns**; uninstalling removes both.
   Mattiverse itself gets a route too. With a DNS account Matcad issues one wildcard certificate through the DNS challenge.
 - **Backups** are made by MatDock (a bundle of volumes, compose and `.env`) and listed in MatDock too; the apps that Mattiverse runs itself
   are backed up by Mattiverse's own runner. One page shows both.
+- **The window** is a frame of Mattiverse's own pages; a page in it drops its menu and header and keeps only its content. An engine is shown
+  in the window when it allows it: Mattiverse passes its own addresses in **`MAT_FRAME_ANCESTORS`** (its route, this machine with its port,
+  the addresses people signed in from), and the engine answers with `frame-ancestors` for them (MatPlatform 1.5.0). Mattiverse checks the
+  headers first and offers a new tab, with the reason, when an engine does not allow it.
 - Without an engine's API (an older image, or not installed yet) Mattiverse falls back to its own `docker compose` runner, so nothing stops working.
-- The design decisions (what the engines own, where the compose files are, how this relates to MatOS) are in
+- The design decisions (what the engines own, where the compose files are, the home screen, how this relates to MatOS) are in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); the contract with the engines is [docs/ENGINES.md](docs/ENGINES.md).
 
 ## Roles
 
 | Role | Can |
 |---|---|
-| **Admin** | everything: store, installs, updates, backups, users, settings, activity |
+| **Admin** | everything: store, installs, updates, backups, users, settings, activity, the engines |
 | **User** | see and open the apps (no credentials, no actions) |
 | **Anonymous** | open the one app behind a **shared link** (`/s/<token>`); links expire and can be revoked |
 
@@ -229,11 +245,12 @@ JavaScript. No Node build step.
 
 ```bash
 dotnet build Mattiverse.slnx          # 0 warnings expected
-dotnet test                           # unit tests (catalog, installer files, backups, schedules, parsing, the markup of the pages)
+dotnet test                           # unit tests (catalog, installer files, backups, schedules, parsing, frames, the markup of the pages)
 ./scripts/redeploy.ps1                # rebuild the container and redeploy the dev stack
 ./scripts/redeploy.ps1 -Fresh         # ... with a clean data volume (the first-run setup appears again)
-(cd tests/e2e && npm install && node run.js)   # the pages in a real browser against the dev stack
+(cd tests/e2e && npm install && node run.js)   # the pages and the home screen in a real browser against the dev stack
 ./scripts/update-matui.ps1            # bring a newer MatUi from a running MatDesign into wwwroot/matui
+node scripts/wallpapers/render.js     # draw the wallpapers again
 ```
 
 The dev stack is the app plus a SQLite web viewer (the SQLite counterpart of pgAdmin) on
@@ -257,8 +274,9 @@ GitHub Action, which also builds the multi-arch image (`amd64`, `arm64`).
 
 | Area | Status |
 |---|---|
-| Launcher, store, wizard, themes, mobile layout | ✅ |
-| The look of the Mat family (MatUi of MatDesign: menu, lists, forms, dialogs, dark mode) | ✅ |
+| Mattiverse OS: home screen, widgets, one window, the folder *System*, wallpapers, phone layout | ✅ |
+| The look of the Mat family inside the window (MatUi of MatDesign: lists, forms, dialogs, dark mode) | ✅ |
+| Store, setup wizard, themes | ✅ |
 | Install / update / uninstall / start / stop with live logs | ✅ |
 | Backups: manual, scheduled, retention, restore, download (MatDock's, merged with Mattiverse's own) | ✅ |
 | Local users, roles, persistent sessions, shared links | ✅ |
@@ -267,9 +285,10 @@ GitHub Action, which also builds the multi-arch image (`amd64`, `arm64`).
 | Single sign-on through MatIdentity (installed and wired by Mattiverse: the apps and Mattiverse itself) | ✅ |
 | Mail through MatSMTP (installed by the wizard; a relay user and the `MATSMTP_*` variables for every app that sends mail) | ✅ (the apps still have to read the variables) |
 | Apps that describe themselves (platform contract): the tab Manage with their tiles, settings and buttons | ✅ |
+| The engines inside the window (`MAT_FRAME_ANCESTORS`, MatPlatform 1.5.0) | ✅ in Mattiverse; the engines on their `feature/frame-ancestors` branches, in their images with the next release |
+| Widgets you arrange yourself, widgets that apps describe in their `/api` | planned |
 | Microsoft Entra ID sign-in | planned (the login is already behind `AuthService` / `SessionService`) |
 | Remote backup targets (SMB, off-site) | MatDock's backup targets |
-| The engine APIs | on the `mattiverse-integration` branches of MatDock, Matcad and Matddns; they reach the released images with the next release of each ([docs/INTEGRATION.md](docs/INTEGRATION.md)) |
 
 ## License
 
