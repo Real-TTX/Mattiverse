@@ -57,7 +57,7 @@ you can edit it there, and Mattiverse keeps your change when it updates the app.
 - Everything the wizard created carries a **Managed by Mattiverse** badge in the engine
 
 **Store**
-- Catalog of the Mat apps (MatMail, MatFile, MatDrive, MatOffice, MatPaper, MatPlay, MatSplit, MatTrakr, Matmon, MatCMS, MatDo, MatBu),
+- Catalog of the Mat apps (MatMail, MatFile, MatDrive, MatOffice, MatPaper, MatPlay, MatSplit, MatTrakr, Matmon, MatCMS, MatDo, MatBoard, MatShape, MatBu),
   [MatDesign](https://github.com/Real-TTX/MatDesign) (the design and identity of all of them) and a few infrastructure apps
 - **Passwords are generated** and shown (hidden until you ask) on the app's page
 - Add your **own apps** by dropping a compose file into `/data/catalog` (see [docs/CATALOG.md](docs/CATALOG.md))

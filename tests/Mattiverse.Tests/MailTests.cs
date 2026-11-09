@@ -27,7 +27,7 @@ public class MailTests
             image: nginx
         """;
 
-    private static readonly string[] MailApps = ["matdock", "matbu", "matmon", "matcms", "matddns", "matidentity", "matdrive", "matoffice"];
+    private static readonly string[] MailApps = ["matdock", "matbu", "matmon", "matcms", "matddns", "matidentity", "matdrive", "matoffice", "matboard", "matshape"];
 
     private static CatalogService CreateCatalog()
         => new(new AppPaths(Path.Combine(Path.GetTempPath(), "mattiverse-tests-" + Guid.NewGuid().ToString("N"))), NullLogger<CatalogService>.Instance);

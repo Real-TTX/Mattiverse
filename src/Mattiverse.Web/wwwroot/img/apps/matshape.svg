@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MatShape">
+  <rect width="512" height="512" rx="112" fill="#3CB764"/>
+  <!-- an isometric block with a drilled hole: a part, the way a CAD tool shows it -->
+  <path d="M256 104 398 186 256 268 114 186Z" fill="#FFFFFF"/>
+  <path d="M114 186 256 268V432L114 350Z" fill="#D9F2E1"/>
+  <path d="M398 186 256 268V432L398 350Z" fill="#0B1020"/>
+  <defs><clipPath id="ms-hole"><ellipse cx="256" cy="186" rx="54" ry="31"/></clipPath></defs>
+  <ellipse cx="256" cy="186" rx="54" ry="31" fill="#0B1020"/>
+  <path d="M190 186a66 31 0 0 1 132 0v26a66 31 0 0 0-132 0z" fill="#2E8F4E" clip-path="url(#ms-hole)"/>
+  <path d="M256 104 398 186 256 268 114 186Z M114 186 256 268V432L114 350Z" fill="none" stroke="#0B1020" stroke-width="10" stroke-linejoin="round"/>
+  <!-- a dimension along the front edge -->
+  <path d="M86 214v150M78 214h16M78 364h16" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" opacity=".9"/>
+</svg>
