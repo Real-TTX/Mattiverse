@@ -13,43 +13,6 @@
     form.addEventListener('change', function (e) { if (e.target.matches('select')) { form.submit(); } });
   });
 
-  // ------------------------------------------------------------------ home: clock, greeting, filter
-
-  var clock = $('[data-clock]');
-  if (clock) {
-    var dateEl = $('[data-clock-date]');
-    var greetEl = $('[data-greeting]');
-    var tick = function () {
-      var now = new Date();
-      clock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      if (dateEl) { dateEl.textContent = now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }); }
-      if (greetEl) {
-        var h = now.getHours();
-        var part = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-        greetEl.textContent = part + ', ' + greetEl.getAttribute('data-greeting');
-      }
-    };
-    tick();
-    setInterval(tick, 15000);
-  }
-
-  // The search of the home screen: it narrows the apps to the name typed; while it has a term the widgets step aside. The key / puts the focus there.
-  var filter = $('[data-tile-filter]');
-  if (filter) {
-    filter.addEventListener('input', function () {
-      var q = filter.value.trim().toLowerCase();
-      $$('.mv-app[data-name]').forEach(function (t) { t.hidden = q !== '' && t.getAttribute('data-name').indexOf(q) === -1; });
-      $$('[data-widget]').forEach(function (w) { w.hidden = q !== ''; });
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) { return; }
-      var t = e.target;
-      if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) { return; }
-      e.preventDefault();
-      filter.focus();
-    });
-  }
-
   // ------------------------------------------------------------------ a secret (credentials): shown on a click, hidden again on the next
 
   document.addEventListener('click', function (e) {
@@ -67,8 +30,13 @@
 
   var auto = $('[data-autorefresh]');
   if (auto) {
-    setTimeout(function () { if (!document.hidden) { location.reload(); } else { document.addEventListener('visibilitychange', function () { location.reload(); }, { once: true }); } },
-      parseInt(auto.getAttribute('data-autorefresh'), 10) || 5000);
+    var wait = parseInt(auto.getAttribute('data-autorefresh'), 10) || 5000;
+    var reload = function () {
+      // On the home screen a reload would take its window with it (js/os.js): wait while one is open.
+      if (document.body.classList.contains('os-has-window')) { setTimeout(reload, wait); return; }
+      if (!document.hidden) { location.reload(); } else { document.addEventListener('visibilitychange', function () { location.reload(); }, { once: true }); }
+    };
+    setTimeout(reload, wait);
   }
 
   // ------------------------------------------------------------------ job log viewer: <pre data-job-log data-job-id="12">

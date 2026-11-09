@@ -69,11 +69,11 @@ src/Mattiverse.Core        domain, no web types
   Configuration/             options, AppPaths, JsonConfigStore, SystemConfig
 src/Mattiverse.Web         Razor Pages, controls, JS/CSS, Program.cs
   Controls/                  tag helpers icon (a use of the sprite), app-icon, mat-field (label, control, hint, error), tab-bar; ListModels (ToolbarModel, PagerModel, ListView, ListQuery)
-  Pages/                     Index (launcher), Apps/, Store/, Backups/, Jobs/, Settings/, Wizard/, Users/, Account/, Share/
-  Pages/Shared/              _Layout (the shell: menus, switcher, user, theme, breadcrumb), _Launcher (the home screen: bar, wallpaper, no menu), _Bare (no menu), _Head, _Toolbar, _Pager, _ValidationSummary, _StatusPill, _DnsFields
+  Pages/                     Index (Mattiverse OS), Engines/ (one engine in the window), Apps/, Store/, Backups/, Jobs/, Settings/, Wizard/, Users/, Account/, Share/
+  Pages/Shared/              _Layout (the shell: menus, switcher, user, theme, breadcrumb), _Launcher (Mattiverse OS: status bar, wallpaper, the one window, no menu), _Bare (no menu), _Head, _Toolbar, _Pager, _ValidationSummary, _StatusPill, _DnsFields
   Infrastructure/            cookie session validation, setup guard, DB bootstrap, API endpoints, health check, MatIdentitySignIn, BackchannelLogout (POST /signout-backchannel)
-  Support/                   Toolkit (the icon sprite), Ui (Icon, Logo), Navigation (the menus: NavSet, NavItem, NavBadge), Launcher (the parts of Mattiverse as apps on the home screen and in its dock), Crumbs, AppUrls, FrameProbe, AppStatus, Format
-  wwwroot/matui/             the toolkit, a copy of MatDesign's; wwwroot/css/mattiverse.css the few classes only this app has (mv-*); wwwroot/js/mattiverse.js its behaviour
+  Support/                   Toolkit (the icon sprite), Ui (Icon, Logo), Navigation (the menus: NavSet, NavItem, NavBadge), Launcher (the parts of Mattiverse as apps on the home screen and in its dock), EngineOverview (the five engines for the settings, the home screen and /Engines), Crumbs, AppUrls, FrameProbe, AppStatus, Format
+  wwwroot/matui/             the toolkit, a copy of MatDesign's; wwwroot/css/mattiverse.css the few classes only this app has (mv-*, mv-in-window); css/os.css the home screen (os-*); js/mattiverse.js its behaviour, js/os.js the home screen, js/window-mode.js a page in the window
 tests/Mattiverse.Tests       unit tests + WebUiTests (they read the source of the pages)
 tests/e2e                    run.js: the pages in a real browser against the running dev stack
 ```
@@ -106,11 +106,13 @@ tests/e2e                    run.js: the pages in a real browser against the run
 - The menu is `Navigation.For` (two menus for an administrator, one for a user; Settings is a submenu; a badge counts what runs). A page sets `Title`, `PageSub`, `Crumbs` and, where needed, `Width`, `OwnHead`
   or `Flush` (an app in a frame). Pages without a menu (sign-in, setup, a shared link, errors) use `_Bare`.
 - **The logo is the planet with its orbit (`img/logo.svg`), on purpose:** the owner prefers it to the flat glyph tile that rule IDENT-03 asks for. Do not replace it without asking.
-- **The home screen is a launcher without the menu, on purpose** (owner, 2026-11-08; docs/ARCHITECTURE.md "The home screen"): `_Launcher` instead of `_Layout`, a bar with logo, theme and person on top,
-  apps as icons without a frame, the parts of Mattiverse as apps (`Support/Launcher.cs`), widgets of two cells, search and dock at the bottom, the account's wallpaper behind it
-  (`Core/Users/Wallpapers.cs`; default Orbit, light or dark with the theme). An exception to SHELL-01/SHELL-03 for the home screen only: do not bring the menu back there.
-  Wallpapers are drawn by `scripts/wallpapers` (`node scripts/wallpapers/render.js` writes `wwwroot/img/wallpapers`); a new one needs its id in `Wallpapers.All`, its rule in
-  `mattiverse.css` and its pictures (`WallpaperTests` checks all three).
+- **The home screen is Mattiverse OS, on purpose** (owner, 2026-11-08/09; docs/ARCHITECTURE.md "The home screen"): `_Launcher` with `css/os.css` and `js/os.js`, its own look
+  (status bar, glass, the system font; colours only as `--os-*` in `os.css`), NOT the toolkit: do not bring the menu of MatUi back there. ONE window at a time: `data-window` opens a page of
+  Mattiverse in it (an iframe); `js/window-mode.js` drops the menu, header and breadcrumb of a page in there (`mv-in-window`, `mv-window-only`), `_Bare` pages (`data-top-level`) leave it.
+  A page reached only through the menu needs a way inside the window (the settings have `_SettingsTabs`). Installed apps open in a new tab unless their menu says otherwise; the engines
+  live in the folder *System* and open `/Engines?id=` (`Support/EngineOverview.cs`); their own pages open there in the window when they allow Mattiverse to frame them
+  (`MAT_FRAME_ANCESTORS`, filled by `Core/Integrations/FrameLink.cs` for apps whose compose file names it; `FrameProbe`/`FramePolicy` check before a frame). Wallpapers are drawn by `scripts/wallpapers` (`node scripts/wallpapers/render.js`);
+  a new one needs its id in `Wallpapers.All`, its rule in `os.css` and its pictures (`WallpaperTests` checks all three).
 - The theme: the toolkit's button cycles System / Light / Dark and posts the choice to `/api/theme`; the account keeps it. Account, logout and the theme are at the bottom of the menu.
 - Mobile matters: check phone width (390 px) for every new page; secondary table columns get `mat-hide-sm`.
 - After a change to a CSS/cshtml file the container must be rebuilt (they are baked into the image).

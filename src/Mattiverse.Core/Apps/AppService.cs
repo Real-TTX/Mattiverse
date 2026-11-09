@@ -45,6 +45,7 @@ public sealed partial class AppService
     private readonly IEnumerable<IAppProvisioner> _provisioners;
     private readonly IdentityLink _identity;
     private readonly MailLink _mail;
+    private readonly FrameLink _frames;
     private readonly ILogger<AppService> _logger;
 
     public AppService(
@@ -62,6 +63,7 @@ public sealed partial class AppService
         IEnumerable<IAppProvisioner> provisioners,
         IdentityLink identity,
         MailLink mail,
+        FrameLink frames,
         ILogger<AppService> logger)
     {
         _db = db;
@@ -78,6 +80,7 @@ public sealed partial class AppService
         _provisioners = provisioners;
         _identity = identity;
         _mail = mail;
+        _frames = frames;
         _logger = logger;
     }
 
@@ -383,6 +386,9 @@ public sealed partial class AppService
         {
             log($"Warning: MatSMTP could not make the relay user of the app ({ex.Message}); its mail settings stay as they are for now.");
         }
+
+        // ... and the addresses of Mattiverse that may show the app in the window of the home screen.
+        await _frames.ApplyAsync(catalog, variables, ct);
 
         // A newer catalog entry may make an app an engine (MatIdentity, MatSMTP) or give it another role.
         app.IsCore = catalog.Core;

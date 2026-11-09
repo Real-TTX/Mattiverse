@@ -17,7 +17,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <script src="~/js/window-mode.js" asp-append-version="true"></script>
     <script src="~/matui/matui.boot.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/matui/matui.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/mattiverse.css" asp-append-version="true" />
+    @if (ViewData["Os"] is true)
+    {
+        @* The home screen is its own small operating system, not a page of the toolkit (docs/ARCHITECTURE.md, "The home screen"). *@
+        <link rel="stylesheet" href="~/css/os.css" asp-append-version="true" />
+    }
 </head>

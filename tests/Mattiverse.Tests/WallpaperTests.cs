@@ -2,7 +2,7 @@ using Mattiverse.Core.Users;
 
 namespace Mattiverse.Tests;
 
-/// <summary>The wallpapers of the home screen: the list, the pictures in wwwroot and the rule of the stylesheet that shows each.</summary>
+/// <summary>The wallpapers of the home screen: the list, the pictures in wwwroot and the rule of the stylesheet of the home screen (os.css) that shows each.</summary>
 public class WallpaperTests
 {
     private static readonly string Web = Path.Combine(Root(), "src", "Mattiverse.Web");
@@ -44,7 +44,7 @@ public class WallpaperTests
     [Fact]
     public void Every_wallpaper_has_its_pictures_and_a_rule_in_the_stylesheet()
     {
-        var css = File.ReadAllText(Path.Combine(Web, "wwwroot", "css", "mattiverse.css"));
+        var css = File.ReadAllText(Path.Combine(Web, "wwwroot", "css", "os.css"));
         foreach (var w in Wallpapers.All.Where(w => w.Id != Wallpapers.None))
         {
             foreach (var file in PicturesOf(w.Id))

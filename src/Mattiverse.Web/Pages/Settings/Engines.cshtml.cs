@@ -15,54 +15,30 @@ namespace Mattiverse.Web.Pages.Settings;
 public class EnginesModel : PageModel
 {
     private readonly SystemConfigService _config;
-    private readonly AppService _apps;
-    private readonly CatalogService _catalog;
-    private readonly MatDockClient _matdock;
-    private readonly MatcadClient _matcad;
-    private readonly MatddnsClient _matddns;
-    private readonly MatIdentityClient _matidentity;
-    private readonly MatSmtpClient _matsmtp;
+    private readonly EngineOverview _engines;
     private readonly MatDockEngine _matdockEngine;
     private readonly AppReconciler _reconciler;
-    private readonly AppUrls _urls;
     private readonly JobService _jobs;
+    private readonly FrameLink _frames;
 
-    public EnginesModel(
-        SystemConfigService config,
-        AppService apps,
-        CatalogService catalog,
-        MatDockClient matdock,
-        MatcadClient matcad,
-        MatddnsClient matddns,
-        MatIdentityClient matidentity,
-        MatSmtpClient matsmtp,
-        MatDockEngine matdockEngine,
-        AppReconciler reconciler,
-        AppUrls urls,
-        JobService jobs)
+    public EnginesModel(SystemConfigService config, EngineOverview engines, MatDockEngine matdockEngine, AppReconciler reconciler, JobService jobs, FrameLink frames)
     {
+        _frames = frames;
         _config = config;
-        _apps = apps;
-        _catalog = catalog;
-        _matdock = matdock;
-        _matcad = matcad;
-        _matddns = matddns;
-        _matidentity = matidentity;
-        _matsmtp = matsmtp;
+        _engines = engines;
         _matdockEngine = matdockEngine;
         _reconciler = reconciler;
-        _urls = urls;
         _jobs = jobs;
     }
 
-    /// <summary>One engine as the page shows it. <see cref="Status"/> is <c>null</c> when it is not installed or its API does not answer.</summary>
-    public sealed record EngineRow(CatalogApp Catalog, InstalledApp? App, EngineStatus? Status, string? OpenUrl, string Owns);
-
     public SystemConfig Config { get; private set; } = new();
-    public List<EngineRow> Rows { get; private set; } = new();
+    public IReadOnlyList<EngineRow> Rows { get; private set; } = [];
 
     /// <summary>Are the apps deployed through MatDock (else Mattiverse runs them itself)?</summary>
     public bool DeployedByMatDock { get; private set; }
+
+    /// <summary>The addresses of Mattiverse the engines get as MAT_FRAME_ANCESTORS (with their next update), so the window of the home screen may show them.</summary>
+    public IReadOnlyList<string> FrameOrigins { get; private set; } = [];
 
     [TempData] public string? StatusMessage { get; set; }
 
@@ -70,48 +46,9 @@ public class EnginesModel : PageModel
     {
         var ct = HttpContext.RequestAborted;
         Config = await _config.GetAsync(ct);
-        var apps = await _apps.ListAsync(ct);
-
-        var owns = new Dictionary<string, string>
-        {
-            [EngineIds.MatDock] = "Stacks, containers, backups, schedules and updates of your apps.",
-            [EngineIds.Matcad] = "Routes, certificates and logins: the address of every app.",
-            [EngineIds.Matddns] = "Sources of your IP, DNS records and the rules that keep them current.",
-            [EngineIds.MatIdentity] = "People, groups, and which app each of them may open: one sign-in for all apps.",
-            [EngineIds.MatSmtp] = "The relay user of every app that sends mail, the account the mail leaves through, the queue.",
-        };
-
-        // One after the other: the clients share the request's database context.
-        var clients = new Dictionary<string, EngineClient>
-        {
-            [EngineIds.MatDock] = _matdock,
-            [EngineIds.Matcad] = _matcad,
-            [EngineIds.Matddns] = _matddns,
-            [EngineIds.MatIdentity] = _matidentity,
-            [EngineIds.MatSmtp] = _matsmtp,
-        };
-
-        Rows = [];
-        foreach (var id in EngineIds.All)
-        {
-            var catalog = _catalog.Get(id);
-            if (catalog is null)
-            {
-                continue;
-            }
-
-            var app = apps.FirstOrDefault(a => a.CatalogId == id && a.Lifecycle != AppLifecycle.Failed)
-                ?? apps.FirstOrDefault(a => a.CatalogId == id);
-            var installed = app is { Lifecycle: AppLifecycle.Installed };
-            Rows.Add(new EngineRow(
-                catalog,
-                app,
-                installed ? await clients[id].GetStatusAsync(ct) : null,
-                installed ? await _urls.OpenUrlAsync(app!, Request, ct) : null,
-                owns[id]));
-        }
-
+        Rows = await _engines.ListAsync(Request, askApi: true, ct);
         DeployedByMatDock = await _matdockEngine.IsAvailableAsync(ct);
+        FrameOrigins = await _frames.OriginsAsync(ct);
     }
 
     /// <summary>Gives Matcad and Matddns the domain, the DNS account and the routes and records of all apps again.</summary>

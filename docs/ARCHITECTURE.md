@@ -151,24 +151,38 @@ Mattiverse uses **MatUi**, the UI toolkit of [MatDesign](https://github.com/Real
 - **The logo** stays the planet with its orbit, not the flat glyph tile that MatDesign's rule IDENT-03 describes: the owner prefers it.
 - Mobile first where it counts: a drawer for the menu, tables become cards, dialogs are full screen, safe-area insets for notches.
 
-### The home screen
+### The home screen: Mattiverse OS
 
-The home screen is a **launcher like a phone** (the owner's choice of 2026-11-08, "variant B", modelled on umbrelOS and iOS), not a page in the shell:
+The home screen is a **small operating system** (the owner's choice of 2026-11-08/09, modelled on iOS, umbrelOS and MatOS), not a page of the toolkit:
 
-- **No menu on the left.** `Pages/Shared/_Launcher.cshtml` draws a bar with the logo, the theme button and the person (whose menu holds the account, the wallpaper,
-  the password, sign-out and the version) instead of the menu. This is a deliberate exception to MatDesign's SHELL-01 and SHELL-03 for the home screen only,
-  approved by the owner like the logo: do not bring the menu back to it. Every other page keeps the shell for now.
-- **Everything is an app.** The installed apps are icons without a frame (a badge on the corner tells a state other than running, with an icon); the parts of
-  Mattiverse are apps too (`Support/Launcher.cs`): Activity and Users on the screen, Store, Apps, Backups and Settings in the dock (a user gets Apps and the account).
-- **Widgets** are cards of two cells in the same grid (`mv-grid`, `mv-span-2`): apps running, the last backup (amber after seven days or with none), the activity, Docker.
-  The search above the dock narrows the apps (key `/`); while it has a term the widgets step aside.
+- **Its own look.** `Pages/Shared/_Launcher.cshtml` with `css/os.css` and `js/os.js`: a status bar (logo, running tasks, theme, the person, date and time), the wallpaper over
+  the whole screen, widgets of glass, app icons, a search and a dock of glass. Glass, colour gradients on the icons of the system and the system font are allowed there on
+  purpose; the colours are the `--os-*` properties of `os.css`. This is a deliberate exception to MatDesign (SHELL-01, SHELL-03, COLOR-06) for the home screen,
+  approved by the owner like the logo: do not bring the menu of the toolkit back to it.
+- **One window at a time.** Anything with `data-window` opens that page of Mattiverse in THE window over the home screen: an iframe of the same origin. In there the page
+  keeps MatUi for its content and drops the menu, the header and the breadcrumb (`js/window-mode.js` sets `mv-in-window` on `<html>` before the page is drawn;
+  `mv-window-only` shows what only makes sense there, such as the tabs of the settings). The window has a title (the page's), Back (inside the window), Reload,
+  Open in a new tab, and three lights: red closes it, yellow goes home and keeps the app as it is (a dot under its icon; a tap brings it back), green fills the screen.
+  On a phone it fills the screen with a bar at the bottom to go home. The address keeps the page of the window (`/#/Store`): a reload opens it again, the browser's
+  Back goes home. It is not a window manager: there is never a second window.
+- **Pages that belong to the whole tab** (sign-in, a shared link, an error: `_Bare`, `<html data-top-level>`) leave the window; a link to `/` inside it, or a page that
+  lands on the home screen, closes it. Opened directly (a new tab), every page still has the shell of the toolkit with its menu.
+- **Everything is an app.** The parts of Mattiverse (`Support/Launcher.cs`): Activity and Users on the screen, Store, Apps, Backups and Settings in the dock (a user gets
+  Apps and the account). An installed app opens in a new tab by default (its own address); its menu (a right click, a long press) opens it in the window instead
+  (`/Apps/Open`, which falls back to a button when the app forbids a frame) and can make that its default in this browser (localStorage).
+- **The engines are part of the system**, not apps between the others: a widget with the five and their state (from Docker), and the folder *System* with them as apps.
+  An engine opens its own window in Mattiverse (`/Engines?id=`, `Support/EngineOverview.cs`): its state and version (its API), what it keeps for Mattiverse and which of
+  your apps it serves (a stack, a route, a DNS record, the sign-in, a relay user), and its own pages: **here in the window** when the engine lets Mattiverse frame it,
+  else in a new tab. An engine allows the addresses in `MAT_FRAME_ANCESTORS` (MatDesign docs/PLATFORM.md, "Shown inside another app"), which Mattiverse fills before
+  it deploys an app whose compose file names it (`Core/Integrations/FrameLink.cs`: the route behind the proxy, `localhost` and the configured address with the port
+  Mattiverse is published on, the addresses people signed in from). `Support/FrameProbe.cs` asks the app first (`FramePolicy`: `frame-ancestors` wins over
+  `X-Frame-Options`, judged for the address of the page) and offers a new tab otherwise. Older engine images refuse frames: they show it after an update.
+- **Widgets** are cards in the grid of the apps (two cells, or two by two): today (the time, the greeting: the page's h1), the engines, apps running, the last backup
+  (amber after seven days or with none), the activity, Docker. The search above the dock narrows the apps (key `/`, Enter opens the first); the widgets step aside.
 - **The wallpaper** is a picture of the account (`User.Wallpaper`, the claim `mattiverse:wallpaper`, `Core/Users/Wallpapers.cs`, the tab *Home screen* of the account).
-  The default is *Orbit*, the planet of the logo, in a light and a dark version that follow the theme; Earth, Jungle, Lagoon and Mountains are views from above; *None* is
-  the plain background. A wallpaper is content, not a surface (MatDesign COLOR-06 is about surfaces): widgets, the dock and the menus stay solid on it, a veil of the theme's
-  background keeps text readable (stronger for a dark picture in the light theme) and text on the picture has a soft shadow of that background.
+  The default is *Orbit*, the planet of the logo, light or dark with the theme; Earth, Jungle, Lagoon and Mountains are views from above; *None* is the plain background.
   The pictures are drawn, not downloaded: `scripts/wallpapers` (SVG with noise filters, rendered to JPEG with Edge; `node scripts/wallpapers/render.js`).
-- Next (planned): parts of Mattiverse open as a full-screen "window" over the home screen, apps can open in a new tab or in such a window, and the widgets
-  can be placed, sized and taken from the apps' `/api`. Only one app is ever open; the window is a look, not a window manager.
+- Next (planned): widgets that can be placed and sized, and widgets from the apps' `/api`.
 
 ## What is deliberately not here
 

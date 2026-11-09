@@ -179,6 +179,9 @@ public sealed class CatalogMail
 public static class ManagedVariables
 {
     public const string ApiKey = "MAT_API_KEY";
+
+    /// <summary>The addresses of Mattiverse that may show the app in a frame (the window of its home screen), separated by spaces.</summary>
+    public const string FrameAncestors = "MAT_FRAME_ANCESTORS";
     public const string IdentityAuthority = "MATIDENTITY_AUTHORITY";
     public const string IdentityInternalUrl = "MATIDENTITY_INTERNAL_URL";
     public const string IdentityClientId = "MATIDENTITY_CLIENT_ID";

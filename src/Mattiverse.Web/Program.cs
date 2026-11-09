@@ -66,6 +66,9 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddMattiverseCore();
 builder.Services.AddMattiverseWorkers();
 builder.Services.AddScoped<Mattiverse.Web.Support.AppUrls>();
+builder.Services.AddScoped<Mattiverse.Web.Support.EngineOverview>();
+// The probe of a frame follows no redirect by itself: one to the public address of an app cannot be reached from inside Docker (Support/FrameProbe.cs).
+builder.Services.AddHttpClient(Mattiverse.Web.Support.FrameProbe.ClientName).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<Mattiverse.Web.Support.FrameProbe>();
 builder.Services.AddHostedService<DockerStartupService>();
 
@@ -121,7 +124,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Share/View");
 
     // Roles: Admin manages everything; User opens apps and looks at them; Anonymous only sees a shared link.
-    foreach (var folder in new[] { "/Store", "/Backups", "/Jobs", "/Users", "/Settings", "/Wizard" })
+    foreach (var folder in new[] { "/Store", "/Backups", "/Jobs", "/Users", "/Settings", "/Wizard", "/Engines" })
     {
         options.Conventions.AuthorizeFolder(folder, "AdminOnly");
     }

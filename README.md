@@ -32,18 +32,20 @@ it there, and Mattiverse keeps your change when it updates the app.
 
 ## At a glance
 
-**Launcher**
-- A **home screen like a phone**: installed apps as icons (a badge when one is not running), widgets for the apps
-  running, the last backup, the activity and Docker, a search (key `/`) and a **dock** with the store, the apps, the
-  backups and the settings. The parts of Mattiverse are apps too
+**Mattiverse OS**
+- A **home screen like a phone**: a status bar with the time, the theme and you, widgets of glass (today, the
+  engines, apps running, the last backup, the activity, Docker), the apps as icons (a badge when one is not running),
+  a search (key `/`) and a **dock** with the store, the apps, the backups and the settings
+- **One window at a time**: the store, the backups, the settings ... open in a window over the home screen, with a
+  title, Back, Reload, a new tab and three lights: close, home (the app stays open), full screen. On a phone it fills
+  the screen with a bar to go home. The address keeps the window, so a reload opens it again
+- **The engines are part of the system**: a widget with their state, a folder *System*, and a window for each that
+  shows what it keeps for Mattiverse and which apps it serves
+- An installed app opens in a new tab, or in the window when you choose that in its menu (right click, long press)
 - **Wallpapers** behind it, drawn for Mattiverse: *Orbit* (the planet of the logo, light or dark with the theme, the
   default), the Earth from orbit, a jungle, a lagoon and mountains seen from above, or none; each person picks their own
-- **One app open at a time**: the app fills the screen with a bar to go back (apps that forbid being embedded
-  open in a new tab)
-- Theme (**System / Light / Dark**) and the person on the bar of the home screen; on the other pages account, theme
-  and sign-out are at the **bottom left** of the menu, which is a drawer on a phone
-- Looks and behaves like every other Mat app: it is built on **MatUi**, the toolkit of
-  [MatDesign](https://github.com/Real-TTX/MatDesign), with its menu, lists, forms, dialogs and dark mode
+- Inside the windows Mattiverse looks and behaves like every other Mat app: it is built on **MatUi**, the toolkit of
+  [MatDesign](https://github.com/Real-TTX/MatDesign), with its lists, forms, dialogs and dark mode
 
 **Setup wizard** (first start, and again whenever you like)
 - Installs the five **engines**: MatDock (required), Matcad, Matddns, MatIdentity (one sign-in) and MatSMTP (the mail of all apps); skip one if something else on the host does its job

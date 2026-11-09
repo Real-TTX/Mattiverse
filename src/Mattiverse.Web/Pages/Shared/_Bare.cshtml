@@ -8,7 +8,8 @@
     var theme = User.Identity?.IsAuthenticated == true ? User.GetTheme() : "system";
 }
 <!DOCTYPE html>
-<html lang="en" data-app="@Ui.App.Id" @(theme is "light" or "dark" ? Html.Raw($"data-theme=\"{theme}\"") : null)>
+@* data-top-level: such a page takes the whole tab; inside the window of the home screen it leaves the window (js/window-mode.js). *@
+<html lang="en" data-app="@Ui.App.Id" data-top-level @(theme is "light" or "dark" ? Html.Raw($"data-theme=\"{theme}\"") : null)>
 <partial name="_Head" model="@(string.IsNullOrEmpty(title) || title == name ? name : $"{title} · {name}")" />
 <body>
     <a class="mat-skip" href="#main">Skip to the content</a>

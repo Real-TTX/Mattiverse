@@ -13,7 +13,7 @@ x-mattiverse:
   recommended: true
   provision: matddns
   core: true
-  # The platform contract (/api) and the sign-in through MatIdentity: Mattiverse fills MAT_API_KEY and MATIDENTITY_*.
+  # The platform contract (/api) and the sign-in through MatIdentity: Mattiverse fills MAT_API_KEY, MAT_FRAME_ANCESTORS and MATIDENTITY_*.
   platform: true
   identity: {}
   # Sends mail (notifications): through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
@@ -56,6 +56,8 @@ services:
       MATDDNS_API_KEY: ${MATDDNS_API_KEY}
       MATDDNS_FORWARDED_HEADERS: "true"
       MAT_API_KEY: ${MAT_API_KEY}
+      # The addresses of Mattiverse, which may show it in the window of its home screen (MatDesign docs/PLATFORM.md); empty: nobody may frame it.
+      MAT_FRAME_ANCESTORS: ${MAT_FRAME_ANCESTORS:-}
       MATIDENTITY_AUTHORITY: ${MATIDENTITY_AUTHORITY:-}
       MATIDENTITY_INTERNAL_URL: ${MATIDENTITY_INTERNAL_URL:-}
       MATIDENTITY_CLIENT_ID: ${MATIDENTITY_CLIENT_ID:-}

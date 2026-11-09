@@ -9,6 +9,8 @@
     var dns = DnsProviders.Find(Model.Config.Dns.Provider);
 }
 
+<partial name="_SettingsTabs" model="@("engines")" />
+
 <p>
     Mattiverse is the launcher on top of these five programs. Each one keeps its own part of the configuration, so you see
     the stacks in MatDock, the routes in Matcad, the DNS records in Matddns, the apps in MatIdentity and their relay users in MatSMTP, marked <em>Managed by Mattiverse</em>.
@@ -74,6 +76,7 @@
             <dt>Apps are run by</dt><dd>@(Model.DeployedByMatDock ? "MatDock (new apps become stacks there)" : "Mattiverse itself, with docker compose, until MatDock answers")</dd>
             <dt>Domain</dt><dd>@(string.IsNullOrEmpty(Model.Config.BaseDomain) ? "none: apps use their ports" : "*." + Model.Config.BaseDomain)</dd>
             <dt>DNS provider</dt><dd>@(dns is null ? "none: certificates use the HTTP challenge and you manage DNS yourself" : dns.Name)</dd>
+            <dt>May show the engines in its window</dt><dd>@foreach (var origin in Model.FrameOrigins) { <code>@origin</code> } <span class="mat-muted">(an engine gets them with its next update)</span></dd>
         </dl>
         <div class="mat-actions">
             <form method="post" asp-page-handler="Reconnect">

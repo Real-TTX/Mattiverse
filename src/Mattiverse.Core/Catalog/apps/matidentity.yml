@@ -47,6 +47,8 @@ services:
       # The public address is the issuer of every token; Mattiverse sets it (the route of the app, or this host and its port).
       MatIdentity__Issuer: ${MATIDENTITY_ISSUER:-}
       MAT_API_KEY: ${MAT_API_KEY}
+      # The addresses of Mattiverse, which may show it in the window of its home screen (MatDesign docs/PLATFORM.md); empty: nobody may frame it.
+      MAT_FRAME_ANCESTORS: ${MAT_FRAME_ANCESTORS:-}
       MatIdentity__Admin__Seed: "true"
       MatIdentity__Admin__Username: admin
       MatIdentity__Admin__Password: ${ADMIN_PASSWORD}

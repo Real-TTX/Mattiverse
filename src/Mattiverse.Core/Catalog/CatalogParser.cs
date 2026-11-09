@@ -100,6 +100,12 @@ public static partial class CatalogParser
             Add(ManagedVariables.ApiKey, "Platform API key", secret: true, generate: true);
         }
 
+        // An app that can be shown in the window of the home screen names the variable in its compose file (the engines).
+        if (app.ComposeYaml.Contains("${" + ManagedVariables.FrameAncestors, StringComparison.Ordinal))
+        {
+            Add(ManagedVariables.FrameAncestors, "Addresses of Mattiverse that may frame the app", secret: false);
+        }
+
         if (app.Identity is not null)
         {
             Add(ManagedVariables.IdentityAuthority, "MatIdentity address", secret: false);

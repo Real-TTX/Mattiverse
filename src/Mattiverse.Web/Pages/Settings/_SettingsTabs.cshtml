@@ -1,0 +1,16 @@
+@model string
+@{
+    // Inside the window of the home screen the menu (with its submenu Settings) is gone: these tabs lead between the pages of the settings.
+    // They are shown only there (mv-window-only); in the shell the submenu does it.
+    var tabs = new TabBarModel
+    {
+        Tabs =
+        [
+            new TabItem { Title = "General", Href = "/Settings", Icon = "sliders", Active = Model == "general" },
+            new TabItem { Title = "Engines", Href = "/Settings/Engines", Icon = "layers", Active = Model == "engines" },
+            new TabItem { Title = "System", Href = "/Settings/System", Icon = "server", Active = Model == "system" },
+            new TabItem { Title = "Setup wizard", Href = "/Wizard", Icon = "sparkles", Active = false },
+        ],
+    };
+}
+<div class="mv-window-only"><tab-bar model="tabs" label="Settings" /></div>

@@ -3,6 +3,7 @@ using Mattiverse.Core.Backups;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Docker;
+using Mattiverse.Core.Engines;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Jobs;
 using Mattiverse.Web.Support;
@@ -22,18 +23,28 @@ public class IndexModel : PageModel
     private readonly DockerService _docker;
     private readonly BackupService _backups;
     private readonly CatalogService _catalog;
+    private readonly AppUrls _urls;
+    private readonly EngineOverview _engines;
 
-    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, CatalogService catalog)
+    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, CatalogService catalog, AppUrls urls, EngineOverview engines)
     {
+        _engines = engines;
         _apps = apps;
         _config = config;
         _jobs = jobs;
         _docker = docker;
         _backups = backups;
         _catalog = catalog;
+        _urls = urls;
     }
 
-    public sealed record Tile(InstalledApp App, AppStatusView Status, string Href);
+    /// <summary>An installed app on the home screen.</summary>
+    /// <param name="App">The app.</param>
+    /// <param name="Status">Its state (the badge on the corner).</param>
+    /// <param name="Window">What the window of the home screen shows: the app in its frame (<c>/Apps/Open</c>), or its details when it has no web page or is not installed.</param>
+    /// <param name="Tab">The address of the app itself, for a new tab (the default of an app), or <c>null</c> when it has none.</param>
+    /// <param name="Details">Its page in Mattiverse.</param>
+    public sealed record Tile(InstalledApp App, AppStatusView Status, string Window, string? Tab, string Details);
 
     public string? IconOf(InstalledApp app) => _catalog.IconOf(app.CatalogId);
 
@@ -48,6 +59,12 @@ public class IndexModel : PageModel
     /// <summary>No backup at all, or the newest one is older than <see cref="BackupIsOld"/>.</summary>
     public bool BackupNeedsLook => LastBackup is not { } last || DateTime.UtcNow - last > BackupIsOld;
 
+    /// <summary>An engine on the home screen: its row, and its state from Docker (<c>null</c> when it is not installed). Its window is <see cref="EngineRow.Window"/>.</summary>
+    public sealed record EngineTile(EngineRow Row, AppStatusView? Status);
+
+    /// <summary>The five engines: in the folder System and in their widget (an administrator's), instead of between the apps.</summary>
+    public IReadOnlyList<EngineTile> Engines { get; private set; } = [];
+
     public IReadOnlyList<SystemApp> Dock { get; private set; } = [];
     public IReadOnlyList<SystemApp> SystemApps { get; private set; } = [];
 
@@ -61,14 +78,15 @@ public class IndexModel : PageModel
         var apps = (await _apps.ListAsync(ct)).Where(a => a.Pinned).ToList();
         var runtimes = Engine.Available ? await _apps.GetRuntimesAsync(ct) : new Dictionary<string, RuntimeInfo>();
 
-        Tiles = apps
-            .Select(a =>
-            {
-                var runtime = runtimes.GetValueOrDefault(a.Slug);
-                var opens = a.Lifecycle == AppLifecycle.Installed && a.UiService is not null;
-                return new Tile(a, AppStatus.Of(a, runtime), opens ? $"/Apps/Open?id={a.Id}" : $"/Apps/Details?id={a.Id}");
-            })
-            .ToList();
+        Tiles = new List<Tile>(apps.Count);
+        foreach (var a in apps.Where(a => !(isAdmin && EngineIds.IsEngine(a.CatalogId))))
+        {
+            var runtime = runtimes.GetValueOrDefault(a.Slug);
+            var details = $"/Apps/Details?id={a.Id}";
+            var opens = a.Lifecycle == AppLifecycle.Installed && a.UiService is not null;
+            var tab = opens ? await _urls.OpenUrlAsync(a, Request, ct) : null;
+            Tiles.Add(new Tile(a, AppStatus.Of(a, runtime), opens ? $"/Apps/Open?id={a.Id}" : details, tab, details));
+        }
 
         Running = Tiles.Count(t => t.Status.Css == "online");
 
@@ -76,6 +94,14 @@ public class IndexModel : PageModel
         {
             ActiveJobs = await _jobs.CountActiveAsync(ct);
             LastBackup = await _backups.LastSucceededAtAsync(ct);
+        }
+
+        if (isAdmin)
+        {
+            // The state from Docker, which the apps had already: the widget and the folder ask no engine (the window of one does).
+            Engines = (await _engines.ListAsync(Request, askApi: false, ct))
+                .Select(r => new EngineTile(r, r.App is null ? null : AppStatus.Of(r.App, runtimes.GetValueOrDefault(r.App.Slug))))
+                .ToList();
         }
 
         Dock = Launcher.Dock(isAdmin);

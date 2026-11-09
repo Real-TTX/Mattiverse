@@ -8,7 +8,8 @@
     ViewData["Crumbs"] = Crumbs.Of(("Apps", "/Apps"), (app.Name, null));
 }
 
-<div class="mv-appview">
+@* data-window-tab: what "Open in a new tab" of the window of the home screen opens (the app itself, not this page). *@
+<div class="mv-appview" data-window-tab="@Model.OpenUrl">
     <div class="mv-appview__bar">
         <div class="mv-appview__title">
             <app-icon name="@app.Name" icon="@Model.Icon" size="sm" />

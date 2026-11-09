@@ -134,6 +134,50 @@ public sealed partial class DockerService
         return _selfName;
     }
 
+    /// <summary>The port of the host that Mattiverse's own <paramref name="containerPort"/> is published on, or <c>null</c> outside Docker or when it is not published.</summary>
+    public async Task<int?> GetSelfHostPortAsync(int containerPort, CancellationToken ct = default)
+    {
+        var self = await GetSelfContainerNameAsync(ct);
+        if (self is null)
+        {
+            return null;
+        }
+
+        var inspect = await _cli.RunAsync(["inspect", "--format", "{{json .NetworkSettings.Ports}}", self], ct: ct);
+        return inspect.Success ? ParseHostPort(inspect.StdOut, containerPort) : null;
+    }
+
+    /// <summary>The first host port of <c>&lt;containerPort&gt;/tcp</c> in the JSON of <c>.NetworkSettings.Ports</c> (<c>{"8030/tcp":[{"HostIp":"0.0.0.0","HostPort":"8030"}]}</c>), or <c>null</c>.</summary>
+    public static int? ParseHostPort(string? json, int containerPort)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(string.IsNullOrWhiteSpace(json) ? "null" : json);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object
+                || !doc.RootElement.TryGetProperty($"{containerPort}/tcp", out var bindings)
+                || bindings.ValueKind != System.Text.Json.JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            foreach (var binding in bindings.EnumerateArray())
+            {
+                if (binding.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && binding.TryGetProperty("HostPort", out var hostPort)
+                    && int.TryParse(hostPort.GetString(), out var port) && port > 0)
+                {
+                    return port;
+                }
+            }
+
+            return null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
     // ------------------------------------------------------------------ containers
 
     /// <summary>All containers that carry the Mattiverse label, optionally only those of one instance.</summary>

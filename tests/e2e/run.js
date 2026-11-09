@@ -81,44 +81,98 @@ const pages = [
     await page.goto(BASE + '/');
     const seen = [await page.evaluate(() => document.documentElement.getAttribute('data-theme'))];
     for (let i = 0; i < 3; i++) {
-      const [response] = await Promise.all([page.waitForResponse(r => r.url().endsWith('/api/theme')), page.click('.mat-theme')]);
+      const [response] = await Promise.all([page.waitForResponse(r => r.url().endsWith('/api/theme')), page.click('[data-theme-toggle]')]);
       expectEqual(response.status(), 204, 'the choice is saved');
       await page.waitForTimeout(150);
       seen.push(await page.evaluate(() => document.documentElement.getAttribute('data-theme')));
     }
     expectTrue(new Set(seen.slice(0, 3)).size === 3 && seen[3] === seen[0], 'system, light and dark, then the first again: ' + seen.join(' > '));
   });
-  console.log('The home screen');
-  await check('the home screen is a launcher: no menu, the parts of Mattiverse as apps, the dock', async () => {
+  console.log('The home screen (Mattiverse OS)');
+  const win = () => page.frameLocator('#os-window .os-window__frame');
+  const winTitle = () => page.locator('#os-window [data-win-title]').innerText();
+  await check('the home screen is its own system: a status bar, the dock, the engines in a widget and in the folder System', async () => {
     await page.goto(BASE + '/');
-    expectEqual(await page.locator('.mat-nav').count(), 0, 'no menu on the left');
-    expectEqual(await page.locator('.mv-launcher[data-wallpaper]').count(), 1, 'the launcher with a wallpaper');
+    expectEqual(await page.locator('.mat-nav').count(), 0, 'no menu of the toolkit');
+    expectEqual(await page.locator('.os-status').count(), 1, 'the status bar');
+    expectEqual(await page.locator('.os-desktop[data-wallpaper]').count(), 1, 'the wallpaper');
     for (const href of ['/Store', '/Apps', '/Backups', '/Settings']) {
-      expectEqual(await page.locator(`.mv-dock a[href="${href}"]`).count(), 1, href + ' in the dock');
+      expectEqual(await page.locator(`.os-dock a[data-window="${href}"]`).count(), 1, href + ' in the dock');
     }
     for (const href of ['/Jobs', '/Users']) {
-      expectEqual(await page.locator(`.mv-grid .mv-app[href="${href}"]`).count(), 1, href + ' on the screen');
+      expectEqual(await page.locator(`.os-grid .os-app[data-window="${href}"]`).count(), 1, href + ' on the screen');
     }
-    expectTrue(await page.locator('.mv-grid [data-widget]').count() >= 3, 'widgets for the apps, the backups and the activity');
+    expectEqual(await page.locator('.os-engines .os-engine').count(), 5, 'the five engines in their widget');
+    await page.click('[data-os-folder="os-folder-system"]');
+    expectTrue(await page.locator('#os-folder-system').isVisible(), 'the folder opens');
+    expectEqual(await page.locator('#os-folder-system .os-app[href^="/Engines?id="]').count(), 5, 'the engines are its apps');
+    await page.keyboard.press('Escape');
+    expectTrue(!(await page.locator('#os-folder-system').isVisible()), 'Escape closes it');
   });
-  await check('the search of the home screen: / focuses it, it narrows the apps and the widgets step aside', async () => {
+  await check('a part of Mattiverse opens in the one window: a title, the page without its menu, Back', async () => {
     await page.goto(BASE + '/');
-    const all = await page.locator('.mv-grid .mv-app:visible').count();
+    await page.click('.os-dock a[data-window="/Store"]');
+    await page.waitForFunction(() => document.querySelector('#os-window [data-win-title]').textContent === 'Store');
+    expectTrue(await page.locator('#os-window').isVisible(), 'the window is open');
+    expectEqual(new URL(page.url()).hash, '#/Store', 'the address names its page');
+    expectEqual(await win().locator('html.mv-in-window').count(), 1, 'the page knows it is in the window');
+    expectTrue(!(await win().locator('.mat-nav').isVisible()), 'without the menu of the toolkit');
+    expectTrue(await page.locator('[data-win-back]').isDisabled(), 'nothing to go back to yet');
+    await win().locator('a[href^="/Store/Install"]').first().click();
+    await page.waitForFunction(() => !document.querySelector('[data-win-back]').disabled);
+    await page.click('[data-win-back]');
+    await page.waitForFunction(() => document.querySelector('#os-window [data-win-title]').textContent === 'Store');
+  });
+  await check('yellow goes home and keeps the app, red closes it', async () => {
+    await page.click('#os-window [data-win-home]');
+    await page.waitForFunction(() => document.getElementById('os-window').hidden);
+    expectEqual(new URL(page.url()).hash, '', 'the address is the home screen again');
+    expectEqual(await page.locator('.os-dock a[data-window="/Store"].is-running').count(), 1, 'the store still runs: a dot under it');
+    await page.click('.os-dock a[data-window="/Store"]');
+    await page.waitForFunction(() => !document.getElementById('os-window').hidden);
+    expectEqual(await winTitle(), 'Store', 'it comes back as it was');
+    await page.click('#os-window .os-lights [data-win-close]');
+    await page.waitForFunction(() => document.getElementById('os-window').hidden);
+    expectEqual(await page.locator('.is-running').count(), 0, 'closed: no dot');
+  });
+  await check('a reload keeps the window, and the settings have their tabs inside it', async () => {
+    await page.goto(BASE + '/#/Settings/Engines');
+    await page.waitForFunction(() => document.querySelector('#os-window [data-win-title]').textContent === 'Engines');
+    expectTrue(await win().locator('.mv-window-only .mat-tabs').isVisible(), 'the tabs of the settings');
+    await page.click('#os-window .os-lights [data-win-close]');
+  });
+  await check('an engine opens its own window in Mattiverse', async () => {
+    await page.goto(BASE + '/');
+    await page.click('[data-os-folder="os-folder-system"]');
+    const first = page.locator('#os-folder-system .os-app[href^="/Engines?id="]').first();
+    const name = await first.getAttribute('data-title');
+    await first.click();
+    await page.waitForFunction(n => document.querySelector('#os-window [data-win-title]').textContent === n, name);
+    expectEqual(await win().locator('h1').innerText(), name, 'the page of the engine');
+    expectTrue(!(await page.locator('#os-folder-system').isVisible()), 'the folder closed');
+    await page.click('#os-window .os-lights [data-win-close]');
+  });
+  await check('the search: / focuses it, it narrows the apps and the widgets step aside', async () => {
+    await page.goto(BASE + '/');
+    const all = await page.locator('.os-grid .os-app:visible').count();
     await page.keyboard.press('/');
     expectEqual(await page.evaluate(() => document.activeElement && document.activeElement.id), 'home-find', 'the search has the focus');
     await page.keyboard.type('users');
-    expectEqual(await page.locator('.mv-grid .mv-app:visible').count(), 1, 'only Users is left');
-    expectEqual(await page.locator('.mv-grid [data-widget]:visible').count(), 0, 'the widgets step aside');
+    expectEqual(await page.locator('.os-grid .os-app:visible').count(), 1, 'only Users is left');
+    expectEqual(await page.locator('.os-grid [data-widget]:visible').count(), 0, 'the widgets step aside');
     await page.fill('#home-find', '');
-    await page.dispatchEvent('#home-find', 'input');
-    expectEqual(await page.locator('.mv-grid .mv-app:visible').count(), all, 'all apps again');
+    expectEqual(await page.locator('.os-grid .os-app:visible').count(), all, 'all apps again');
   });
-  await check('the person in the bar opens the menu with the account, the wallpaper and the version', async () => {
+  await check('the person in the status bar: account, wallpaper, sign-out and the version; an app has a menu', async () => {
     await page.goto(BASE + '/');
-    await page.click('.mv-bar__user');
-    expectTrue(await page.locator('#user-menu').isVisible(), 'the menu opens');
-    expectTrue(await page.locator('#user-menu a[href="/Account/Profile?tab=home"]').count() === 1, 'the wallpaper');
-    expectTrue(/Mattiverse \S+/.test(await page.locator('#user-menu .mv-menuversion').innerText()), 'the version (SHELL-06)');
+    await page.click('[data-os-menu="os-user-menu"]');
+    expectTrue(await page.locator('#os-user-menu').isVisible(), 'the menu opens');
+    expectEqual(await page.locator('#os-user-menu [data-window="/Account/Profile?tab=home"]').count(), 1, 'the wallpaper');
+    expectTrue(/Mattiverse \S+/.test(await page.locator('#os-user-menu .os-menu__foot').innerText()), 'the version (SHELL-06)');
+    await page.keyboard.press('Escape');
+    await page.click('.os-grid .os-app[data-window="/Users"]', { button: 'right' });
+    expectTrue(await page.locator('.os-menu[role=menu]:not(#os-user-menu)').isVisible(), 'the menu of an app');
+    expectTrue((await page.locator('.os-menu[role=menu]:not(#os-user-menu)').innerText()).includes('Open in a new tab'), 'a new tab');
     await page.keyboard.press('Escape');
   });
   await check('the wallpaper is chosen on the account and drawn on the home screen', async () => {
@@ -129,12 +183,12 @@ const pages = [
     };
     await choose('jungle');
     await page.goto(BASE + '/');
-    expectEqual(await page.getAttribute('.mv-launcher', 'data-wallpaper'), 'jungle', 'the picture of the account');
-    const image = await page.evaluate(() => getComputedStyle(document.querySelector('.mv-launcher'), '::before').backgroundImage);
+    expectEqual(await page.getAttribute('.os-desktop', 'data-wallpaper'), 'jungle', 'the picture of the account');
+    const image = await page.evaluate(() => getComputedStyle(document.querySelector('.os-desktop'), '::before').backgroundImage);
     expectTrue(image.includes('wallpapers/jungle.jpg'), 'the picture is drawn: ' + image.slice(0, 120));
     await choose('orbit');
     await page.goto(BASE + '/');
-    expectEqual(await page.getAttribute('.mv-launcher', 'data-wallpaper'), 'orbit', 'back to the default');
+    expectEqual(await page.getAttribute('.os-desktop', 'data-wallpaper'), 'orbit', 'back to the default');
   });
 
   await check('an administrator has two menus, the switcher shows the one with the page', async () => {

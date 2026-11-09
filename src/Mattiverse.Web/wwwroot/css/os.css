@@ -1,0 +1,361 @@
+/* =====================================================================
+   Mattiverse OS: the home screen as a small operating system (Pages/Shared/_Launcher.cshtml, js/os.js).
+   It is NOT a page of the toolkit on purpose (the owner's choice, docs/ARCHITECTURE.md "The home screen"): a status bar, the wallpaper,
+   glass widgets, app icons and a dock like a phone, and ONE window at a time with the pages of Mattiverse in it. Inside the window the
+   pages are MatUi as everywhere (mattiverse.css, .mv-in-window). Here the look is the shell's own: its colours are the --os-* properties
+   below (the only place with literal colours), glass is allowed, the type is the system's.
+   ===================================================================== */
+
+.os {
+  --os-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --os-fg: #1d1d1f;
+  --os-fg-soft: rgba(29, 29, 31, .62);
+  --os-label: #1d1d1f;
+  --os-label-shadow: 0 0 2px rgba(255, 255, 255, .9), 0 1px 10px rgba(255, 255, 255, .7);
+  --os-glass: rgba(255, 255, 255, .62);
+  --os-glass-strong: rgba(250, 250, 252, .86);
+  --os-glass-line: rgba(255, 255, 255, .6);
+  --os-bar: rgba(246, 246, 248, .72);
+  --os-line: rgba(0, 0, 0, .08);
+  --os-hover: rgba(0, 0, 0, .06);
+  --os-accent: #6164ec;
+  --os-warn: #b25c00;
+  --os-danger: #e5383b;
+  --os-window-bg: #f5f4f1;
+  --os-shadow: 0 12px 40px rgba(24, 18, 70, .22);
+  --os-shadow-window: 0 30px 90px rgba(10, 8, 40, .45), 0 0 0 1px rgba(0, 0, 0, .08);
+  --os-veil: rgba(255, 255, 255, .06);
+  --os-blur: blur(28px) saturate(1.8);
+  --os-status-h: 34px;
+  --os-wall: none;
+  --os-ease: cubic-bezier(.2, .9, .25, 1);
+
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: var(--os-font);
+  color: var(--os-fg);
+  background: #000;
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-theme="dark"] .os { --os-fg: #f5f5f7; --os-fg-soft: rgba(245, 245, 247, .66); --os-label: #ffffff; --os-label-shadow: 0 1px 2px rgba(0, 0, 0, .7), 0 1px 12px rgba(0, 0, 0, .45); --os-glass: rgba(30, 30, 36, .55); --os-glass-strong: rgba(36, 36, 42, .9); --os-glass-line: rgba(255, 255, 255, .12); --os-bar: rgba(28, 28, 32, .7); --os-line: rgba(255, 255, 255, .1); --os-hover: rgba(255, 255, 255, .1); --os-accent: #8f92ff; --os-warn: #ffb340; --os-danger: #ff6b6b; --os-window-bg: #161616; --os-shadow: 0 12px 40px rgba(0, 0, 0, .4); --os-veil: rgba(0, 0, 0, .1); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .os { --os-fg: #f5f5f7; --os-fg-soft: rgba(245, 245, 247, .66); --os-label: #ffffff; --os-label-shadow: 0 1px 2px rgba(0, 0, 0, .7), 0 1px 12px rgba(0, 0, 0, .45); --os-glass: rgba(30, 30, 36, .55); --os-glass-strong: rgba(36, 36, 42, .9); --os-glass-line: rgba(255, 255, 255, .12); --os-bar: rgba(28, 28, 32, .7); --os-line: rgba(255, 255, 255, .1); --os-hover: rgba(255, 255, 255, .1); --os-accent: #8f92ff; --os-warn: #ffb340; --os-danger: #ff6b6b; --os-window-bg: #161616; --os-shadow: 0 12px 40px rgba(0, 0, 0, .4); --os-veil: rgba(0, 0, 0, .1); }
+}
+/* A dark picture in the light theme: white labels like on a phone, the widgets stay light glass. */
+:root:not([data-theme="dark"]) .os-desktop--dark-wall { --os-label: #ffffff; --os-label-shadow: 0 1px 2px rgba(0, 0, 0, .7), 0 1px 12px rgba(0, 0, 0, .45); }
+.os :focus-visible { outline: 2px solid var(--os-accent); outline-offset: 2px; }
+.os button { font: inherit; color: inherit; }
+
+/* ---- The wallpaper: the picture of the account, in a fixed layer behind everything ---- */
+.os-desktop { position: relative; isolation: isolate; min-height: calc(100vh - var(--os-status-h)); min-height: calc(100dvh - var(--os-status-h)); display: flex; flex-direction: column; }
+.os-desktop::before {
+  content: ""; position: fixed; inset: 0; z-index: -1;
+  background-color: var(--os-window-bg);
+  background-image: linear-gradient(var(--os-veil), var(--os-veil)), var(--os-wall);
+  background-size: cover; background-position: center;
+}
+.os-desktop[data-wallpaper="orbit"] { --os-wall: url("../img/wallpapers/orbit-light.jpg"); }
+:root[data-theme="dark"] .os-desktop[data-wallpaper="orbit"] { --os-wall: url("../img/wallpapers/orbit-dark.jpg"); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .os-desktop[data-wallpaper="orbit"] { --os-wall: url("../img/wallpapers/orbit-dark.jpg"); } }
+.os-desktop[data-wallpaper="earth"] { --os-wall: url("../img/wallpapers/earth.jpg"); }
+.os-desktop[data-wallpaper="jungle"] { --os-wall: url("../img/wallpapers/jungle.jpg"); }
+.os-desktop[data-wallpaper="lagoon"] { --os-wall: url("../img/wallpapers/lagoon.jpg"); }
+.os-desktop[data-wallpaper="mountains"] { --os-wall: url("../img/wallpapers/mountains.jpg"); }
+
+/* ---- The status bar: the system's line at the top, like the menu bar of a Mac ---- */
+.os-status {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; align-items: center; gap: 6px;
+  height: var(--os-status-h);
+  padding: env(safe-area-inset-top) 10px 0 14px;
+  background: var(--os-bar);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+  border-bottom: 1px solid var(--os-line);
+  font-size: 13px; font-weight: 600;
+}
+.os-status__brand { display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; font-weight: 700; }
+.os-status__brand img { width: 18px; height: 18px; display: block; }
+.os-status__end { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.os-status__btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; min-width: 30px; padding: 0 8px;
+  border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; text-decoration: none; font-size: 13px; font-weight: 600;
+}
+.os-status__btn:hover, .os-status__btn[aria-expanded="true"] { background: var(--os-hover); text-decoration: none; }
+.os-status__btn .mat-icon { font-size: 16px; }
+.os-status__busy .mat-icon { animation: os-spin 1.6s linear infinite; }
+.os-status__clock { font-variant-numeric: tabular-nums; padding: 0 8px; white-space: nowrap; }
+.os-status__clock span + span { margin-left: 8px; }
+.os-avatar { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--os-accent); color: #fff; font-size: 11px; font-weight: 700; }
+/* the theme button: the icon of the state it is in (the toolkit's script sets data-theme-state) */
+.os-theme [data-theme-icon] { display: none; }
+.os-theme[data-theme-state="system"] [data-theme-icon="system"],
+.os-theme[data-theme-state="light"] [data-theme-icon="light"],
+.os-theme[data-theme-state="dark"] [data-theme-icon="dark"] { display: inline-block; }
+
+/* ---- The home screen ---- */
+.os-home { flex: 1 0 auto; width: 100%; max-width: 1120px; margin: 0 auto; padding: 30px 28px 0; display: flex; flex-direction: column; gap: 22px; }
+.os-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); grid-auto-rows: 118px; gap: 20px 16px; grid-auto-flow: dense; }
+.os-w2 { grid-column: span 2; }
+.os-w2x2 { grid-column: span 2; grid-row: span 2; }
+
+/* A widget: glass on the picture, like on a phone */
+.os-widget {
+  position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 4px;
+  min-width: 0; min-height: 0; overflow: hidden;
+  padding: 14px 16px;
+  border-radius: 22px;
+  background: var(--os-glass);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+  border: 1px solid var(--os-glass-line);
+  box-shadow: var(--os-shadow);
+  color: var(--os-fg); text-decoration: none; text-align: left;
+  cursor: default;
+}
+.os-widget[data-window] { cursor: pointer; transition: transform .18s var(--os-ease); }
+.os-widget[data-window]:hover { transform: translateY(-2px); text-decoration: none; }
+.os-widget[data-window]:active { transform: scale(.98); }
+.os-widget[hidden] { display: none; }
+.os-widget__head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--os-fg-soft); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.os-widget__head .mat-icon { font-size: 14px; color: var(--os-accent); }
+.os-widget__value { font-size: 27px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-widget__value small { font-size: 15px; font-weight: 600; color: var(--os-fg-soft); }
+.os-widget__note { font-size: 13px; color: var(--os-fg-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-widget--warn .os-widget__note, .os-widget--warn .os-widget__head .mat-icon { color: var(--os-warn); }
+/* the first widget: today, with the time large */
+.os-today { justify-content: flex-start; }
+.os-today__day { font-size: 13px; font-weight: 700; color: var(--os-danger); text-transform: uppercase; letter-spacing: .04em; }
+.os-today__time { margin-top: 2px; font-size: 64px; font-weight: 300; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.os-today h1 { margin: auto 0 0; font-family: var(--os-font); font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--os-fg); }
+.os-today__sub { font-size: 13px; color: var(--os-fg-soft); }
+
+/* An app: an icon and its name, no frame; it lifts a little under the pointer */
+.os-app {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px;
+  min-width: 0; padding-top: 8px;
+  color: var(--os-label); text-decoration: none;
+  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none;
+}
+.os-app:hover { text-decoration: none; }
+.os-app[hidden] { display: none; }
+.os-app__icon { position: relative; width: 66px; height: 66px; border-radius: 22.5%; box-shadow: 0 6px 16px rgba(0, 0, 0, .22); transition: transform .18s var(--os-ease), filter .18s; }
+.os-app:hover .os-app__icon { transform: translateY(-3px) scale(1.05); }
+.os-app:active .os-app__icon { transform: scale(.92); filter: brightness(.88); }
+.os-app__icon > .mv-appicon, .os-app__icon > .os-ico { width: 100%; height: 100%; border-radius: 22.5%; }
+.os-app__label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; text-shadow: var(--os-label-shadow); }
+/* the state of an app that is not running: a badge with an icon on the corner */
+.os-badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #8e8e93; color: #fff; box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); }
+.os-badge .mat-icon { font-size: 12px; }
+.os-badge--warn { background: #ff9f0a; }
+.os-badge--offline { background: #ff3b30; }
+.os-badge--busy { background: #0a84ff; }
+.os-badge--busy .mat-icon { animation: os-spin 1.6s linear infinite; }
+.os-count { position: absolute; top: -7px; right: -9px; min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center; border-radius: 11px; background: #ff3b30; color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); }
+/* an app that has the window (open or at home): a dot under it */
+.os-app.is-running::after, .os-dock__app.is-running::after { content: ""; position: absolute; bottom: -9px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--os-label); box-shadow: var(--os-label-shadow); }
+.os-app.is-running::after { bottom: auto; top: 79px; }
+
+/* The icons of the parts of Mattiverse: colour like the apps of a phone */
+.os-ico { display: grid; place-items: center; color: #fff; }
+.os-ico .mat-icon { font-size: 32px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .15)); }
+.os-ico--store { background: linear-gradient(165deg, #48b4ff, #1b5cff); }
+.os-ico--apps { background: linear-gradient(165deg, #b49bff, #6a45f0); }
+.os-ico--backups { background: linear-gradient(165deg, #5be38f, #12a150); }
+.os-ico--settings { background: linear-gradient(165deg, #b5b5bd, #5b5b66); }
+.os-ico--activity { background: linear-gradient(165deg, #ffc073, #f56a00); }
+.os-ico--users { background: linear-gradient(165deg, #5ee9d0, #0b8f86); }
+.os-ico--account { background: linear-gradient(165deg, #d0b6ff, #7c3aed); }
+
+/* ---- Search and dock at the bottom ---- */
+.os-bottom { position: sticky; bottom: 0; z-index: 20; margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0 calc(14px + env(safe-area-inset-bottom)); }
+.os-search {
+  display: flex; align-items: center; gap: 8px; width: min(100%, 280px); height: 34px; padding: 0 14px;
+  border-radius: 17px; background: var(--os-glass); border: 1px solid var(--os-glass-line);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+  color: var(--os-fg-soft); box-shadow: var(--os-shadow);
+}
+.os-search:focus-within { width: min(100%, 420px); color: var(--os-fg); }
+.os-search .mat-icon { font-size: 15px; flex: none; }
+.os-search input { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: none; color: var(--os-fg); font: 500 14px var(--os-font); }
+.os-search input::placeholder { color: var(--os-fg-soft); }
+.os-search kbd { font: 600 11px var(--os-font); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--os-line); color: var(--os-fg-soft); }
+.os-dock {
+  display: flex; align-items: center; gap: 14px; padding: 11px 14px;
+  border-radius: 28px; background: var(--os-glass); border: 1px solid var(--os-glass-line);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+  box-shadow: var(--os-shadow);
+}
+.os-dock__app { position: relative; display: block; width: 58px; height: 58px; border-radius: 22.5%; transition: transform .18s var(--os-ease); -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+.os-dock__app:hover { transform: translateY(-6px) scale(1.1); }
+.os-dock__app:active { transform: scale(.92); }
+.os-dock__app > .os-ico { width: 100%; height: 100%; border-radius: 22.5%; box-shadow: 0 4px 12px rgba(0, 0, 0, .2); }
+.os-dock__app > .os-ico .mat-icon { font-size: 28px; }
+
+/* ---- The one window ---- */
+.os-scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .28); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); animation: os-fade .25s ease both; }
+.os-scrim[hidden] { display: none; }
+.os-window {
+  position: fixed; z-index: 50;
+  top: calc(var(--os-status-h) + 14px); bottom: 18px; left: 24px; right: 24px;
+  max-width: 1320px; margin: 0 auto;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 14px; background: var(--os-window-bg); box-shadow: var(--os-shadow-window);
+}
+.os-window[hidden] { display: none; }
+.os-window.is-max { top: var(--os-status-h); bottom: 0; left: 0; right: 0; max-width: none; border-radius: 0; }
+.os-window.is-opening { animation: os-open .34s var(--os-ease) both; }
+.os-window.is-closing { animation: os-close .24s ease-in both; }
+.os-window__bar {
+  position: relative; flex: none; display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 10px 0 14px;
+  background: var(--os-bar); border-bottom: 1px solid var(--os-line);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+  color: var(--os-fg);
+}
+.os-window__title { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: 46%; font-size: 13.5px; font-weight: 700; pointer-events: none; }
+.os-window__title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.os-window__icon { flex: none; width: 22px; height: 22px; border-radius: 6px; overflow: hidden; display: grid; }
+.os-window__icon > * { width: 100%; height: 100%; border-radius: 6px; font-size: 10px; }
+.os-window__icon .mat-icon { font-size: 13px; }
+.os-window__icon:empty { display: none; }
+.os-window__end { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.os-window__frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: var(--os-window-bg); }
+/* the lights of the window: close, home (the app stays), full screen */
+.os-lights { display: flex; gap: 8px; margin-right: 8px; }
+.os-light { position: relative; width: 13px; height: 13px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+.os-light::after { content: ""; position: absolute; inset: -8px; }
+.os-light .mat-icon { font-size: 9px; opacity: 0; color: rgba(0, 0, 0, .6); stroke-width: 3; }
+.os-lights:hover .os-light .mat-icon, .os-light:focus-visible .mat-icon { opacity: 1; }
+.os-light--close { background: #ff5f57; }
+.os-light--home { background: #febc2e; }
+.os-light--max { background: #28c840; }
+.os-wbtn { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--os-fg-soft); cursor: pointer; }
+.os-wbtn:hover:not(:disabled) { background: var(--os-hover); color: var(--os-fg); }
+.os-wbtn:disabled { opacity: .3; cursor: default; }
+.os-wbtn .mat-icon { font-size: 18px; }
+.os-wbtn--x { display: none; }
+.os-homebar { display: none; }
+
+/* ---- Menus: the person's and the one of an app (a right click, a long press) ---- */
+.os-menu {
+  position: fixed; z-index: 80; min-width: 230px; max-width: min(92vw, 320px); padding: 6px;
+  border-radius: 14px; background: var(--os-glass-strong); border: 1px solid var(--os-glass-line);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .3); color: var(--os-fg);
+  animation: os-pop .16s var(--os-ease) both;
+}
+.os-menu[hidden] { display: none; }
+.os-menu--user { top: calc(var(--os-status-h) + 6px); right: 10px; }
+.os-menu__head { display: flex; align-items: center; gap: 10px; padding: 8px 10px 10px; border-bottom: 1px solid var(--os-line); margin-bottom: 4px; min-width: 0; }
+.os-menu__head strong { display: block; font-size: 14px; }
+.os-menu__head small { display: block; color: var(--os-fg-soft); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.os-menu__head .os-avatar { width: 34px; height: 34px; font-size: 13px; flex: none; }
+.os-menu__head .mv-appicon, .os-menu__head .os-ico { width: 34px; height: 34px; border-radius: 22.5%; flex: none; }
+.os-menu__head .os-ico .mat-icon { font-size: 18px; }
+.os-menu__item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 10px;
+  border: 0; border-radius: 8px; background: none; color: inherit; font: 500 14px var(--os-font); text-align: left; text-decoration: none; cursor: pointer;
+}
+.os-menu__item:hover, .os-menu__item:focus-visible { background: var(--os-accent); color: #fff; text-decoration: none; outline: none; }
+.os-menu__item .mat-icon { font-size: 16px; flex: none; }
+.os-menu__item[aria-checked="true"]::after { content: "✓"; margin-left: auto; font-weight: 700; }
+.os-menu__item--danger { color: var(--os-danger); }
+.os-menu__sep { height: 1px; margin: 4px 6px; background: var(--os-line); }
+.os-menu__foot { padding: 6px 10px 4px; color: var(--os-fg-soft); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.os-menu form { margin: 0; }
+
+@keyframes os-open { from { opacity: 0; transform: scale(.08); border-radius: 40px; } to { opacity: 1; transform: none; } }
+@keyframes os-close { to { opacity: 0; transform: scale(.08); border-radius: 40px; } }
+@keyframes os-fade { from { opacity: 0; } }
+@keyframes os-pop { from { opacity: 0; transform: scale(.96); } }
+@keyframes os-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .os-window.is-opening, .os-window.is-closing, .os-scrim, .os-menu { animation: none; }
+  .os-app__icon, .os-dock__app, .os-widget[data-window] { transition: none; }
+}
+.os-has-window { overflow: hidden; }
+
+/* ---- A phone: the status bar of a phone, four apps in a row, the window fills the screen, a bar at the bottom to go home ---- */
+@media (max-width: 700px) {
+  .os { --os-status-h: 44px; }
+  .os-status { background: none; border-bottom: 0; -webkit-backdrop-filter: none; backdrop-filter: none; padding: env(safe-area-inset-top) 12px 0 24px; font-size: 15px; color: var(--os-label); text-shadow: var(--os-label-shadow); }
+  .os-has-window .os-status { background: var(--os-window-bg); color: var(--os-fg); text-shadow: none; }
+  .os-status__brand, .os-status__date { display: none; }
+  .os-status__end { margin-left: 0; flex: 1 1 auto; }
+  .os-status__clock { order: -1; margin-right: auto; padding: 0; font-size: 15px; }
+  .os-home { padding: 14px 18px 0; gap: 18px; }
+  .os-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 98px; gap: 14px 10px; }
+  .os-app { padding-top: 4px; gap: 6px; }
+  .os-app__icon { width: 60px; height: 60px; }
+  .os-app__label { font-size: 11.5px; }
+  .os-app.is-running::after { top: 71px; }
+  .os-widget { padding: 12px 14px; border-radius: 20px; }
+  .os-widget__value { font-size: 21px; }
+  .os-today__time { font-size: 48px; }
+  .os-dock { width: 100%; justify-content: space-around; padding: 12px 10px; border-radius: 30px; }
+  .os-dock__app { width: 60px; height: 60px; }
+  .os-dock__app:hover { transform: none; }
+  .os-window, .os-window.is-max { top: var(--os-status-h); bottom: 0; left: 0; right: 0; border-radius: 0; box-shadow: none; }
+  .os-lights { display: none; }
+  .os-wbtn--x { display: grid; }
+  .os-window__title { max-width: 60%; }
+  .os-homebar { display: block; flex: none; height: calc(22px + env(safe-area-inset-bottom)); width: 100%; padding: 0; border: 0; background: var(--os-window-bg); cursor: pointer; }
+  .os-homebar::before { content: ""; display: block; width: 134px; height: 5px; margin: 8px auto 0; border-radius: 3px; background: var(--os-fg); opacity: .55; }
+  .os-scrim { display: none; }
+  .os-menu--user { right: 8px; }
+}
+
+/* ---- The engines: a widget with their state, and the folder System with them as apps ---- */
+.os-engines { grid-column: span 3; justify-content: flex-start; gap: 10px; }
+.os-engines__list { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
+.os-engine { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 3px 8px; border-radius: 10px; color: var(--os-fg); text-decoration: none; }
+.os-engine:hover { background: var(--os-hover); text-decoration: none; }
+.os-engine .mv-appicon { width: 26px; height: 26px; border-radius: 7px; flex: none; }
+.os-engine__name { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.os-engine__state { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--os-fg-soft); }
+.os-engine__state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #8e8e93; }
+.os-engine__state--online::before { background: #30d158; }
+.os-engine__state--warn::before { background: #ff9f0a; }
+.os-engine__state--offline::before { background: #ff3b30; }
+.os-engine__state--busy::before { background: #0a84ff; }
+.os-engine__state--absent { opacity: .75; }
+.os-engine__state--absent::before { background: transparent; box-shadow: inset 0 0 0 1.5px #8e8e93; }
+
+.os-app--absent .os-app__icon { filter: grayscale(1); opacity: .55; }
+
+/* the folder on the screen: a glass tile with the small icons of what is in it */
+.os-folderbtn { border: 0; background: none; cursor: pointer; font: inherit; }
+.os-folderbtn__icon {
+  display: grid; grid-template-columns: repeat(3, 1fr); align-content: start; gap: 5px; padding: 9px;
+  background: var(--os-glass); border: 1px solid var(--os-glass-line);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+}
+.os-folderbtn__icon .mv-appicon { width: 100%; height: auto; aspect-ratio: 1; border-radius: 4px; font-size: 6px; }
+/* the folder open: the screen behind dimmed and blurred, the apps in a panel of glass */
+.os-folder {
+  position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 20px;
+  background: rgba(0, 0, 0, .25); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  animation: os-fade .2s ease both;
+}
+.os-folder[hidden] { display: none; }
+.os-folder__panel { width: min(560px, 100%); animation: os-pop .22s var(--os-ease) both; }
+.os-folder__title { margin: 0 0 14px; text-align: center; font: 700 26px var(--os-font); color: #fff; text-shadow: 0 1px 8px rgba(0, 0, 0, .4); }
+.os-folder__grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 112px; gap: 14px;
+  padding: 22px; border-radius: 34px;
+  background: var(--os-glass); border: 1px solid var(--os-glass-line);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+  box-shadow: var(--os-shadow);
+}
+.os-folder__grid .os-app { color: var(--os-fg); }
+.os-folder__grid .os-app__label { text-shadow: none; }
+@media (max-width: 700px) {
+  .os-folder__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 100px; padding: 18px 12px; border-radius: 28px; }
+  .os-folderbtn__icon { padding: 7px; gap: 4px; }
+  .os-engines { grid-column: span 4; gap: 4px; }
+  .os-engine { min-height: 30px; padding: 1px 8px; }
+  .os-engine .mv-appicon { width: 22px; height: 22px; border-radius: 6px; }
+  .os-engine__name { font-size: 13.5px; }
+  /* a phone: the dock alone at the bottom, like a phone; the search is the key / of a keyboard, which a phone has not */
+  .os-search { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .os-folder, .os-folder__panel { animation: none; } }

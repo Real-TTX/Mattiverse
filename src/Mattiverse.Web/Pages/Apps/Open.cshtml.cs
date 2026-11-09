@@ -50,7 +50,7 @@ public class OpenModel : PageModel
         App = app;
         Icon = _catalog.IconOf(app.CatalogId);
         OpenUrl = url;
-        Frame = await _probe.CheckAsync(app, url, Request.IsHttps, ct);
+        Frame = await _probe.CheckAsync(app, url, $"{Request.Scheme}://{Request.Host}", ct);
         return Page();
     }
 }
