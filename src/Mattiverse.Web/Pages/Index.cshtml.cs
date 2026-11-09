@@ -26,9 +26,11 @@ public class IndexModel : PageModel
     private readonly CatalogService _catalog;
     private readonly AppUrls _urls;
     private readonly EngineOverview _engines;
+    private readonly HomeContributions _home;
 
-    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, BackupHub backupHub, CatalogService catalog, AppUrls urls, EngineOverview engines)
+    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, BackupHub backupHub, CatalogService catalog, AppUrls urls, EngineOverview engines, HomeContributions home)
     {
+        _home = home;
         _backupHub = backupHub;
         _engines = engines;
         _apps = apps;
@@ -70,6 +72,12 @@ public class IndexModel : PageModel
     public IReadOnlyList<SystemApp> Dock { get; private set; } = [];
     public IReadOnlyList<SystemApp> SystemApps { get; private set; } = [];
 
+    /// <summary>What the apps add to the home screen (MatDesign docs/PLATFORM.md "Contributions"): their icons instead of the one of the app, their widgets.</summary>
+    public HomeAdditions Additions { get; private set; } = new(new Dictionary<long, IReadOnlyList<LauncherTile>>(), [], null);
+
+    /// <summary>How often the home screen reloads itself: while something installs, else as often as the most eager widget of an app asks.</summary>
+    public int? RefreshMs => Busy ? 4000 : Additions.RefreshSeconds * 1000;
+
     public async Task OnGetAsync()
     {
         var ct = HttpContext.RequestAborted;
@@ -91,6 +99,7 @@ public class IndexModel : PageModel
         }
 
         Running = Tiles.Count(t => t.Status.Css == "online");
+        Additions = await _home.BuildAsync(Tiles.Select(t => t.App), isAdmin, Request, ct);
 
         if (isAdmin)
         {

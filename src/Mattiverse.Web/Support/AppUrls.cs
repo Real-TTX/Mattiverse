@@ -24,14 +24,15 @@ public sealed class AppUrls
     /// where host is the configured address of this machine or the one the browser used to reach Mattiverse.
     /// <c>null</c> for apps without a web UI.
     /// </summary>
-    public async Task<string?> OpenUrlAsync(InstalledApp app, HttpRequest request, CancellationToken ct = default)
+    /// <param name="path">An address of the app instead of its start page (a launcher); "" = the root of the app.</param>
+    public async Task<string?> OpenUrlAsync(InstalledApp app, HttpRequest request, CancellationToken ct = default, string? path = null)
     {
         if (app.UiService is null)
         {
             return null;
         }
 
-        var path = app.UiPath ?? string.Empty;
+        path ??= app.UiPath ?? string.Empty;
         if (!string.IsNullOrEmpty(app.PublicUrl))
         {
             return app.PublicUrl.TrimEnd('/') + path;

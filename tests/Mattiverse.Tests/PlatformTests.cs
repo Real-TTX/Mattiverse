@@ -27,18 +27,20 @@ public class PlatformTests
         => new(new AppPaths(Path.Combine(Path.GetTempPath(), "mattiverse-tests-" + Guid.NewGuid().ToString("N"))), NullLogger<CatalogService>.Instance);
 
     [Fact]
-    public void An_app_of_the_platform_gets_its_key_and_the_sign_in_variables_hidden()
+    public void An_app_of_the_platform_gets_its_key_and_the_old_identity_key_is_the_capability()
     {
         var app = CatalogParser.Parse(Minimal, "test");
 
         var key = Assert.Single(app.Variables, v => v.Key == ManagedVariables.ApiKey);
         Assert.True(key.Hidden && key.Generate && key.IsSecret);
-        Assert.Contains(app.Variables, v => v.Key == ManagedVariables.IdentityAuthority && v.Hidden && !v.IsSecret);
-        Assert.Contains(app.Variables, v => v.Key == ManagedVariables.IdentityInternalUrl && v.Hidden);
-        Assert.Contains(app.Variables, v => v.Key == ManagedVariables.IdentityClientId && v.Hidden);
-        Assert.Contains(app.Variables, v => v.Key == ManagedVariables.IdentityClientSecret && v.Hidden && v.IsSecret);
-        Assert.Equal("/signin-oidc", app.Identity!.Callback);
-        Assert.Equal("/signout-callback-oidc", app.Identity.SignedOut);
+
+        // identity: {} is read as identity.oidc with its paths as parameters; the variables are the broker's, not the entry's.
+        var identity = Assert.Single(app.Consumes);
+        Assert.Equal(Capabilities.IdentityOidc, identity.Capability);
+        Assert.Equal("/signin-oidc", identity.Params["callback"]);
+        Assert.Equal("/signout-callback-oidc", identity.Params["signedOut"]);
+        Assert.Equal("/signout-backchannel", identity.Params["backchannel"]);
+        Assert.DoesNotContain(app.Variables, v => v.Key.StartsWith("MATIDENTITY_", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -83,16 +85,8 @@ public class PlatformTests
         var app = CreateCatalog().Get(id);
         Assert.NotNull(app);
         Assert.True(app.Platform);
-        Assert.NotNull(app.Identity);
-        foreach (var key in new[] { ManagedVariables.ApiKey, ManagedVariables.IdentityAuthority, ManagedVariables.IdentityInternalUrl, ManagedVariables.IdentityClientId, ManagedVariables.IdentityClientSecret })
-        {
-            Assert.Contains($"{key}: ${{{key}", app.ComposeYaml);
-        }
+        Assert.True(app.Uses(Capabilities.IdentityOidc));
+        Assert.Null(app.Identity);
+        Assert.Contains($"{ManagedVariables.ApiKey}: ${{{ManagedVariables.ApiKey}", app.ComposeYaml);
     }
-
-    [Theory]
-    [InlineData("matsplit", "matsplit")]
-    [InlineData("a", "a-app")]
-    public void The_client_id_of_an_app_is_its_slug(string slug, string clientId)
-        => Assert.Equal(clientId, IdentityLink.ClientIdOf(new InstalledApp { Slug = slug }));
 }

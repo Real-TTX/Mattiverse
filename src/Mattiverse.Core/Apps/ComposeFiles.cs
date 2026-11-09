@@ -31,8 +31,22 @@ public sealed class ComposeFiles
     public string UiHost(InstalledApp app) => _renderer.UiHost(app);
 
     /// <summary>What an engine deploys for an app: the compose text and the <c>.env</c> text.</summary>
-    public StackSpec Build(InstalledApp app, CatalogApp catalog, IReadOnlyDictionary<string, string> variables, string publicHost)
-        => new(app.ProjectName, app.Slug, _renderer.Render(catalog, app), AppVariables.BuildEnvFile(BuiltIns(app, publicHost), variables));
+    /// <param name="injected">What the broker gives the app (its bindings, its addresses): into its web service and the <c>.env</c>, after the catalog's variables.</param>
+    public StackSpec Build(InstalledApp app, CatalogApp catalog, IReadOnlyDictionary<string, string> variables, string publicHost, IReadOnlyDictionary<string, string>? injected = null)
+    {
+        var all = new Dictionary<string, string>(variables, StringComparer.Ordinal);
+        var added = new List<string>();
+        foreach (var (name, value) in injected ?? new Dictionary<string, string>())
+        {
+            // A variable of the catalog entry wins: it is the app's own answer.
+            if (all.TryAdd(name, value))
+            {
+                added.Add(name);
+            }
+        }
+
+        return new(app.ProjectName, app.Slug, _renderer.Render(catalog, app, added), AppVariables.BuildEnvFile(BuiltIns(app, publicHost), all));
+    }
 
     public async Task WriteAsync(StackSpec spec, CancellationToken ct = default)
     {

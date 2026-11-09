@@ -8,8 +8,9 @@ x-mattiverse:
   role: app
   icon: matmon.svg
   homepage: https://github.com/Real-TTX/Matmon
-  # Sends mail (alerts, summary reports): through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
-  mail: {}
+  # What the app uses of the engines (MatDesign docs/PLATFORM.md "Capabilities"): Mattiverse binds each when its engine is installed.
+  consumes:
+    - capability: mail.smtp       # its mail through MatSMTP (MATSMTP_*)
   ui:
     service: matmon
     port: 8099

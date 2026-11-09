@@ -8,11 +8,12 @@ x-mattiverse:
   role: app
   icon: matbu.svg
   homepage: https://github.com/Real-TTX/MatBu
-  # The platform contract (/api) and the sign-in through MatIdentity: Mattiverse fills MAT_API_KEY and MATIDENTITY_*.
+  # The platform contract (/api): Mattiverse fills MAT_API_KEY.
   platform: true
-  identity: {}
-  # Sends mail (notifications): through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
-  mail: {}
+  # What the app uses of the engines (MatDesign docs/PLATFORM.md "Capabilities"): Mattiverse binds each when its engine is installed.
+  consumes:
+    - capability: identity.oidc   # the sign-in through MatIdentity (MATIDENTITY_*)
+    - capability: mail.smtp       # its mail through MatSMTP (MATSMTP_*)
   ui:
     service: matbu
     port: 9293

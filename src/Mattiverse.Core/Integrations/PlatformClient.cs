@@ -9,7 +9,7 @@ using Mattiverse.Core.Security;
 
 namespace Mattiverse.Core.Integrations;
 
-// The MatApiDefinition of an app as Mattiverse reads it (MatDesign docs/PLATFORM.md, contract version 1). Only what Mattiverse draws; a field it does not know is ignored.
+// The MatApiDefinition of an app as Mattiverse reads it (MatDesign docs/PLATFORM.md, contract version 2). Only what Mattiverse draws and binds; a field it does not know is ignored.
 
 public sealed record PlatformDefinition(
     int Contract,
@@ -17,7 +17,44 @@ public sealed record PlatformDefinition(
     IReadOnlyList<PlatformPage> Pages,
     IReadOnlyList<PlatformStateItem> State,
     IReadOnlyList<PlatformField> Configure,
-    IReadOnlyList<PlatformAction> Actions);
+    IReadOnlyList<PlatformAction> Actions,
+    IReadOnlyList<PlatformCapability>? Provides = null,
+    IReadOnlyList<PlatformCapability>? Consumes = null,
+    PlatformContributions? Contributes = null);
+
+/// <summary>A capability the app provides or consumes (contract 2), with the parameters a consumer passes when it is bound.</summary>
+public sealed record PlatformCapability(string Capability, int Version, bool? Optional = null, string? Label = null, IReadOnlyDictionary<string, string>? Params = null);
+
+/// <summary>What the app adds to the home screen (contract 2): icons, widgets, the menu of an icon.</summary>
+public sealed record PlatformContributions(IReadOnlyList<PlatformLauncher>? Launchers, IReadOnlyList<PlatformWidget>? Widgets, IReadOnlyList<PlatformQuickAction>? QuickActions);
+
+/// <summary>An icon of the app on the home screen: its picture and address are relative to the app.</summary>
+public sealed record PlatformLauncher(string Id, string Label, string Icon, string Url, string? Accent = null, string? Audience = null, string? Badge = null);
+
+/// <summary>A widget of the app: <c>stat</c>, <c>meter</c>, <c>tiles</c> (keys of state) or <c>list</c> (rows of <c>/api/widgets/{id}</c>).</summary>
+public sealed record PlatformWidget(string Id, string Label, string Kind, string? Size = null, IReadOnlyList<string>? Items = null, string? Icon = null, string? Url = null, int? Refresh = null, string? Audience = null);
+
+/// <summary>An entry of the menu of a launcher: an address of the app or a post action.</summary>
+public sealed record PlatformQuickAction(string Launcher, string Label, string? Icon = null, string? Url = null, string? Action = null);
+
+/// <summary>A row of a list widget.</summary>
+public sealed record PlatformWidgetItem(string Title, string? Subtitle = null, string? Icon = null, string? Url = null, DateTimeOffset? Time = null, string? Level = null);
+
+/// <summary>What an app uses, offers and adds (<c>GET /api/connections</c>, contract 2).</summary>
+public sealed record PlatformConnections(IReadOnlyList<PlatformUse>? Uses, IReadOnlyList<PlatformOffer>? Offers);
+
+/// <summary>A capability the app consumes: how it is set (<c>none</c>, <c>variables</c>, <c>byHand</c>) and its values (a secret as <c>{"isSet": bool}</c>).</summary>
+public sealed record PlatformUse(string Capability, int Version, string Label, bool Optional, string Source, bool ByHand, IReadOnlyList<PlatformUseValue>? Values);
+
+public sealed record PlatformUseValue(string Key, string Variable, string Label, string Type, bool Secret, bool Required, JsonElement? Value);
+
+/// <summary>A capability the app provides, with the apps bound to it.</summary>
+public sealed record PlatformOffer(string Capability, int Version, string Label, bool ByHand, IReadOnlyList<PlatformBindingInfo>? Bindings);
+
+public sealed record PlatformBindingInfo(string Capability, string Consumer, string Name, string ManagedBy, DateTimeOffset? Since, DateTimeOffset? LastUsed);
+
+/// <summary>The answer of a provider to a binding: the variables for the consumer (a secret that was not handed out again is <c>{"isSet": true}</c>), or why not.</summary>
+public sealed record PlatformBindResult(bool Ok, IReadOnlyDictionary<string, JsonElement> Variables, string? Error);
 
 public sealed record PlatformAppInfo(string Id, string Name, string? Description, string? Version);
 
@@ -188,6 +225,71 @@ public sealed class PlatformClient
         }
     }
 
+    /// <summary>Asks <paramref name="provider"/> to bind <paramref name="consumer"/> for <paramref name="capability"/> (<c>PUT /api/bindings/{capability}/{consumer}</c>).</summary>
+    public async Task<PlatformBindResult> BindAsync(InstalledApp provider, string capability, string consumer, object body, CancellationToken ct = default)
+    {
+        try
+        {
+            var path = $"/api/bindings/{Uri.EscapeDataString(capability)}/{Uri.EscapeDataString(consumer)}";
+            using var response = await SendAsync(provider, HttpMethod.Put, path, JsonContent.Create(body, options: Json), withKey: true, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errors = await ReadErrorsAsync(response, ct);
+                return new PlatformBindResult(false, new Dictionary<string, JsonElement>(), errors.Values.FirstOrDefault() ?? $"HTTP {(int)response.StatusCode}");
+            }
+
+            var answer = await response.Content.ReadFromJsonAsync<BindBody>(Json, ct);
+            return new PlatformBindResult(true, answer?.Variables ?? new Dictionary<string, JsonElement>(), null);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        {
+            return new PlatformBindResult(false, new Dictionary<string, JsonElement>(), ex.Message);
+        }
+    }
+
+    /// <summary>Removes a binding Mattiverse made at <paramref name="provider"/>; false when it did not answer or knew none.</summary>
+    public async Task<bool> UnbindAsync(InstalledApp provider, string capability, string consumer, CancellationToken ct = default)
+    {
+        try
+        {
+            var path = $"/api/bindings/{Uri.EscapeDataString(capability)}/{Uri.EscapeDataString(consumer)}?managedBy=mattiverse";
+            using var response = await SendAsync(provider, HttpMethod.Delete, path, null, withKey: true, ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The rows of a list widget (<c>GET /api/widgets/{id}</c>), or null.</summary>
+    public async Task<IReadOnlyList<PlatformWidgetItem>?> GetWidgetAsync(InstalledApp app, string id, CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await SendAsync(app, HttpMethod.Get, "/api/widgets/" + Uri.EscapeDataString(id), null, withKey: true, ct);
+            return response.IsSuccessStatusCode ? (await response.Content.ReadFromJsonAsync<WidgetBody>(Json, ct))?.Items : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>What the app uses and offers (<c>GET /api/connections</c>); null when it does not answer (an app before contract 2).</summary>
+    public async Task<PlatformConnections?> GetConnectionsAsync(InstalledApp app, CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await SendAsync(app, HttpMethod.Get, "/api/connections", null, withKey: true, ct);
+            return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<PlatformConnections>(Json, ct) : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     private async Task<HttpResponseMessage> SendAsync(InstalledApp app, HttpMethod method, string path, HttpContent? content, bool withKey, CancellationToken ct)
     {
         var baseUrl = await BaseUrlAsync(app, ct) ?? throw new InvalidOperationException("The app has no web service.");
@@ -242,4 +344,8 @@ public sealed class PlatformClient
     private sealed record ConfigureBody(Dictionary<string, JsonElement>? Values);
 
     private sealed record ErrorsBody(Dictionary<string, string>? Errors);
+
+    private sealed record BindBody(Dictionary<string, JsonElement>? Variables);
+
+    private sealed record WidgetBody(List<PlatformWidgetItem>? Items);
 }

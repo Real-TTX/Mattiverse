@@ -5,9 +5,9 @@ using Mattiverse.Core.Docker;
 namespace Mattiverse.Core.Integrations;
 
 /// <summary>
-/// The addresses of Mattiverse that may show an app in a frame (<c>MAT_FRAME_ANCESTORS</c>, MatDesign docs/PLATFORM.md): Mattiverse opens apps in the window of its
-/// home screen, and the engines refuse a frame unless their <c>frame-ancestors</c> name the page around it. Filled before the stack is deployed for every app whose
-/// compose file names <c>${MAT_FRAME_ANCESTORS}</c>; an app learns a new address of Mattiverse with its next update.
+/// Mattiverse as the provider of <c>shell.embed</c> (MatDesign docs/PLATFORM.md): the addresses of Mattiverse that may show an app in a frame
+/// (<c>MAT_FRAME_ANCESTORS</c>). Mattiverse opens apps in the window of its home screen, and an app refuses a frame unless its <c>frame-ancestors</c> name the page
+/// around it. The broker passes them to every app of the contract (<see cref="BindingBroker.VariablesAsync"/>); an app learns a new address with its next deploy.
 /// </summary>
 public sealed class FrameLink
 {
@@ -20,17 +20,6 @@ public sealed class FrameLink
         _config = config;
         _proxy = proxy;
         _docker = docker;
-    }
-
-    /// <summary>Writes the addresses into <paramref name="variables"/> for an app whose compose file names <c>MAT_FRAME_ANCESTORS</c>; other apps are left alone.</summary>
-    public async Task ApplyAsync(CatalogApp catalog, Dictionary<string, string> variables, CancellationToken ct)
-    {
-        if (catalog.Variables.All(v => v.Key != ManagedVariables.FrameAncestors))
-        {
-            return;
-        }
-
-        variables[ManagedVariables.FrameAncestors] = string.Join(' ', await OriginsAsync(ct));
     }
 
     /// <summary>The addresses of Mattiverse now: its route behind the proxy, this machine with the port Mattiverse is published on, the addresses people signed in from.</summary>

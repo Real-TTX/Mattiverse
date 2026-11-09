@@ -74,9 +74,10 @@ public class FrameTests
         {
             var app = catalog.Get(id);
             Assert.NotNull(app);
+            // shell.embed: the broker gives MAT_FRAME_ANCESTORS to every app of the contract with a web page; it is not a variable of the entry.
             Assert.True(app.Platform, id + " is an app of the platform contract");
-            Assert.Contains(app.Variables, v => v.Key == ManagedVariables.FrameAncestors && v.Hidden);
-            Assert.Contains("MAT_FRAME_ANCESTORS: ${MAT_FRAME_ANCESTORS:-}", app.ComposeYaml, StringComparison.Ordinal);
+            Assert.NotNull(app.Ui);
+            Assert.DoesNotContain(app.Variables, v => v.Key == ManagedVariables.FrameAncestors);
         }
     }
 

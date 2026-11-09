@@ -71,9 +71,42 @@ public static partial class CatalogParser
             throw new FormatException($"{source}: mail.sender must be the part of an address before the @ (letters, digits, dots, dashes; got '{sender}').");
         }
 
-        if ((app.Platform || app.Identity is not null) && app.Ui is null)
+        // The old keys of the engines' capabilities, read into the generic list (a catalog copy of an earlier Mattiverse keeps working).
+        if (app.Identity is { } identity && !app.Uses(Capabilities.IdentityOidc))
         {
-            throw new FormatException($"{source}: 'platform' and 'identity' need a 'ui' (the service that answers /api and /signin-oidc).");
+            app.Consumes.Add(new CatalogConsumes
+            {
+                Capability = Capabilities.IdentityOidc,
+                Params = new Dictionary<string, string> { ["callback"] = identity.Callback, ["signedOut"] = identity.SignedOut, ["backchannel"] = identity.Backchannel },
+            });
+        }
+
+        if (app.Mail is { } mail && !app.Uses(Capabilities.MailSmtp))
+        {
+            app.Consumes.Add(new CatalogConsumes
+            {
+                Capability = Capabilities.MailSmtp,
+                Params = mail.Sender is { } named ? new Dictionary<string, string> { ["sender"] = named } : new Dictionary<string, string>(),
+            });
+        }
+
+        foreach (var consumed in app.Consumes)
+        {
+            consumed.Params ??= new Dictionary<string, string>();
+            if (!CapabilityRegex().IsMatch(consumed.Capability ?? string.Empty) || consumed.Version < 1)
+            {
+                throw new FormatException($"{source}: consumes: \"{consumed.Capability}\" version {consumed.Version} is not a capability like mail.smtp with a version from 1.");
+            }
+
+            if (consumed.Params.TryGetValue("sender", out var senderParam) && !SenderRegex().IsMatch(senderParam))
+            {
+                throw new FormatException($"{source}: the sender of {consumed.Capability} must be the part of an address before the @ (letters, digits, dots, dashes; got '{senderParam}').");
+            }
+        }
+
+        if ((app.Platform || app.Uses(Capabilities.IdentityOidc)) && app.Ui is null)
+        {
+            throw new FormatException($"{source}: 'platform' and 'identity.oidc' need a 'ui' (the service that answers /api and /signin-oidc).");
         }
 
         AddManagedVariables(app);
@@ -100,29 +133,7 @@ public static partial class CatalogParser
             Add(ManagedVariables.ApiKey, "Platform API key", secret: true, generate: true);
         }
 
-        // An app that can be shown in the window of the home screen names the variable in its compose file (the engines).
-        if (app.ComposeYaml.Contains("${" + ManagedVariables.FrameAncestors, StringComparison.Ordinal))
-        {
-            Add(ManagedVariables.FrameAncestors, "Addresses of Mattiverse that may frame the app", secret: false);
-        }
-
-        if (app.Identity is not null)
-        {
-            Add(ManagedVariables.IdentityAuthority, "MatIdentity address", secret: false);
-            Add(ManagedVariables.IdentityInternalUrl, "MatIdentity address inside Docker", secret: false);
-            Add(ManagedVariables.IdentityClientId, "MatIdentity client id", secret: false);
-            Add(ManagedVariables.IdentityClientSecret, "MatIdentity client secret", secret: true);
-        }
-
-        if (app.Mail is not null)
-        {
-            Add(ManagedVariables.MailHost, "MatSMTP address", secret: false);
-            Add(ManagedVariables.MailPort, "MatSMTP port", secret: false);
-            Add(ManagedVariables.MailUsername, "MatSMTP relay user", secret: false);
-            Add(ManagedVariables.MailPassword, "MatSMTP relay password", secret: true);
-            Add(ManagedVariables.MailFrom, "Sender address", secret: false);
-            Add(ManagedVariables.MailTls, "MatSMTP TLS mode", secret: false);
-        }
+        // The variables of the bindings (MATIDENTITY_*, MATSMTP_*, MAT_FRAME_ANCESTORS, ...) are not variables of the entry: the broker passes them (BindingBroker).
     }
 
     private static void ReadServices(CatalogApp app, string yaml, string source)
@@ -210,4 +221,7 @@ public static partial class CatalogParser
 
     [GeneratedRegex("^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$")]
     private static partial Regex SenderRegex();
+
+    [GeneratedRegex(@"^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$")]
+    private static partial Regex CapabilityRegex();
 }

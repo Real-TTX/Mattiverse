@@ -8,9 +8,11 @@ x-mattiverse:
   role: app
   icon: matpaper.svg
   homepage: https://github.com/Real-TTX/MatPaper
-  # The platform contract (/api) and the sign-in through MatIdentity: Mattiverse fills MAT_API_KEY and MATIDENTITY_*.
+  # The platform contract (/api): Mattiverse fills MAT_API_KEY.
   platform: true
-  identity: {}
+  # What the app uses of the engines (MatDesign docs/PLATFORM.md "Capabilities"): Mattiverse binds each when its engine is installed.
+  consumes:
+    - capability: identity.oidc   # the sign-in through MatIdentity (MATIDENTITY_*)
   ui:
     service: matpaper
     port: 8080

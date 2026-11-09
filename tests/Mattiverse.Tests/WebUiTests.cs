@@ -49,6 +49,19 @@ public partial class WebUiTests
     [GeneratedRegex(@"new\(""[a-z]+"", ""[^""]+"", ""([a-z0-9-]+)""")]
     private static partial Regex NavSetIconRegex();
 
+    /// <summary>
+    /// Razor writes <c>data-x=""</c> for a null value, and an empty <c>data-autorefresh</c> makes the page reload every five seconds (it happened once):
+    /// the attribute is written only with a value.
+    /// </summary>
+    [Fact]
+    public void Data_autorefresh_is_never_bound_to_a_value_that_may_be_null()
+    {
+        foreach (var page in Directory.GetFiles(Path.Combine(Web, "Pages"), "*.cshtml", SearchOption.AllDirectories))
+        {
+            Assert.DoesNotContain("data-autorefresh=\"@", File.ReadAllText(page), StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public void The_toolkit_is_in_the_static_files_and_says_which_version_it_is()
     {

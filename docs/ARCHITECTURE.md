@@ -40,6 +40,7 @@ engines is [ENGINES.md](ENGINES.md).
 4. The stack is created in MatDock (`PUT /stacks/mattiverse-<app>`, `managedBy: mattiverse`) and deployed; the output of MatDock's operation is
    forwarded to the job's log.
 5. The provisioners and publishers then connect it: the route in Matcad, the record in Matddns.
+6. The **broker** binds it (MatDesign docs/PLATFORM.md "Bindings", docs/APP-MODEL.md): see "Bindings between the apps" below.
 
 **Reading is not going through the engines.** Status, containers and logs always come straight from Docker (every container carries the
 labels `mattiverse.managed`, `mattiverse.app`, `mattiverse.instance`, `mattiverse.service`), so the launcher stays correct and fast even
@@ -60,12 +61,16 @@ the stack carries everything (catalog block, compose, variables).
 The wizard asks **once** for the domain of the apps and the account of the DNS provider (Cloudflare, Hetzner, Netcup: the providers that both Matcad and
 Matddns support). The credentials are stored protected (Data Protection) and handed to both engines:
 
-- **Matcad** gets the provider and a wildcard route `*.domain` with it: one certificate through the DNS challenge, no open port 80 needed. Every
-  app gets a route `app.domain` served from that certificate. Without a DNS account only the single routes exist (HTTP challenge).
-- **Matddns** gets a source *public IP*, a domain group with a record for every app and a rule per record, so the record follows the home IP.
+- **Matcad** gets the provider and a wildcard route `*.domain` with it: one certificate through the DNS challenge, no open port 80 needed (`ProxyPublisher`: the base
+  domain, the provider, the wildcard route and Mattiverse's own route `mattiverse.domain`). Every app gets a route `app.domain` served from that certificate: a binding
+  of `web.route` the broker makes for every app with a web page (Matcad is the provider; the app gets `MAT_PUBLIC_URL`, Mattiverse keeps it as the app's public address).
+  An older Matcad without the bindings gets the routes the old way. Without a DNS account only the single routes exist (HTTP challenge).
+- **Matddns** gets a source *public IP*, a domain group with a record for every app that has a route and a rule per record, so the record follows the home IP
+  (`DnsPublisher`, after the bindings). The records are not a capability: the account, the zone and the list belong to Mattiverse's domain, and a record gives an app nothing.
 
-When the domain or the account changes, or from the Engines tab (*Connect again*), the job `ConnectEngines` brings both in line again and removes what
-Mattiverse created earlier and does not want any more (routes of an old domain).
+When the domain or the account changes (also when the domain is removed), or from the Engines tab (*Connect again*), the job `ConnectEngines` brings both in line
+again and removes what Mattiverse created earlier and does not want any more (routes of an old domain; without a domain every route Mattiverse made, and the bindings
+of `web.route` with the public addresses they gave).
 
 ## Where are the backups?
 
@@ -182,7 +187,39 @@ The home screen is a **small operating system** (the owner's choice of 2026-11-0
 - **The wallpaper** is a picture of the account (`User.Wallpaper`, the claim `mattiverse:wallpaper`, `Core/Users/Wallpapers.cs`, the tab *Home screen* of the account).
   The default is *Orbit*, the planet of the logo, light or dark with the theme; Earth, Jungle, Lagoon and Mountains are views from above; *None* is the plain background.
   The pictures are drawn, not downloaded: `scripts/wallpapers` (SVG with noise filters, rendered to JPEG with Edge; `node scripts/wallpapers/render.js`).
-- Next (planned): widgets that can be placed and sized, and widgets from the apps' `/api`.
+- **What the apps add** (contract 2, `contributes` of their `/api`; `Support/HomeContributions.cs`, `Core/Integrations/ShellRules.cs`): an app with launchers gets
+  one icon per launcher instead of its own (its picture at the app, `/Apps/Open?id=&path=` in the window, its address in a tab; a badge from a key of its state), its quick
+  actions are entries of the menu of the icon (`data-quick`), and its widgets stand after the ones of the system (`stat`, `meter`, `tiles` from `/api/state`, `list` from
+  `/api/widgets/{id}`; `_AppWidgetBody`). Who sees what follows `audience` (`admin` for administrators); widgets with the values of the `person` who is looking are left out
+  until Mattiverse can ask an app on a person's behalf. The definitions and values are asked with a short timeout and kept a little while (`AppManifests`, `ManifestCache`),
+  so a slow or stopped app does not hold the home screen up; a widget with `refresh` makes the home screen reload itself that often (at least every 30 s).
+- Next (planned): widgets that can be placed and sized.
+
+## Bindings between the apps
+
+The apps say what they **provide** and **consume** (capabilities, MatDesign docs/PLATFORM.md "Capabilities"); Mattiverse is the **broker** that connects them, with one
+class for every capability and no code that knows an app (`Core/Integrations/BindingBroker.cs`):
+
+- **After an install or an update** (`AppService.ConnectBindingsAsync`): the broker reads the app's `/api` (it waits up to a minute for a fresh app), binds what it consumes
+  to an installed provider (`PUT /api/bindings/{capability}/{slug}` at the provider, `managedBy: mattiverse`; a consumer keeps the provider it has), and binds the installed
+  consumers of what it provides. Every app whose variables changed is deployed once more.
+- **The variables** of a binding are kept in `AppBinding` (protected as a whole: they hold a key) and go, with `MAT_INTERNAL_URL` and `MAT_PUBLIC_URL` (only a real address),
+  into the `.env` and the web service of the consumer (`ComposeFiles.Build(..., injected)`, `ComposeRenderer` adds `NAME: ${NAME:-}`); a variable of the catalog entry wins.
+  A secret the provider does not hand out again (`{"isSet": true}`) is kept; one Mattiverse lost is renewed.
+- **Uninstall**: the app's bindings are removed at their providers; the consumers of what it provided get another provider or lose the variables, and are deployed again.
+- The job that connects the engines also binds every app again (`ConnectAllBindingsAsync`). A provider that is deployed again in that pass may answer other values
+  afterwards (MatIdentity's issuer follows its new public address when a domain comes or goes): the broker waits until it runs and binds its consumers once more
+  (at most two rounds); an install or update does the same. The tab *Connections* of an app's Manage page shows `GET /api/connections` of the
+  app with what Mattiverse bound.
+- **The engines are providers like any app** (docs/APP-MODEL.md step 5): MatIdentity (`identity.oidc`), MatSMTP (`mail.smtp`) and Matcad (`web.route`) answer
+  `/api/bindings`; Mattiverse provides `shell.embed` itself (`MAT_FRAME_ANCESTORS` for every app of the contract, `FrameLink`). What an app consumes comes from its catalog entry
+  (`consumes`, for images that do not say it; the old keys `identity: {}` and `mail: {}` are read into it) and its `/api`, plus the implicit `web.route`.
+- **Engines older than the bindings** keep working: the variables an earlier Mattiverse filled (`MATIDENTITY_*`, `MATSMTP_*`) are taken over as bindings at the app's next deploy
+  (`BindingBroker.AdoptAsync`), and a binding whose provider is still installed but does not answer `/api/bindings` is kept. A new app gets such a binding only from an engine
+  image with the bindings.
+- What stays engine code in Mattiverse is the **setup of the engines themselves**: MatDock as the runtime, Matcad's domain, DNS account and wildcard route, Matddns' records,
+  MatSMTP's first-run setup and sender domain (`MailLink.ConfigureRelayAsync`), Mattiverse's own sign-in and the issuer of MatIdentity (`IdentityLink`). MatAi
+  (`ai.openai`) follows when its branch is merged.
 
 ## What is deliberately not here
 
@@ -199,14 +236,14 @@ groups and who may open which app stay in MatIdentity's own pages (the Manage ta
 - **Its address.** Mattiverse gives MatIdentity its public address as the fixed issuer (`MATIDENTITY_ISSUER`: the route of the proxy, else this host and
   its port). Inside Docker the apps reach it as `http://<project>-matidentity-matidentity:2300` (`MATIDENTITY_INTERNAL_URL`); MatIdentity names the public
   address in its discovery document whichever way it is read, so the browser always goes to the public one.
-- **The apps.** `IdentityLink` registers every app whose catalog entry says `identity: {}` as a client (id = the slug, `managedBy: mattiverse`, redirect
-  addresses for the route and the host port) and fills its `MATIDENTITY_*` variables before the stack is deployed; the client is removed with the app.
-  When MatIdentity is installed (or removed) the apps that are there are connected (or disconnected) and redeployed (`AppService.ConnectIdentityAppsAsync`,
-  also run by *Connect again* on the Engines page).
+- **The apps.** An app that consumes `identity.oidc` (its catalog entry, or its `/api`) is bound by the broker: MatIdentity makes the client (id = the slug,
+  `managedBy: mattiverse`, redirect addresses for every public address of the app, the back-channel logout at its internal address) and answers the `MATIDENTITY_*`
+  variables (MatDesign docs/PLATFORM.md "`identity.oidc`"); the binding is removed with the app. When MatIdentity is installed (or removed) the apps that are there are
+  bound (or lose it) and redeployed; *Connect again* on the Engines page does it for all.
 - **Back-channel logout.** Signing out at MatIdentity (or an administrator ending a person's sessions there) ends the person's sessions in every app: MatIdentity
-  posts a signed logout token (OpenID Connect Back-Channel Logout 1.0) to the client's `backchannelLogoutUri`. `IdentityLink` registers it for every app as the
-  app's **internal** address on the shared network, `http://<container of the ui service>:<its port><identity.backchannel>` (default `/signout-backchannel`,
-  `IdentityLink.BackchannelLogoutUriOf`), since MatIdentity calls it server to server; an app without a web service or port gets none (`""` removes it). The
+  posts a signed logout token (OpenID Connect Back-Channel Logout 1.0) to the client's `backchannelLogoutUri`. MatIdentity registers it for every bound app as the
+  app's **internal** address on the shared network, `<consumer.internalUrl><backchannel>` (the param, default `/signout-backchannel`), since it calls it server to
+  server; an app without a web service or port gets none. The
   apps on MatPlatform 1.4.0 answer it (MatDesign `src/MatPlatform`, `IMatIdentitySessions`); an older app answers 404 and keeps its session until it expires.
   Mattiverse registers its own as `http://<its container>:<its port>/signout-backchannel` (`SelfBackchannelLogoutUriOf`; none when it runs outside Docker).
 - **Mattiverse itself** is the client `mattiverse` (it may call every app). The login page goes straight to MatIdentity when it is connected (`?local=1`
@@ -230,11 +267,10 @@ API in [ENGINES.md](ENGINES.md)).
 - **Its setup.** The catalog entry generates `MATSMTP_API_KEY` and the administrator's password (`MATSMTP_ADMIN_PASSWORD`); after the install `MatSmtpProvisioner` sets
   `setupCompleted` and the domain of the senders (the domain of the wizard). Only the submission port is published, for devices in the network; the SMTP port of the apps is
   reached on the shared network only, so MatSMTP is never an open relay.
-- **The apps.** `MailLink` gives every app whose catalog entry says `mail: {}` a relay user (id = the slug, `managedBy: mattiverse`, its sender as the only allowed one) and
-  fills its `MATSMTP_*` variables before the stack is deployed: MatSMTP's container name, port and TLS mode from its status, the user, the password (kept; renewed only when the
-  app has none), the sender `<slug>@<domain>`. MatSMTP installed but not answering leaves the variables alone (it may be restarting); without MatSMTP they are emptied and the app
-  sends its mail itself. The relay user is removed with the app. When MatSMTP is installed (or removed) the apps are connected (or disconnected) and redeployed
-  (`AppService.ConnectMailAppsAsync`; *Connect again* does MatIdentity and MatSMTP in one pass, `ConnectPlatformAppsAsync`).
+- **The apps.** An app that consumes `mail.smtp` (its catalog entry, or its `/api`) is bound by the broker: MatSMTP makes a relay user (id = the slug, `managedBy: mattiverse`,
+  the sender `<sender>@<domain>` as the only allowed one) and answers the `MATSMTP_*` variables (its container name, port and TLS mode, the user, the password once, the
+  sender; MatDesign docs/PLATFORM.md "`mail.smtp`"). Mattiverse keeps the password and asks for a new one only when it has none. Without MatSMTP the variables are emptied and
+  the app sends its mail itself; the relay user is removed with the app. When MatSMTP is installed (or removed) the apps are bound (or lose it) and redeployed.
 - **The apps' side.** With the variables set an app sends all its mail through MatSMTP and shows its own SMTP settings as fixed (in its pages and with `fixed: true` in its
   `/api/configure`, which the Manage tab draws as disabled fields and never sends back). MatPlatform 1.3.0 (`MatSmtpSettings`) does this for the .NET apps.
 - **Mattiverse itself** sends no mail today, so it has nothing to connect.

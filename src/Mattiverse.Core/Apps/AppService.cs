@@ -46,6 +46,7 @@ public sealed partial class AppService
     private readonly IdentityLink _identity;
     private readonly MailLink _mail;
     private readonly FrameLink _frames;
+    private readonly BindingBroker _broker;
     private readonly ILogger<AppService> _logger;
 
     public AppService(
@@ -64,6 +65,7 @@ public sealed partial class AppService
         IdentityLink identity,
         MailLink mail,
         FrameLink frames,
+        BindingBroker broker,
         ILogger<AppService> logger)
     {
         _db = db;
@@ -81,6 +83,7 @@ public sealed partial class AppService
         _identity = identity;
         _mail = mail;
         _frames = frames;
+        _broker = broker;
         _logger = logger;
     }
 
@@ -218,6 +221,13 @@ public sealed partial class AppService
             log($"{app.Name} is installed.");
 
             await ProvisionAsync(app, catalog, log, ct);
+            await ConnectBindingsAsync(app, log, ct);
+
+            // An older Matcad (no web.route): the route the old way, then its DNS record.
+            if (catalog.Role != AppRoles.Proxy && !await _proxy.RoutesAreBindingsAsync(ct) && await _proxy.PublishAsync(app, log, ct) is not null)
+            {
+                await _dns.PublishAllAsync(log, null, ct);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -277,6 +287,9 @@ public sealed partial class AppService
         app.StatusMessage = null;
         await _db.SaveChangesAsync(ct);
         log($"{app.Name} is up to date.");
+
+        // A new version may provide or consume something else.
+        await ConnectBindingsAsync(app, log, ct);
     }
 
     // ------------------------------------------------------------------ uninstall
@@ -302,10 +315,14 @@ public sealed partial class AppService
                 await _backups.RunAsync(app, BackupKind.Manual, config.Backups.StopContainers, "Final backup before the uninstall", log, ct);
             }
 
-            await _proxy.UnpublishAsync(app, log, ct);
+            // A route from before the bindings (an older Matcad): removed the old way. Every binding (route, client, relay user) the broker removes.
+            if (!await _broker.HasBindingAsync(app, Capabilities.WebRoute, ct))
+            {
+                await _proxy.UnpublishAsync(app, log, ct);
+            }
+
+            var orphans = await DisconnectBindingsAsync(app, log, ct);
             await _dns.PublishAllAsync(log, excludeSlug: app.Slug, ct);
-            await RemoveFromIdentityAsync(app, log, ct);
-            await RemoveFromMailAsync(app, log, ct);
 
             log(deleteData ? "Removing the containers and the data ..." : "Removing the containers (the data is kept) ...");
             await _engines.For(app).RemoveAsync(app, deleteData, log, ct);
@@ -316,15 +333,13 @@ public sealed partial class AppService
             await _db.SaveChangesAsync(ct);
             log($"{app.Name} was removed.");
 
+            // The apps that used what it provided: another provider, or their variables go.
+            await ReconnectAsync(orphans, log, ct);
+
             if (app.Role == AppRoles.Identity)
             {
-                // Without MatIdentity the apps sign people in themselves again.
-                await ConnectIdentityAppsAsync(log, ct);
-            }
-            else if (app.Role == AppRoles.Mail)
-            {
-                // Without MatSMTP the apps send their mail themselves again.
-                await ConnectMailAppsAsync(log, ct);
+                // Without MatIdentity Mattiverse signs people in itself again (the apps lost their binding above).
+                await ConnectSelfAsync(log, ct);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -361,43 +376,29 @@ public sealed partial class AppService
     {
         var errors = new List<string>();
         var existing = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
+
+        // The sign-in and the mail an earlier Mattiverse filled as variables are bindings now (they are not variables of the entry any more).
+        await _broker.AdoptAsync(app, existing, ct);
         var variables = AppVariables.Resolve(catalog, new Dictionary<string, string?>(), existing, errors);
         if (errors.Count > 0)
         {
             throw new InvalidOperationException(string.Join(' ', errors));
         }
 
-        // What Mattiverse fills itself: the sign-in through MatIdentity (registered there now), the issuer of MatIdentity.
-        try
-        {
-            await _identity.ApplyAsync(app, catalog, variables, log, ct);
-        }
-        catch (InvalidOperationException ex)
-        {
-            log($"Warning: MatIdentity could not register the app ({ex.Message}); it keeps its own sign-in for now.");
-        }
-
-        // ... and the mail through MatSMTP (a relay user there now).
-        try
-        {
-            await _mail.ApplyAsync(app, catalog, variables, log, ct);
-        }
-        catch (InvalidOperationException ex)
-        {
-            log($"Warning: MatSMTP could not make the relay user of the app ({ex.Message}); its mail settings stay as they are for now.");
-        }
-
-        // ... and the addresses of Mattiverse that may show the app in the window of the home screen.
-        await _frames.ApplyAsync(catalog, variables, ct);
+        // MatIdentity itself: its public address as the issuer of its tokens.
+        await _identity.ApplyIssuerAsync(app, catalog, variables, ct);
 
         // A newer catalog entry may make an app an engine (MatIdentity, MatSMTP) or give it another role.
         app.IsCore = catalog.Core;
         app.Role = catalog.Role;
 
+        // ... and what the broker gives it: its bindings and its addresses (MatDesign docs/PLATFORM.md "Bindings"), the same for every app.
+        var injected = await _broker.VariablesAsync(app, ct);
+
         var config = await _config.GetAsync(ct);
         app.VariablesJson = AppVariables.Serialize(catalog, variables, _protector);
         await _db.SaveChangesAsync(ct);
-        return (_files.Build(app, catalog, variables, config.PublicHost ?? "localhost"), variables);
+        return (_files.Build(app, catalog, variables, config.PublicHost ?? "localhost", injected), variables);
     }
 
     /// <summary>The hash of the compose text as the engine stores it (an engine may re-format the YAML), falling back to what was sent.</summary>
@@ -415,25 +416,11 @@ public sealed partial class AppService
                 await provisioner.ProvisionAsync(app, catalog, log, ct);
             }
 
-            // MatIdentity came: the apps that can sign in through it are registered there and get their sign-in.
+            // MatIdentity came: Mattiverse signs people in through it too. The apps get their sign-in from the broker (identity.oidc), like their mail
+            // (mail.smtp) and their route (web.route): ConnectBindingsAsync, right after this.
             if (catalog.Role == AppRoles.Identity)
             {
-                await ConnectIdentityAppsAsync(log, ct);
-            }
-
-            // MatSMTP came: the apps that send mail get their relay user and send through it.
-            if (catalog.Role == AppRoles.Mail)
-            {
-                await ConnectMailAppsAsync(log, ct);
-            }
-
-            // An app that is not a proxy itself gets its route and its DNS record right away when the engines exist.
-            if (catalog.Role != AppRoles.Proxy)
-            {
-                if (await _proxy.PublishAsync(app, log, ct) is not null)
-                {
-                    await _dns.PublishAllAsync(log, null, ct);
-                }
+                await ConnectSelfAsync(log, ct);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -445,82 +432,183 @@ public sealed partial class AppService
     }
 
     /// <summary>
-    /// Registers every installed app that can sign in through MatIdentity there (or, without MatIdentity, takes the sign-in away again) and deploys it
-    /// again with its new variables. Runs after MatIdentity was installed or removed.
+    /// The job that connects the engines: Mattiverse's own sign-in through MatIdentity (or no more), then every binding of every app (identity.oidc, mail.smtp,
+    /// web.route, ... made or renewed where something changed: a domain, an engine that came or went), each app deployed once, then the DNS records.
     /// </summary>
-    public Task ConnectIdentityAppsAsync(Action<string> log, CancellationToken ct) => ConnectPlatformAppsAsync(identity: true, mail: false, log, ct);
-
-    /// <summary>
-    /// Gives every installed app that sends mail its relay user in MatSMTP (or, without MatSMTP, takes its mail variables away again) and deploys it again
-    /// with its new variables. Runs after MatSMTP was installed or removed.
-    /// </summary>
-    public Task ConnectMailAppsAsync(Action<string> log, CancellationToken ct) => ConnectPlatformAppsAsync(identity: false, mail: true, log, ct);
-
-    /// <summary>
-    /// Connects the apps to MatIdentity and MatSMTP in one pass (the job that connects the engines): every app that uses one of them is deployed once, with
-    /// all its variables filled.
-    /// </summary>
-    public async Task ConnectPlatformAppsAsync(bool identity, bool mail, Action<string> log, CancellationToken ct)
+    public async Task ConnectEnginesAsync(Action<string> log, CancellationToken ct)
     {
-        if (identity)
+        await ConnectSelfAsync(log, ct);
+        await ConnectAllBindingsAsync(log, ct);
+    }
+
+    /// <summary>Mattiverse's own sign-in through MatIdentity (its client `mattiverse`), or no more when MatIdentity is gone.</summary>
+    private async Task ConnectSelfAsync(Action<string> log, CancellationToken ct)
+    {
+        try
         {
-            // Mattiverse itself first: its own sign-in goes through MatIdentity too (or no more).
+            await _identity.ConnectSelfAsync(origin: null, log, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            log($"Warning: Mattiverse could not register itself in MatIdentity: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Binds an app that was installed or updated (what it consumes, and the consumers of what it provides) and deploys every app whose variables changed.
+    /// A failure is a warning: the app runs, only a connection is missing.
+    /// </summary>
+    public async Task ConnectBindingsAsync(InstalledApp app, Action<string> log, CancellationToken ct)
+    {
+        IReadOnlySet<long> changed;
+        try
+        {
+            changed = await _broker.ConnectAsync(app, log, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Binding {Slug} failed.", app.Slug);
+            log($"Warning: the connections of {app.Name} could not be made: {ex.Message}");
+            return;
+        }
+
+        await RedeployAsync(changed, log, ct);
+
+        // A provider that was deployed again may answer other values now: its consumers once more, when it runs again.
+        if (await ProvidersAmongAsync(changed, ct))
+        {
+            await WaitForProvidersAsync(changed, log, ct);
+            await ConnectAllBindingsAsync(log, ct);
+            return;
+        }
+
+        await PublishDnsAsync(log, ct);
+    }
+
+    /// <summary>
+    /// Binds every installed app again (the job that connects the engines): what is missing is made, what changed is deployed once. A provider that was deployed
+    /// again in that pass may answer other values (its new public address, the issuer of MatIdentity after a domain came): then its consumers are bound once more,
+    /// at most twice in all.
+    /// </summary>
+    public async Task ConnectAllBindingsAsync(Action<string> log, CancellationToken ct)
+    {
+        for (var round = 0; round < 2; round++)
+        {
+            var changed = new HashSet<long>();
+            foreach (var app in await _db.InstalledApps.Where(a => a.Lifecycle == AppLifecycle.Installed).OrderBy(a => a.SortOrder).ToListAsync(ct))
+            {
+                try
+                {
+                    changed.UnionWith(await _broker.ConnectAsync(app, log, ct));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    log($"Warning: the connections of {app.Name} could not be made: {ex.Message}");
+                }
+            }
+
+            await RedeployAsync(changed, log, ct);
+            if (round == 1 || !await ProvidersAmongAsync(changed, ct))
+            {
+                break;
+            }
+
+            await WaitForProvidersAsync(changed, log, ct);
+        }
+
+        await PublishDnsAsync(log, ct);
+    }
+
+    /// <summary>Waits until the providers among <paramref name="apps"/> run again (a binding asked too early would fail and keep the old values).</summary>
+    private async Task WaitForProvidersAsync(IReadOnlySet<long> apps, Action<string> log, CancellationToken ct)
+    {
+        var providers = await _db.AppBindings.Where(b => apps.Contains(b.ProviderAppId)).Select(b => b.ProviderAppId).Distinct().ToListAsync(ct);
+        foreach (var provider in await _db.InstalledApps.Where(a => providers.Contains(a.Id)).ToListAsync(ct))
+        {
             try
             {
-                await _identity.ConnectSelfAsync(origin: null, log, ct);
+                await WaitUntilRunningAsync(provider.Slug, log, ct);
             }
             catch (InvalidOperationException ex)
             {
-                log($"Warning: Mattiverse could not register itself in MatIdentity: {ex.Message}");
+                log($"Warning: {provider.Name} does not run again: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>True when one of the apps provides a binding Mattiverse made: deployed again, it may answer other values.</summary>
+    private Task<bool> ProvidersAmongAsync(IReadOnlySet<long> apps, CancellationToken ct)
+        => apps.Count == 0 ? Task.FromResult(false) : _db.AppBindings.AnyAsync(b => apps.Contains(b.ProviderAppId), ct);
+
+    /// <summary>The DNS records follow the routes (the public addresses the bindings of web.route gave): written when Mattiverse has a domain, a DNS account and Matddns.</summary>
+    private async Task PublishDnsAsync(Action<string> log, CancellationToken ct)
+    {
+        if (await _dns.IsActiveAsync(ct))
+        {
+            await _dns.PublishAllAsync(log, null, ct);
+        }
+    }
+
+    private async Task<IReadOnlySet<long>> DisconnectBindingsAsync(InstalledApp app, Action<string> log, CancellationToken ct)
+    {
+        try
+        {
+            return await _broker.DisconnectAsync(app, log, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log($"Warning: the connections of the app could not be removed: {ex.Message}");
+            return new HashSet<long>();
+        }
+    }
+
+    /// <summary>The consumers that lost their provider: bound to another one if there is one, and deployed with what they have now.</summary>
+    private async Task ReconnectAsync(IReadOnlySet<long> consumers, Action<string> log, CancellationToken ct)
+    {
+        var changed = new HashSet<long>(consumers);
+        foreach (var id in consumers)
+        {
+            if (await _db.InstalledApps.FirstOrDefaultAsync(a => a.Id == id, ct) is { } consumer)
+            {
+                try
+                {
+                    changed.UnionWith(await _broker.ConnectAsync(consumer, log, ct));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    log($"Warning: {consumer.Name} could not be connected again: {ex.Message}");
+                }
             }
         }
 
-        var apps = await _db.InstalledApps.Where(a => a.Lifecycle == AppLifecycle.Installed).ToListAsync(ct);
-        foreach (var other in apps)
+        await RedeployAsync(changed, log, ct);
+    }
+
+    /// <summary>Deploys the apps again with their variables as they are now (a new binding, one that is gone).</summary>
+    private async Task RedeployAsync(IEnumerable<long> appIds, Action<string> log, CancellationToken ct)
+    {
+        foreach (var id in appIds.Distinct())
         {
-            var otherCatalog = _catalog.Get(other.CatalogId);
-            if (otherCatalog is null || !((identity && otherCatalog.Identity is not null) || (mail && otherCatalog.Mail is not null)))
+            var app = await _db.InstalledApps.FirstOrDefaultAsync(a => a.Id == id && a.Lifecycle == AppLifecycle.Installed, ct);
+            var catalog = app is null ? null : _catalog.Get(app.CatalogId);
+            if (app is null || catalog is null)
             {
                 continue;
             }
 
-            log($"Connecting {other.Name} ...");
+            log($"Connecting {app.Name} ...");
             try
             {
-                var (spec, _) = await BuildSpecAsync(other, otherCatalog, log, ct);
-                var engine = _engines.For(other);
+                var (spec, _) = await BuildSpecAsync(app, catalog, log, ct);
+                var engine = _engines.For(app);
                 await engine.DeployAsync(spec, log, ct);
-                other.ComposeSha = await StoredHashAsync(engine, other, spec, ct);
+                app.ComposeSha = await StoredHashAsync(engine, app, spec, ct);
                 await _db.SaveChangesAsync(ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                log($"Warning: {other.Name} could not be connected: {ex.Message}");
+                log($"Warning: {app.Name} could not be deployed again: {ex.Message}");
             }
-        }
-    }
-
-    private async Task RemoveFromMailAsync(InstalledApp app, Action<string> log, CancellationToken ct)
-    {
-        try
-        {
-            await _mail.RemoveAsync(app, _catalog.Get(app.CatalogId), log, ct);
-        }
-        catch (InvalidOperationException ex)
-        {
-            log($"Warning: the relay user of the app could not be removed from MatSMTP: {ex.Message}");
-        }
-    }
-
-    private async Task RemoveFromIdentityAsync(InstalledApp app, Action<string> log, CancellationToken ct)
-    {
-        try
-        {
-            await _identity.RemoveAsync(app, _catalog.Get(app.CatalogId), log, ct);
-        }
-        catch (InvalidOperationException ex)
-        {
-            log($"Warning: the app could not be removed from MatIdentity: {ex.Message}");
         }
     }
 

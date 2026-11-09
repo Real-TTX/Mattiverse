@@ -14,8 +14,9 @@ x-mattiverse:
   provision: matidentity
   core: true
   platform: true
-  # Sends mail (password reset, invitations, e-mail verification): through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
-  mail: {}
+  # What the app uses of the engines (MatDesign docs/PLATFORM.md "Capabilities"): Mattiverse binds each when its engine is installed.
+  consumes:
+    - capability: mail.smtp       # its mail through MatSMTP (MATSMTP_*)
   ui:
     service: matidentity
     port: 2300

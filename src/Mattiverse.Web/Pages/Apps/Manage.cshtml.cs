@@ -20,8 +20,11 @@ public class ManageModel : PageModel
     private readonly AppUrls _urls;
     private readonly Toolkit _toolkit;
 
-    public ManageModel(AppService apps, PlatformClient platform, AppUrls urls, Toolkit toolkit)
+    private readonly BindingBroker _broker;
+
+    public ManageModel(AppService apps, PlatformClient platform, AppUrls urls, Toolkit toolkit, BindingBroker broker)
     {
+        _broker = broker;
         _toolkit = toolkit;
         _apps = apps;
         _platform = platform;
@@ -45,6 +48,21 @@ public class ManageModel : PageModel
 
     public IReadOnlyDictionary<string, JsonElement> Settings { get; private set; } = new Dictionary<string, JsonElement>();
 
+    /// <summary>The id of the tab Mattiverse adds for an app of contract 2: what it uses and offers (MatDesign docs/PLATFORM.md "The Connections area").</summary>
+    public const string ConnectionsView = "connections";
+
+    /// <summary>True when the app provides or consumes a capability: the page has the tab Connections.</summary>
+    public bool HasConnections => Definition is { } d && ((d.Provides?.Count ?? 0) + (d.Consumes?.Count ?? 0)) > 0;
+
+    /// <summary>True when the tab Connections is open.</summary>
+    public bool ShowConnections => HasConnections && PageId == ConnectionsView;
+
+    /// <summary>What the app says about its connections (null: it did not answer).</summary>
+    public PlatformConnections? Connections { get; private set; }
+
+    /// <summary>The bindings Mattiverse made for the app as a consumer: capability and provider.</summary>
+    public IReadOnlyList<(string Capability, string Provider)> Bindings { get; private set; } = [];
+
     /// <summary>The errors of the last save, by key of the field.</summary>
     public IReadOnlyDictionary<string, string> FieldErrors { get; private set; } = new Dictionary<string, string>();
 
@@ -61,8 +79,10 @@ public class ManageModel : PageModel
             Title = p.Label,
             Href = $"/Apps/Manage?id={Id}&view={Uri.EscapeDataString(p.Id)}",
             Icon = p.Icon is not null && KnownIcon(p.Icon) ? p.Icon : null,
-            Active = p.Id == Current?.Id,
-        }).ToList() ?? [],
+            Active = !ShowConnections && p.Id == Current?.Id,
+        }).Concat(HasConnections
+            ? [new TabItem { Title = "Connections", Href = $"/Apps/Manage?id={Id}&view={ConnectionsView}", Icon = KnownIcon("plug") ? "plug" : null, Active = ShowConnections }]
+            : []).ToList() ?? [],
     };
 
     public async Task<IActionResult> OnGetAsync() => await LoadAsync() ? Page() : NotFound();
@@ -208,6 +228,15 @@ public class ManageModel : PageModel
                     new PlatformPage("settings", "Settings", "settings", [new("form", Definition.Configure.Select(f => f.Key).ToList(), null, null)]),
                 ],
             };
+        }
+
+        if (ShowConnections)
+        {
+            // The tab Mattiverse adds: no sections of the app, its connections instead.
+            Current = new PlatformPage(ConnectionsView, "Connections", "plug", []);
+            Connections = await _platform.GetConnectionsAsync(app, ct);
+            Bindings = await _broker.ListAsync(app, ct);
+            return true;
         }
 
         Current = Definition.Pages.FirstOrDefault(p => p.Id == PageId) ?? Definition.Pages[0];

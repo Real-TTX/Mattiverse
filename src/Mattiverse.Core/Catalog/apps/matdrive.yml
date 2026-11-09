@@ -8,11 +8,12 @@ x-mattiverse:
   role: app
   icon: matdrive.svg
   homepage: https://github.com/Real-TTX/MatDrive
-  # The platform contract (/api) and the sign-in through MatIdentity: Mattiverse fills MAT_API_KEY and MATIDENTITY_*.
+  # The platform contract (/api): Mattiverse fills MAT_API_KEY.
   platform: true
-  identity: {}
-  # Sends mail when something is shared: through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
-  mail: {}
+  # What the app uses of the engines (MatDesign docs/PLATFORM.md "Capabilities"): Mattiverse binds each when its engine is installed.
+  consumes:
+    - capability: identity.oidc   # the sign-in through MatIdentity (MATIDENTITY_*)
+    - capability: mail.smtp       # its mail through MatSMTP (MATSMTP_*)
   ui:
     service: web
     port: 4810
@@ -30,7 +31,7 @@ x-mattiverse:
   notes:
     - The files lie in the volume matdrive-data (/data/files); back it up together with the database volume matdrive-db.
     - Storage locations of the NAS are bind-mounted below /storage and added under Administration → Storage locations.
-    - MatOffice opens the office files after you connect it under Administration → Integrations (a key made in MatOffice).
+    - Opens its office files in MatOffice (office.edit) as soon as MatOffice is installed; Mattiverse connects the two by itself. Without Mattiverse, enter MatOffice under Administration → Connections.
   credentials:
     - label: First sign-in
       value: The first account that registers is the administrator.

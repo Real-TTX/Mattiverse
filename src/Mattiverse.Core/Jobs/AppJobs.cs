@@ -49,7 +49,8 @@ public static class AppJobs
                 ctx.Log($"Warning: MatSMTP could not be set up: {ex.Message}");
             }
 
-            await ctx.Services.GetRequiredService<AppService>().ConnectPlatformAppsAsync(identity: true, mail: true, ctx.Log, ctx.Cancellation);
+            // Mattiverse's own sign-in, then every binding of every app (MatDesign docs/PLATFORM.md "Bindings"): the engines' capabilities too.
+            await ctx.Services.GetRequiredService<AppService>().ConnectEnginesAsync(ctx.Log, ctx.Cancellation);
         };
 
     public static Func<JobContext, Task> Restore(string backupId, bool backupCurrentFirst)

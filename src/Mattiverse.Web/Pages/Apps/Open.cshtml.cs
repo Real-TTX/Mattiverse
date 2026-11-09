@@ -31,7 +31,9 @@ public class OpenModel : PageModel
     public string? OpenUrl { get; private set; }
     public FrameCheck Frame { get; private set; } = new(false, null);
 
-    public async Task<IActionResult> OnGetAsync(long id)
+    /// <param name="id">The app.</param>
+    /// <param name="path">An address of the app to open instead of its start page (a launcher or an entry of its menu on the home screen).</param>
+    public async Task<IActionResult> OnGetAsync(long id, string? path = null)
     {
         var ct = HttpContext.RequestAborted;
         var app = await _apps.GetAsync(id, ct);
@@ -41,7 +43,7 @@ public class OpenModel : PageModel
         }
 
         // An app that is still installing (or failed) has nothing to show yet: go to its page.
-        var url = await _urls.OpenUrlAsync(app, Request, ct);
+        var url = await _urls.OpenUrlAsync(app, Request, ct, Mattiverse.Core.Integrations.ShellRules.IsPath(path) ? path : null);
         if (app.Lifecycle != AppLifecycle.Installed || url is null)
         {
             return RedirectToPage("/Apps/Details", new { id });

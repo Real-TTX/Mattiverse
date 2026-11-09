@@ -41,6 +41,10 @@ you can edit it there, and Mattiverse keeps your change when it updates the app.
 - **The engines are part of the system**: a widget with their state, the folder *System*, and a window for each that shows what it keeps
   for which app. An engine whose image allows it (`MAT_FRAME_ANCESTORS`, see [How it works](#how-it-works)) opens right there in the window
 - An installed app opens in a new tab, or in the window when you choose that in its menu (right click or long press)
+- **Apps bring their own icons and widgets**: an app can put several icons on the home screen (MatOffice: Docs, Sheets, Slides, Base), add entries to
+  the menu of an icon (*New document*) and widgets with its numbers, all from its own description: Mattiverse has no code for any app
+- **Apps connect themselves**: install MatDrive and MatOffice, and MatDrive opens its office files in MatOffice, with no key to copy. Each app says what it
+  offers and what it uses; Mattiverse connects them, and every app shows its connections on one page (and works without Mattiverse, connected by hand)
 - **Wallpapers** drawn for Mattiverse: *Orbit* (the planet of the logo, light or dark with the theme; the default), the Earth from orbit,
   a jungle, a lagoon and mountains seen from above, or none. Each person picks their own
 - Inside the window Mattiverse looks and behaves like every other Mat app: it is built on **MatUi**, the toolkit of
@@ -227,6 +231,10 @@ setup wizard. An update is `docker compose pull && docker compose up -d`; everyt
   the addresses people signed in from), and the engine answers with `frame-ancestors` for them (MatPlatform 1.5.0). Mattiverse checks the
   headers first and offers a new tab, with the reason, when an engine does not allow it.
 - Without an engine's API (an older image, or not installed yet) Mattiverse falls back to its own `docker compose` runner, so nothing stops working.
+- **Apps connect through bindings** (MatDesign [docs/PLATFORM.md](https://github.com/Real-TTX/MatDesign/blob/dev/docs/PLATFORM.md), contract 2): an app says in its `/api`
+  what it provides and consumes (`office.edit`, ...). After an install Mattiverse asks a provider for the binding of every consumer (`PUT /api/bindings/...`)
+  and passes the answer to the consumer as variables (`MAT_OFFICE_EDIT_URL`, `_KEY`, ...), with no code for any app. The same description gives the icons,
+  widgets and menu entries of the app on the home screen.
 - The design decisions (what the engines own, where the compose files are, the home screen, how this relates to MatOS) are in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); the contract with the engines is [docs/ENGINES.md](docs/ENGINES.md).
 
@@ -286,7 +294,8 @@ GitHub Action, which also builds the multi-arch image (`amd64`, `arm64`).
 | Mail through MatSMTP (installed by the wizard; a relay user and the `MATSMTP_*` variables for every app that sends mail) | ✅ (the apps still have to read the variables) |
 | Apps that describe themselves (platform contract): the tab Manage with their tiles, settings and buttons | ✅ |
 | The engines inside the window (`MAT_FRAME_ANCESTORS`, MatPlatform 1.5.0) | ✅ in Mattiverse; the engines on their `feature/frame-ancestors` branches, in their images with the next release |
-| Widgets you arrange yourself, widgets that apps describe in their `/api` | planned |
+| Apps that connect themselves (bindings) and bring their own icons, widgets and menu entries (contract 2, MatPlatform 2.0) | ✅ MatOffice and MatDrive; the engines move onto the bindings next |
+| Widgets you arrange yourself, widgets with the data of the person who is looking, a search across the apps | planned |
 | Microsoft Entra ID sign-in | planned (the login is already behind `AuthService` / `SessionService`) |
 | Remote backup targets (SMB, off-site) | MatDock's backup targets |
 

@@ -9,10 +9,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Mattiverse.Core.Integrations;
 
 /// <summary>
-/// Connects the apps to MatIdentity, the single sign-on (MatDesign docs/PLATFORM.md, "Sign-in with MatIdentity"). Mattiverse does all of it, nobody types
-/// a client id: when an app that can sign people in through MatIdentity (<see cref="CatalogApp.Identity"/>) is installed or updated and MatIdentity is
-/// installed, the app is registered there as a client (its addresses, <c>managedBy: mattiverse</c>) and its <c>MATIDENTITY_*</c> variables are filled; without
-/// MatIdentity they are empty and the app keeps its own sign-in. MatIdentity itself gets its public address as the issuer of its tokens.
+/// Mattiverse and MatIdentity, the single sign-on (MatDesign docs/PLATFORM.md, "Sign-in with MatIdentity"): Mattiverse's OWN sign-in through it (the client
+/// <c>mattiverse</c>, <see cref="ConnectSelfAsync"/>) and the issuer of MatIdentity itself (its public address). The apps are not here: they consume
+/// <c>identity.oidc</c> and the broker binds them like any capability (<see cref="BindingBroker"/>, MatIdentity is the provider).
 /// </summary>
 public sealed class IdentityLink
 {
@@ -22,10 +21,12 @@ public sealed class IdentityLink
     private readonly ProxyPublisher _proxy;
     private readonly ComposeFiles _files;
     private readonly DockerService _docker;
+    private readonly AppAddresses _addresses;
 
-    public IdentityLink(MattiverseDbContext db, MatIdentityClient identity, SystemConfigService config, ProxyPublisher proxy, ComposeFiles files, DockerService docker)
+    public IdentityLink(MattiverseDbContext db, MatIdentityClient identity, SystemConfigService config, ProxyPublisher proxy, ComposeFiles files, DockerService docker, AppAddresses addresses)
     {
         _docker = docker;
+        _addresses = addresses;
         _db = db;
         _identity = identity;
         _config = config;
@@ -33,62 +34,13 @@ public sealed class IdentityLink
         _files = files;
     }
 
-    /// <summary>
-    /// Fills the variables Mattiverse manages for this app, before its stack is deployed: the issuer of MatIdentity itself, or the client of an app that
-    /// signs in through it. <paramref name="variables"/> is changed in place.
-    /// </summary>
-    public async Task ApplyAsync(InstalledApp app, CatalogApp catalog, Dictionary<string, string> variables, Action<string> log, CancellationToken ct)
+    /// <summary>MatIdentity itself, before its stack is deployed: its public address as the issuer of its tokens. Other apps are left alone.</summary>
+    public async Task ApplyIssuerAsync(InstalledApp app, CatalogApp catalog, Dictionary<string, string> variables, CancellationToken ct)
     {
         if (catalog.Id == MatIdentityClient.CatalogIdValue)
         {
             variables[ManagedVariables.IdentityIssuer] = await PublicUrlAsync(app, ct) ?? string.Empty;
-            return;
         }
-
-        if (catalog.Identity is null)
-        {
-            return;
-        }
-
-        var identityApp = await _db.InstalledApps.AsNoTracking()
-            .FirstOrDefaultAsync(a => a.CatalogId == MatIdentityClient.CatalogIdValue && a.Lifecycle == AppLifecycle.Installed, ct);
-        if (identityApp is null || await _identity.GetStatusAsync(ct) is not { ApiVersion: >= 1 })
-        {
-            if (!string.IsNullOrEmpty(variables.GetValueOrDefault(ManagedVariables.IdentityAuthority)))
-            {
-                log("MatIdentity is not there (any more): the app uses its own sign-in again.");
-            }
-
-            Clear(variables);
-            return;
-        }
-
-        var bases = await AddressesAsync(app, ct);
-        var clientId = ClientIdOf(app);
-        var hasSecret = !string.IsNullOrEmpty(variables.GetValueOrDefault(ManagedVariables.IdentityClientSecret))
-                        && variables.GetValueOrDefault(ManagedVariables.IdentityClientId) == clientId;
-        var registration = await _identity.UpsertClientAsync(
-            clientId,
-            app.Name,
-            bases.FirstOrDefault(),
-            bases.Select(b => b + catalog.Identity.Callback).ToList(),
-            bases.Select(b => b + catalog.Identity.SignedOut).ToList(),
-            callsAllApps: false,
-            renewSecret: !hasSecret,
-            // MatIdentity tells the app when a person signed out there, server to server: the app's address on the shared network.
-            BackchannelLogoutUriOf(app.UiService is null ? null : _files.UiHost(app), app.UiPort, catalog.Identity),
-            ct);
-
-        variables[ManagedVariables.IdentityAuthority] = await PublicUrlAsync(identityApp, ct) ?? string.Empty;
-        // The app reaches MatIdentity on the shared network; the browser at its public address (the app rewrites its server-to-server calls).
-        variables[ManagedVariables.IdentityInternalUrl] = $"http://{_files.UiHost(identityApp)}:{identityApp.UiPort}";
-        variables[ManagedVariables.IdentityClientId] = clientId;
-        if (registration.Secret is not null)
-        {
-            variables[ManagedVariables.IdentityClientSecret] = registration.Secret;
-        }
-
-        log($"Signs in through MatIdentity ({variables[ManagedVariables.IdentityAuthority]}) as the app \"{clientId}\".");
     }
 
     /// <summary>The client id of Mattiverse itself in MatIdentity.</summary>
@@ -153,33 +105,8 @@ public sealed class IdentityLink
         return true;
     }
 
-    /// <summary>Removes the client of an app that is being uninstalled (only what Mattiverse registered).</summary>
-    public async Task RemoveAsync(InstalledApp app, CatalogApp? catalog, Action<string> log, CancellationToken ct)
-    {
-        if (catalog?.Identity is null || await _identity.GetStatusAsync(ct) is not { ApiVersion: >= 1 })
-        {
-            return;
-        }
-
-        await _identity.DeleteClientAsync(ClientIdOf(app), ct);
-        log("Removed from MatIdentity.");
-    }
-
     /// <summary>The path of Mattiverse's own back-channel logout (the web project's <c>BackchannelLogout</c>).</summary>
     public const string SelfBackchannelLogoutPath = "/signout-backchannel";
-
-    /// <summary>
-    /// Where MatIdentity posts the logout tokens of an app (OpenID Connect Back-Channel Logout): the container of its web service on the shared network and
-    /// the port inside it, with the path of the catalog entry (<c>http://mattiverse-matsplit-web:8080/signout-backchannel</c>). MatIdentity calls it server to
-    /// server, so it is never the public address. Empty (MatIdentity removes it) when the app has no web service or port.
-    /// </summary>
-    public static string BackchannelLogoutUriOf(string? uiHost, int? uiPort, CatalogIdentity identity)
-    {
-        ArgumentNullException.ThrowIfNull(identity);
-        return string.IsNullOrEmpty(uiHost) || uiPort is not { } port || string.IsNullOrWhiteSpace(identity.Backchannel)
-            ? string.Empty
-            : $"http://{uiHost}:{port}/{identity.Backchannel.Trim().TrimStart('/')}";
-    }
 
     /// <summary>
     /// Where MatIdentity posts the logout tokens of Mattiverse itself: its own container on the shared network (<paramref name="selfContainer"/>) and the port
@@ -188,37 +115,9 @@ public sealed class IdentityLink
     public static string SelfBackchannelLogoutUriOf(string? selfContainer, int port)
         => string.IsNullOrEmpty(selfContainer) ? string.Empty : $"http://{selfContainer}:{port}{SelfBackchannelLogoutPath}";
 
-    /// <summary>The client id of an app in MatIdentity: its slug (the id of the app in this Mattiverse; at least two characters).</summary>
-    public static string ClientIdOf(InstalledApp app) => app.Slug.Length >= 2 ? app.Slug : app.Slug + "-app";
+    /// <summary>The address the browser opens (<see cref="AppAddresses.PublicUrlAsync"/>).</summary>
+    public Task<string?> PublicUrlAsync(InstalledApp app, CancellationToken ct) => _addresses.PublicUrlAsync(app, ct);
 
-    /// <summary>The address the browser opens: the route of the reverse proxy when there is one, else this host and the app's port.</summary>
-    public async Task<string?> PublicUrlAsync(InstalledApp app, CancellationToken ct)
-        => (await AddressesAsync(app, ct)).FirstOrDefault();
-
-    /// <summary>Every address the browser may use for the app: the route (when a proxy and a domain are set up) and this host with the app's port.</summary>
-    public async Task<IReadOnlyList<string>> AddressesAsync(InstalledApp app, CancellationToken ct)
-    {
-        var config = await _config.GetAsync(ct);
-        var result = new List<string>();
-        if (!string.IsNullOrWhiteSpace(config.BaseDomain) && await _proxy.IsActiveAsync(ct))
-        {
-            result.Add(ProxyPublisher.UrlFor(ProxyPublisher.HostFor(app.Slug, config.BaseDomain)));
-        }
-
-        if (app.HostPort is { } port)
-        {
-            var host = string.IsNullOrWhiteSpace(config.PublicHost) ? "localhost" : config.PublicHost.Trim();
-            result.Add($"http://{(host.Contains(':') && !host.StartsWith('[') ? $"[{host}]" : host)}:{port}");
-        }
-
-        return result;
-    }
-
-    private static void Clear(Dictionary<string, string> variables)
-    {
-        variables[ManagedVariables.IdentityAuthority] = string.Empty;
-        variables[ManagedVariables.IdentityInternalUrl] = string.Empty;
-        variables[ManagedVariables.IdentityClientId] = string.Empty;
-        variables[ManagedVariables.IdentityClientSecret] = string.Empty;
-    }
+    /// <summary>Every address the browser may use for the app (<see cref="AppAddresses.AddressesAsync"/>).</summary>
+    public Task<IReadOnlyList<string>> AddressesAsync(InstalledApp app, CancellationToken ct) => _addresses.AddressesAsync(app, ct);
 }

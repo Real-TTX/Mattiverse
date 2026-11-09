@@ -8,11 +8,12 @@ x-mattiverse:
   role: app
   icon: matoffice.svg
   homepage: https://github.com/Real-TTX/MatOffice
-  # The platform contract (/api) and the sign-in through MatIdentity: Mattiverse fills MAT_API_KEY and MATIDENTITY_*.
+  # The platform contract (/api): Mattiverse fills MAT_API_KEY.
   platform: true
-  identity: {}
-  # Sends mail when a document is shared: through MatSMTP when it is installed; Mattiverse fills MATSMTP_*.
-  mail: {}
+  # What the app uses of the engines (MatDesign docs/PLATFORM.md "Capabilities"): Mattiverse binds each when its engine is installed.
+  consumes:
+    - capability: identity.oidc   # the sign-in through MatIdentity (MATIDENTITY_*)
+    - capability: mail.smtp       # its mail through MatSMTP (MATSMTP_*)
   ui:
     service: web
     port: 4820
@@ -28,7 +29,7 @@ x-mattiverse:
       default: Europe/Berlin
       advanced: true
   notes:
-    - To edit the office files of MatDrive, make a key under Administration → Connected apps and enter it in MatDrive (Administration → Integrations).
+    - Provides office.edit; Mattiverse connects MatDrive to it by itself (MatDrive opens its office files here). Without Mattiverse, connect an app under Administration → Connections.
   credentials:
     - label: First sign-in
       value: The first account that registers is the administrator.

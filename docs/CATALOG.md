@@ -29,8 +29,9 @@ x-mattiverse:
   shared: [proxy]             # more services that must be reachable by the reverse proxy (the UI service always is)
   provision: matcad           # optional: a built-in provisioner to run after the install (matdock | matcad | matddns | matidentity | matsmtp)
   platform: true              # optional: the app speaks the platform contract (MatDesign docs/PLATFORM.md): Mattiverse gives it MAT_API_KEY and a Manage page
-  identity: {}                # optional: the app signs in through MatIdentity (callback /signin-oidc, signedOut /signout-callback-oidc and backchannel /signout-backchannel can be changed)
-  mail: {}                    # optional: the app sends mail, through MatSMTP when it is installed: Mattiverse fills MATSMTP_* (sender: the part before the @, default the slug)
+  consumes:                   # optional: what the app uses of other apps (MatDesign docs/PLATFORM.md "Capabilities"); the broker binds each when a provider is installed
+    - capability: identity.oidc   # the sign-in through MatIdentity (params: callback /signin-oidc, signedOut /signout-callback-oidc, backchannel /signout-backchannel)
+    - capability: mail.smtp       # its mail through MatSMTP (params: sender = the part before the @, default the slug)
   notes:
     - Shown as a hint on the install page.
   variables:
@@ -82,20 +83,28 @@ volumes:
   `MATDOCK_API_KEY`, `MATSMTP_API_KEY`; MatIdentity uses `MAT_API_KEY`) that the compose file passes to the container the way the engine expects it (see [ENGINES.md](ENGINES.md)).
   The five engines are `core: true` (the wizard installs them, the app list cannot remove them); `EngineIds.All` names them in the order they are installed.
 
-## The platform contract and MatIdentity
+## The platform contract and what an app uses
 
 - `platform: true` adds the hidden, generated variable `MAT_API_KEY`; the compose file passes it as `MAT_API_KEY: ${MAT_API_KEY}`. The app gets a tab **Manage**, drawn from its `/api`.
-- `identity: {}` adds the hidden variables `MATIDENTITY_AUTHORITY`, `MATIDENTITY_INTERNAL_URL`, `MATIDENTITY_CLIENT_ID` and `MATIDENTITY_CLIENT_SECRET` (pass them as `${MATIDENTITY_AUTHORITY:-}` ...).
-  When MatIdentity is installed Mattiverse registers the app there and fills them on every install and update; without MatIdentity they are empty and the app signs people in itself.
-  The registration names the back-channel logout of the app (`backchannel`, default `/signout-backchannel`) at its address on the shared network, so MatIdentity can end the
-  app's sessions when a person signs out there (MatPlatform 1.4.0 answers it).
-- `mail: {}` (an app that sends mail) adds the hidden variables `MATSMTP_HOST`, `MATSMTP_PORT`, `MATSMTP_USERNAME`, `MATSMTP_PASSWORD` (a secret), `MATSMTP_FROM` and
-  `MATSMTP_TLS` (pass them as `${MATSMTP_HOST:-}` ..., to the service that sends the mail; MatDesign docs/PLATFORM.md "Mail through MatSMTP"). When MatSMTP is installed Mattiverse
-  makes a relay user for the app there (id = the slug, `managedBy: mattiverse`) and fills them on every install and update: the host is MatSMTP's container on the shared
-  network, port and TLS mode come from its status, the sender is `<slug>@<domain>` (the domain of MatSMTP's settings, else the one of the wizard). Without MatSMTP they are
-  empty and the app sends its mail itself. `mail: { sender: noreply }` changes the part before the `@`. Needs neither `ui` nor `platform`. The service that sends the mail must
-  be on the shared network (the UI service always is, others through `shared`).
-- An entry may declare one of these variables itself; then its own declaration is kept.
+- `consumes` lists the capabilities the app uses (`capability`, `version` (default 1), `params`): `identity.oidc` for the sign-in through MatIdentity, `mail.smtp` for its mail
+  through MatSMTP, or any other (MatDesign docs/PLATFORM.md "Capabilities"). The broker binds each to an installed provider and passes the binding's variables
+  (`MATIDENTITY_*`, `MATSMTP_*`, ...) to the app's web service and its `.env`; without a provider they are empty and the app does it itself. An app whose image says what it
+  consumes in its own `/api` needs no entry (what the `/api` says is added; it wins for the same capability). `identity.oidc` needs a `ui`.
+- The old keys `identity: {}` (with `callback`, `signedOut`, `backchannel`) and `mail: {}` (with `sender`) are read as `identity.oidc` and `mail.smtp` with those parameters, so a
+  catalog copy of an earlier Mattiverse keeps working. The variables an earlier Mattiverse filled for them are taken over as the app's bindings at its next deploy.
+- A service other than the web service that needs the variables (the one that sends the mail) names them in the compose file (`MATSMTP_HOST: ${MATSMTP_HOST:-}`): the values are in the
+  `.env`. The web service gets them by itself.
+
+## Bindings and contributions (contract 2)
+
+An entry says nothing about what the app provides, consumes or adds to the home screen: the app says it itself in its `/api` (MatDesign docs/PLATFORM.md "Capabilities",
+"Bindings", "Contributions"), and the broker (`BindingBroker`) reads it after the install. For an entry with `platform: true` the broker adds, to the UI service and the `.env`:
+
+- the variables of its bindings (`MAT_OFFICE_EDIT_URL`, `_INTERNAL_URL`, `_KEY` for an app that consumes `office.edit`, ...), passed as `NAME: ${NAME:-}`;
+- `MAT_INTERNAL_URL` (where the other apps reach it on the shared network) and `MAT_PUBLIC_URL` (only when it is a real address: a route under the domain, or this host by the
+  address of the settings).
+
+Do not list these in the compose file: the entry stays the same whatever is installed beside the app. A variable the entry declares itself wins over the broker's.
 
 ## What Mattiverse adds
 

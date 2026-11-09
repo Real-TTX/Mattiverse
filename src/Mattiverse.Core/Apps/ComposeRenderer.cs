@@ -30,8 +30,14 @@ public sealed class ComposeRenderer
     /// <summary>Name by which other containers on the shared network reach the UI of an app.</summary>
     public string UiHost(InstalledApp app) => ContainerName(app.Slug, app.UiService ?? string.Empty);
 
-    public string Render(CatalogApp catalog, InstalledApp app)
+    /// <param name="catalog">The catalog entry.</param>
+    /// <param name="app">The installed app.</param>
+    /// <param name="injected">
+    /// Variables the broker gives the app (its bindings, its addresses): passed to its web service as <c>NAME: ${NAME:-}</c>; the values are in the <c>.env</c>.
+    /// </param>
+    public string Render(CatalogApp catalog, InstalledApp app, IEnumerable<string>? injected = null)
     {
+        var names = injected?.ToList() ?? [];
         var stream = new YamlStream();
         using (var reader = new StringReader(catalog.ComposeYaml))
         {
@@ -60,6 +66,11 @@ public sealed class ComposeRenderer
             if (shared)
             {
                 MergeNetworks(service, ["default", _options.NetworkName]);
+            }
+
+            if (isUi && names.Count > 0)
+            {
+                MergeEnvironment(service, names);
             }
 
             if (isUi && app.HostPort is { } hostPort && catalog.Ui is { } ui)
@@ -112,6 +123,31 @@ public sealed class ComposeRenderer
         foreach (var (name, value) in labels)
         {
             map.Children[new YamlScalarNode(name)] = new YamlScalarNode(value) { Style = ScalarStyle.DoubleQuoted };
+        }
+
+        service.Children[key] = map;
+    }
+
+    /// <summary>Adds <c>NAME: ${NAME:-}</c> for every name the service does not set itself (a name the catalog entry passes stays as it is written).</summary>
+    private static void MergeEnvironment(YamlMappingNode service, IEnumerable<string> names)
+    {
+        var key = new YamlScalarNode("environment");
+        service.Children.TryGetValue(key, out var existing);
+        if (existing is YamlSequenceNode list)
+        {
+            var present = list.Children.OfType<YamlScalarNode>().Select(s => s.Value?.Split('=', 2)[0]).ToHashSet(StringComparer.Ordinal);
+            foreach (var name in names.Where(n => !present.Contains(n)))
+            {
+                list.Add(new YamlScalarNode(name + "=${" + name + ":-}") { Style = ScalarStyle.DoubleQuoted });
+            }
+
+            return;
+        }
+
+        var map = existing as YamlMappingNode ?? new YamlMappingNode();
+        foreach (var name in names.Where(n => !map.Children.ContainsKey(new YamlScalarNode(n))))
+        {
+            map.Children[new YamlScalarNode(name)] = new YamlScalarNode("${" + name + ":-}") { Style = ScalarStyle.DoubleQuoted };
         }
 
         service.Children[key] = map;

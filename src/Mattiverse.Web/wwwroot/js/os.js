@@ -281,6 +281,24 @@
         run: function () { try { if (always) { localStorage.removeItem(PREFS + key); } else { localStorage.setItem(PREFS + key, '1'); } } catch (e) { /* private mode */ } }
       }));
     }
+    // The quick actions of an app (contract 2, contributes.quickActions): an address of the app, opened like the app itself (a tab, or the window when it prefers it).
+    var quick = [];
+    try { quick = JSON.parse(el.getAttribute('data-quick') || '[]'); } catch (err) { quick = []; }
+    quick = Array.isArray(quick) ? quick.filter(function (q) { return q && typeof q.label === 'string' && typeof q.window === 'string' && q.window.charAt(0) === '/' && q.window.charAt(1) !== '/'; }) : [];
+    if (quick.length) {
+      var qsep = document.createElement('div');
+      qsep.className = 'os-menu__sep';
+      menu.appendChild(qsep);
+      quick.forEach(function (q) {
+        var qicon = /^[a-z0-9-]+$/.test(q.icon || '') ? q.icon : 'arrow-right';
+        var qtab = typeof q.tab === 'string' && /^https?:\/\//.test(q.tab) ? q.tab : null;
+        menu.appendChild(item(qicon, q.label, {
+          run: function () {
+            if (qtab && !prefersWindow(el)) { window.open(qtab, '_blank', 'noopener'); } else { open(q.window, { source: el, title: name }); }
+          }
+        }));
+      });
+    }
     var details = el.getAttribute('data-details');
     var manage = el.getAttribute('data-manage');
     if (details || manage) {

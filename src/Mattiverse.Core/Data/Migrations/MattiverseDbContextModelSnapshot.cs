@@ -17,6 +17,54 @@ namespace Mattiverse.Core.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
 
+            modelBuilder.Entity("Mattiverse.Core.Entities.AppBinding", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Capability")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ConsumerAppId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("CreateUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ProviderAppId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdateDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UpdateState")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UpdateUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("VariablesProtected")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProviderAppId");
+
+                    b.HasIndex("ConsumerAppId", "Capability");
+
+                    b.ToTable("AppBinding", (string)null);
+                });
+
             modelBuilder.Entity("Mattiverse.Core.Entities.Backup", b =>
                 {
                     b.Property<long>("Id")
@@ -506,6 +554,25 @@ namespace Mattiverse.Core.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("UserSession", (string)null);
+                });
+
+            modelBuilder.Entity("Mattiverse.Core.Entities.AppBinding", b =>
+                {
+                    b.HasOne("Mattiverse.Core.Entities.InstalledApp", "ConsumerApp")
+                        .WithMany()
+                        .HasForeignKey("ConsumerAppId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Mattiverse.Core.Entities.InstalledApp", "ProviderApp")
+                        .WithMany()
+                        .HasForeignKey("ProviderAppId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ConsumerApp");
+
+                    b.Navigation("ProviderApp");
                 });
 
             modelBuilder.Entity("Mattiverse.Core.Entities.ShareLink", b =>

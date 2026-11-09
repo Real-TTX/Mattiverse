@@ -66,6 +66,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddMattiverseCore();
 builder.Services.AddMattiverseWorkers();
 builder.Services.AddScoped<Mattiverse.Web.Support.AppUrls>();
+builder.Services.AddScoped<Mattiverse.Web.Support.HomeContributions>();
 builder.Services.AddScoped<Mattiverse.Web.Support.EngineOverview>();
 // The probe of a frame follows no redirect by itself: one to the public address of an app cannot be reached from inside Docker (Support/FrameProbe.cs).
 builder.Services.AddHttpClient(Mattiverse.Web.Support.FrameProbe.ClientName).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });

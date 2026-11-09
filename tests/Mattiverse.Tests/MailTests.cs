@@ -11,8 +11,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Mattiverse.Tests;
 
 /// <summary>
-/// The engines and the mail through MatSMTP (MatDesign docs/PLATFORM.md, "Mail through MatSMTP"): the five engines and their order, <c>mail: {}</c> in the catalog
-/// and the variables it brings, the entry of MatSMTP, the apps that send mail, <see cref="MailLink"/> against a fake MatSMTP and <see cref="MatSmtpClient"/> against a stub.
+/// The engines and the mail through MatSMTP (MatDesign docs/PLATFORM.md, "Mail through MatSMTP", "`mail.smtp`"): the five engines and their order, `consumes: mail.smtp`
+/// in the catalog (and the old key `mail: {}` read into it), the entry of MatSMTP, the apps that send mail and <see cref="MatSmtpClient"/> against a stub. The relay users
+/// are bindings of the broker now (BindingTests).
 /// </summary>
 public class MailTests
 {
@@ -70,8 +71,8 @@ public class MailTests
         Assert.Equal(AppRoles.Mail, smtp.Role);
         Assert.Equal("Infrastructure", smtp.Category);
         Assert.True(smtp.Platform);
-        Assert.NotNull(smtp.Identity);
-        Assert.Null(smtp.Mail);
+        Assert.True(smtp.Uses(Capabilities.IdentityOidc));
+        Assert.False(smtp.Uses(Capabilities.MailSmtp));
         Assert.Equal("matsmtp", smtp.Ui!.Service);
         Assert.Equal(2525, smtp.Ui.Port);
         Assert.Equal(2525, smtp.Ui.HostPort);
@@ -100,23 +101,20 @@ public class MailTests
         Assert.True(identity.Core);
     }
 
-    // ------------------------------------------------------------------ mail: {} in the catalog
+    // ------------------------------------------------------------------ mail.smtp in the catalog
 
     [Fact]
-    public void An_app_that_sends_mail_gets_the_six_variables_hidden_and_none_generated()
+    public void The_old_key_mail_is_read_as_the_capability_and_brings_no_variables_any_more()
     {
         var app = CatalogParser.Parse(Minimal, "test");
 
-        Assert.NotNull(app.Mail);
-        Assert.Null(app.Mail.Sender);
-        foreach (var key in ManagedVariables.Mail)
-        {
-            var variable = Assert.Single(app.Variables, v => v.Key == key);
-            Assert.True(variable.Hidden, key);
-            Assert.False(variable.Generate, key);
-            Assert.Equal(key == ManagedVariables.MailPassword, variable.IsSecret);
-        }
+        var mail = Assert.Single(app.Consumes);
+        Assert.Equal(Capabilities.MailSmtp, mail.Capability);
+        Assert.Equal(1, mail.Version);
+        Assert.Empty(mail.Params);
 
+        // The variables of the binding are the broker's: none of them is a variable of the entry.
+        Assert.DoesNotContain(app.Variables, v => v.Key.StartsWith("MATSMTP_", StringComparison.Ordinal));
         Assert.Equal(["MATSMTP_HOST", "MATSMTP_PORT", "MATSMTP_USERNAME", "MATSMTP_PASSWORD", "MATSMTP_FROM", "MATSMTP_TLS"], ManagedVariables.Mail);
     }
 
@@ -129,24 +127,28 @@ public class MailTests
     }
 
     [Fact]
-    public void An_app_without_mail_gets_none_of_them()
-        => Assert.DoesNotContain(CatalogParser.Parse(Minimal.Replace("  mail: {}\n", string.Empty), "test").Variables, v => v.Key.StartsWith("MATSMTP_", StringComparison.Ordinal));
-
-    [Fact]
-    public void The_sender_can_be_named_and_must_be_the_part_before_the_at()
+    public void The_sender_is_a_parameter_and_must_be_the_part_before_the_at()
     {
-        Assert.Equal("noreply", CatalogParser.Parse(Minimal.Replace("mail: {}", "mail:\n    sender: noreply"), "test").Mail!.Sender);
+        Assert.Equal("noreply", CatalogParser.Parse(Minimal.Replace("mail: {}", "mail:\n    sender: noreply"), "test").Consumes.Single().Params["sender"]);
+        var generic = Minimal.Replace("  mail: {}", "  consumes:\n    - capability: mail.smtp\n      params:\n        sender: shop");
+        Assert.Equal("shop", CatalogParser.Parse(generic, "test").Consumes.Single().Params["sender"]);
         Assert.Throws<FormatException>(() => CatalogParser.Parse(Minimal.Replace("mail: {}", "mail:\n    sender: a@b.com"), "test"));
         Assert.Throws<FormatException>(() => CatalogParser.Parse(Minimal.Replace("mail: {}", "mail:\n    sender: \"Bad Name\""), "test"));
     }
 
     [Fact]
-    public void An_entry_that_declares_a_mail_variable_itself_keeps_its_own()
+    public void A_capability_must_have_a_name_like_area_dot_verb()
     {
-        var app = CatalogParser.Parse(Minimal.Replace("  mail: {}\n", "  mail: {}\n  variables:\n    - key: MATSMTP_FROM\n      label: Sender\n      default: shop@example.com\n"), "test");
-        var from = Assert.Single(app.Variables, v => v.Key == ManagedVariables.MailFrom);
-        Assert.False(from.Hidden);
-        Assert.Equal("shop@example.com", from.Default);
+        Assert.Throws<FormatException>(() => CatalogParser.Parse(Minimal.Replace("  mail: {}", "  consumes:\n    - capability: mail"), "test"));
+        Assert.Throws<FormatException>(() => CatalogParser.Parse(Minimal.Replace("  mail: {}", "  consumes:\n    - capability: mail.smtp\n      version: 0"), "test"));
+    }
+
+    [Fact]
+    public void The_old_key_and_the_new_list_say_the_capability_once()
+    {
+        var both = Minimal.Replace("  mail: {}", "  mail: {}\n  consumes:\n    - capability: mail.smtp\n      params:\n        sender: shop");
+        var mail = Assert.Single(CatalogParser.Parse(both, "test").Consumes);
+        Assert.Equal("shop", mail.Params["sender"]);
     }
 
     [Theory]
@@ -162,178 +164,13 @@ public class MailTests
     {
         var app = CreateCatalog().Get(id);
         Assert.NotNull(app);
-        Assert.NotNull(app.Mail);
-        foreach (var key in ManagedVariables.Mail)
-        {
-            Assert.Contains($"{key}: ${{{key}:-}}", app.ComposeYaml);
-        }
+        Assert.True(app.Uses(Capabilities.MailSmtp));
+        Assert.Null(app.Mail);
     }
 
     [Fact]
     public void Only_the_apps_that_send_mail_say_so()
-        => Assert.Equal(MailApps.Order(), CreateCatalog().GetAll().Where(a => a.Mail is not null).Select(a => a.Id).Order());
-
-    // ------------------------------------------------------------------ MailLink against a fake MatSMTP
-
-    private sealed class FakeSmtp : MatSmtpClient
-    {
-        public FakeSmtp()
-            : base(null!, null!)
-        {
-        }
-
-        public List<(string Id, string DisplayName, IReadOnlyList<string> Senders, bool Renew)> Upserts { get; } = new();
-
-        public List<string> Deleted { get; } = new();
-
-        public bool Exists { get; set; }
-
-        public int Issued { get; private set; }
-
-        public override Task<RelayUser> UpsertRelayUserAsync(string id, string displayName, IReadOnlyList<string> allowedSenders, bool renewSecret, CancellationToken ct)
-        {
-            Upserts.Add((id, displayName, allowedSenders, renewSecret));
-            var created = !Exists;
-            Exists = true;
-            string? password = null;
-            if (created || renewSecret)
-            {
-                Issued++;
-                password = "pw-" + Issued;
-            }
-
-            return Task.FromResult(new RelayUser(id, "relay-" + id, password, created));
-        }
-
-        public override Task DeleteRelayUserAsync(string id, CancellationToken ct)
-        {
-            Deleted.Add(id);
-            return Task.CompletedTask;
-        }
-    }
-
-    private static readonly MatSmtpStatus Answering = new("1.0.0", 1, 2025, "none");
-
-    private static MailRelay Relay(MatSmtpStatus? status = null, string domain = "example.com")
-        => new("mattiverse-matsmtp-matsmtp", status ?? Answering, domain);
-
-    private static CatalogApp SendsMail(string? sender = null) => new() { Id = "matbu", Name = "MatBu", Mail = new CatalogMail { Sender = sender } };
-
-    private static InstalledApp App(string slug = "matbu") => new() { Slug = slug, Name = "MatBu", CatalogId = "matbu" };
-
-    private static Dictionary<string, string> Empty() => ManagedVariables.Mail.ToDictionary(k => k, _ => string.Empty);
-
-    [Fact]
-    public async Task With_MatSMTP_the_app_gets_a_relay_user_and_all_six_variables()
-    {
-        var smtp = new FakeSmtp();
-        var variables = Empty();
-        var log = new List<string>();
-
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(new MatSmtpStatus("1.0.0", 1, 2025, "starttls")), smtp, log.Add, default);
-
-        var upsert = Assert.Single(smtp.Upserts);
-        Assert.Equal("matbu", upsert.Id);
-        Assert.Equal("MatBu", upsert.DisplayName);
-        Assert.Equal(["matbu@example.com"], upsert.Senders);
-        Assert.True(upsert.Renew);
-
-        Assert.Equal("mattiverse-matsmtp-matsmtp", variables[ManagedVariables.MailHost]);
-        Assert.Equal("2025", variables[ManagedVariables.MailPort]);
-        Assert.Equal("relay-matbu", variables[ManagedVariables.MailUsername]);
-        Assert.Equal("pw-1", variables[ManagedVariables.MailPassword]);
-        Assert.Equal("matbu@example.com", variables[ManagedVariables.MailFrom]);
-        Assert.Equal("starttls", variables[ManagedVariables.MailTls]);
-        Assert.Contains(log, l => l.Contains("matbu@example.com", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task The_password_is_kept_and_renewed_only_when_it_is_missing()
-    {
-        var smtp = new FakeSmtp();
-        var variables = Empty();
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(), smtp, _ => { }, default);
-
-        // An update: the user exists, the app has its password, nothing is renewed.
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(), smtp, _ => { }, default);
-        Assert.False(smtp.Upserts[1].Renew);
-        Assert.Equal("pw-1", variables[ManagedVariables.MailPassword]);
-
-        // The password got lost: it is renewed.
-        variables[ManagedVariables.MailPassword] = string.Empty;
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(), smtp, _ => { }, default);
-        Assert.True(smtp.Upserts[2].Renew);
-        Assert.Equal("pw-2", variables[ManagedVariables.MailPassword]);
-    }
-
-    [Fact]
-    public async Task A_MatSMTP_that_lost_the_user_hands_out_a_new_password_and_it_is_taken()
-    {
-        var smtp = new FakeSmtp();
-        var variables = Empty();
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(), smtp, _ => { }, default);
-
-        smtp.Exists = false;
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(), smtp, _ => { }, default);
-        Assert.False(smtp.Upserts[1].Renew);
-        Assert.Equal("pw-2", variables[ManagedVariables.MailPassword]);
-    }
-
-    [Fact]
-    public async Task Without_MatSMTP_the_variables_are_cleared_and_nobody_is_asked()
-    {
-        var smtp = new FakeSmtp();
-        var variables = Empty();
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(), smtp, _ => { }, default);
-
-        var log = new List<string>();
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, relay: null, smtp, log.Add, default);
-
-        Assert.All(ManagedVariables.Mail, key => Assert.Equal(string.Empty, variables[key]));
-        Assert.Single(smtp.Upserts);
-        Assert.Contains(log, l => l.Contains("sends its mail itself", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task A_MatSMTP_that_does_not_answer_leaves_the_variables_as_they_are()
-    {
-        var smtp = new FakeSmtp();
-        var variables = Empty();
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(), smtp, _ => { }, default);
-        var before = new Dictionary<string, string>(variables);
-
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, Relay(new MatSmtpStatus(string.Empty, 0, 2025, "none")), smtp, _ => { }, default);
-        await MailLink.ApplyAsync(App(), SendsMail(), variables, new MailRelay("host", null, "example.com"), smtp, _ => { }, default);
-
-        Assert.Equal(before, variables);
-        Assert.Single(smtp.Upserts);
-    }
-
-    [Fact]
-    public async Task An_app_without_mail_is_left_alone()
-    {
-        var smtp = new FakeSmtp();
-        var variables = new Dictionary<string, string> { ["OTHER"] = "x" };
-        await MailLink.ApplyAsync(App(), new CatalogApp { Id = "matsplit", Name = "MatSplit" }, variables, Relay(), smtp, _ => { }, default);
-        await MailLink.ApplyAsync(App(), new CatalogApp { Id = "matsplit", Name = "MatSplit" }, variables, relay: null, smtp, _ => { }, default);
-
-        Assert.Empty(smtp.Upserts);
-        Assert.Equal(new Dictionary<string, string> { ["OTHER"] = "x" }, variables);
-    }
-
-    [Fact]
-    public async Task The_sender_follows_the_catalog_and_the_slug_of_the_app()
-    {
-        var smtp = new FakeSmtp();
-        var variables = Empty();
-        await MailLink.ApplyAsync(App("backup-2"), SendsMail(), variables, Relay(domain: "home.example"), smtp, _ => { }, default);
-        Assert.Equal("backup-2@home.example", variables[ManagedVariables.MailFrom]);
-        Assert.Equal("backup-2", smtp.Upserts[0].Id);
-
-        await MailLink.ApplyAsync(App(), SendsMail("noreply"), variables, Relay(), smtp, _ => { }, default);
-        Assert.Equal("noreply@example.com", variables[ManagedVariables.MailFrom]);
-        Assert.Equal(["noreply@example.com"], smtp.Upserts[1].Senders);
-    }
+        => Assert.Equal(MailApps.Order(), CreateCatalog().GetAll().Where(a => a.Uses(Capabilities.MailSmtp)).Select(a => a.Id).Order());
 
     // ------------------------------------------------------------------ MatSmtpClient against a stub
 

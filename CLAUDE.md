@@ -8,7 +8,7 @@ interfaces or major data flow change.
 A launcher (iOS/Android look, one app open at a time) that **installs, updates and backs up Docker apps**. It is a thin layer on top of
 five **engines** that own the configuration and show it in their own UI: **MatDock** (stacks, backups, schedules), **Matcad** (routes,
 certificates, DNS providers), **Matddns** (IP sources, DNS records, rules), **MatIdentity** (the single sign-on: a client per app, docs/ARCHITECTURE.md "MatIdentity")
-and **MatSMTP** (the mail relay: a relay user per app with `mail: {}`, docs/ARCHITECTURE.md "MatSMTP"). `EngineIds.All` names them in the order they are installed
+and **MatSMTP** (the mail relay: a relay user per app that consumes `mail.smtp`, docs/ARCHITECTURE.md "MatSMTP"). `EngineIds.All` names them in the order they are installed
 (MatDock first, MatSMTP last); all are `core: true`. Mattiverse calls their REST APIs (`docs/ENGINES.md`); the wizard
 installs them and asks once for the domain and the DNS account. They are fixed parts, not options. Every app is a compose project.
 
@@ -19,8 +19,10 @@ The look and the controls are **MatUi**, the toolkit of [MatDesign](https://gith
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing the design: it records the decisions (the engines own the
 configuration, reading goes to Docker and changes to the engines, catalog as data, ...). [docs/ENGINES.md](docs/ENGINES.md) is the API contract
-with MatDock, Matcad, Matddns, MatIdentity and MatSMTP, [docs/CATALOG.md](docs/CATALOG.md) the format of a catalog entry (`platform`, `identity`, `mail`),
+with MatDock, Matcad, Matddns, MatIdentity and MatSMTP, [docs/CATALOG.md](docs/CATALOG.md) the format of a catalog entry (`platform`, `consumes`),
 [docs/INTEGRATION.md](docs/INTEGRATION.md) the state of the sibling repositories (the `mattiverse-integration` branches).
+The apps connect to each other through **bindings** (MatDesign docs/PLATFORM.md contract 2, docs/APP-MODEL.md): Mattiverse is the broker (`BindingBroker`) and the shell (the
+apps' launchers, quick actions and widgets on the home screen). **No code that knows a particular app**: a new pair of apps needs no change here.
 
 ## Build / run / test
 
@@ -55,7 +57,7 @@ with MatDock, Matcad, Matddns, MatIdentity and MatSMTP, [docs/CATALOG.md](docs/C
 src/Mattiverse.Core        domain, no web types
   Entities/ Data/            EF entities (AuditableEntity, soft delete), DbContext, migrations
   Apps/                      AppService (install/update/uninstall/lifecycle), ComposeRenderer (catalog entry -> the one compose file),
-                             ComposeFiles, ComposeRunner, AppReconciler (adopt MatDock stacks), AppVariables, PortPlanner
+                             ComposeFiles, ComposeRunner, AppReconciler (adopt MatDock stacks), AppVariables, PortPlanner, AppAddresses (public and internal address of an app)
   Engines/                   IStackEngine: LocalComposeEngine (own docker compose) and MatDockEngine; StackEngines picks one;
                              EngineClient/EngineLocator (address + API key of an installed engine), MatDockClient, EngineIds
   Backups/                   IBackupProvider: LocalBackupProvider (BackupService, own runner) and MatDockBackupProvider; BackupHub merges
@@ -63,7 +65,11 @@ src/Mattiverse.Core        domain, no web types
   Catalog/                   CatalogParser/Service/Models + apps/*.yml (embedded)
   Docker/                    DockerCli (process wrapper), DockerService (typed ops, parsing)
   Integrations/              MatcadClient, MatddnsClient, ProxyPublisher (routes, wildcard), DnsPublisher (records), IAppProvisioner (one per engine),
-                             MatIdentityClient + IdentityLink (MATIDENTITY_*), MatSmtpClient + MailLink (MATSMTP_*, relay users), PlatformClient (/api of an app)
+                             MatIdentityClient + IdentityLink (Mattiverse's own sign-in, the issuer of MatIdentity), MatSmtpClient + MailLink (the setup of MatSMTP), FrameLink (Mattiverse's
+                             shell.embed: MAT_FRAME_ANCESTORS), PlatformClient (/api of an app, contract 2),
+                             BindingBroker (the bindings between the apps and of the engines: identity.oidc, mail.smtp, web.route; one class for every capability, AppBinding;
+                             catalog consumes + /api + implicit web.route; AdoptAsync takes over the variables of an earlier Mattiverse), AppManifests + ManifestCache (definitions and values, short
+                             timeouts, kept a while), ShellRules (who sees a contribution, which addresses it may open)
   Jobs/                      JobService/Queue/RunnerService, AppJobs (the work per job kind), JobContext/log
   Auth/ Users/ Security/     login, sessions (EndIdentitySessionsAsync: the back-channel logout), LogoutToken (the check of a logout token of MatIdentity), PBKDF2 hasher, secret protector; Wallpapers (the pictures of the home screen)
   Configuration/             options, AppPaths, JsonConfigStore, SystemConfig
@@ -72,7 +78,7 @@ src/Mattiverse.Web         Razor Pages, controls, JS/CSS, Program.cs
   Pages/                     Index (Mattiverse OS), Engines/ (one engine in the window), Apps/, Store/, Backups/, Jobs/, Settings/, Wizard/, Users/, Account/, Share/
   Pages/Shared/              _Layout (the shell: menus, switcher, user, theme, breadcrumb), _Launcher (Mattiverse OS: status bar, wallpaper, the one window, no menu), _Bare (no menu), _Head, _Toolbar, _Pager, _ValidationSummary, _StatusPill, _DnsFields
   Infrastructure/            cookie session validation, setup guard, DB bootstrap, API endpoints, health check, MatIdentitySignIn, BackchannelLogout (POST /signout-backchannel)
-  Support/                   Toolkit (the icon sprite), Ui (Icon, Logo), Navigation (the menus: NavSet, NavItem, NavBadge), Launcher (the parts of Mattiverse as apps on the home screen and in its dock), EngineOverview (the five engines for the settings, the home screen and /Engines), Crumbs, AppUrls, FrameProbe, AppStatus, Format
+  Support/                   Toolkit (the icon sprite), Ui (Icon, Logo), Navigation (the menus: NavSet, NavItem, NavBadge), Launcher (the parts of Mattiverse as apps on the home screen and in its dock), EngineOverview (the five engines for the settings, the home screen and /Engines), HomeContributions (the launchers, quick actions and widgets of the apps for the home screen), Crumbs, AppUrls, FrameProbe, AppStatus, Format
   wwwroot/matui/             the toolkit, a copy of MatDesign's; wwwroot/css/mattiverse.css the few classes only this app has (mv-*, mv-in-window); css/os.css the home screen (os-*); js/mattiverse.js its behaviour, js/os.js the home screen, js/window-mode.js a page in the window
 tests/Mattiverse.Tests       unit tests + WebUiTests (they read the source of the pages)
 tests/e2e                    run.js: the pages in a real browser against the running dev stack

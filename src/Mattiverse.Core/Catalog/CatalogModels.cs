@@ -66,11 +66,20 @@ public sealed class CatalogApp
     /// <summary>The app speaks the platform contract (MatDesign docs/PLATFORM.md): Mattiverse gives it a key (<c>MAT_API_KEY</c>) and shows its <c>/api</c> on the page of the app.</summary>
     public bool Platform { get; set; }
 
-    /// <summary>The app can sign people in through MatIdentity: when MatIdentity is installed, Mattiverse registers the app there and fills <c>MATIDENTITY_*</c>.</summary>
+    /// <summary>
+    /// What the app uses of other apps (MatDesign docs/PLATFORM.md "Capabilities"): the broker binds each to a provider that is installed and passes its variables
+    /// (`identity.oidc` → `MATIDENTITY_*`, `mail.smtp` → `MATSMTP_*`, ...). For an image that does not say it in its own `/api`; what the app's `/api` says is added.
+    /// </summary>
+    public List<CatalogConsumes> Consumes { get; set; } = new();
+
+    /// <summary>The old key of an entry that signs in through MatIdentity: read into <see cref="Consumes"/> as <c>identity.oidc</c> (a catalog copy of an earlier Mattiverse).</summary>
     public CatalogIdentity? Identity { get; set; }
 
-    /// <summary>The app sends mail: when MatSMTP is installed, Mattiverse creates a relay user for it there and fills <c>MATSMTP_*</c>, so all its mail goes through MatSMTP.</summary>
+    /// <summary>The old key of an entry that sends mail: read into <see cref="Consumes"/> as <c>mail.smtp</c> (a catalog copy of an earlier Mattiverse).</summary>
     public CatalogMail? Mail { get; set; }
+
+    /// <summary>True when the app uses <paramref name="capability"/> (as the catalog says).</summary>
+    public bool Uses(string capability) => Consumes.Any(c => c.Capability == capability);
 
     // ---- filled by the loader, not part of the YAML block ----
 
@@ -152,6 +161,25 @@ public sealed class CatalogPort
     public int HostPort { get; set; }
 
     public string Protocol { get; set; } = "tcp";
+}
+
+/// <summary>A capability an app uses, as the catalog writes it: its name, the version it speaks and what it passes to the provider (`sender` of `mail.smtp`, ...).</summary>
+public sealed class CatalogConsumes
+{
+    public string Capability { get; set; } = string.Empty;
+
+    public int Version { get; set; } = 1;
+
+    public Dictionary<string, string> Params { get; set; } = new();
+}
+
+/// <summary>The capabilities of the engines that the old catalog keys stood for.</summary>
+public static class Capabilities
+{
+    public const string IdentityOidc = "identity.oidc";
+    public const string MailSmtp = "mail.smtp";
+    public const string WebRoute = "web.route";
+    public const string ShellEmbed = "shell.embed";
 }
 
 /// <summary>Where an app receives the sign-in from MatIdentity (paths of its own address; the defaults are those of ASP.NET Core).</summary>

@@ -116,8 +116,9 @@ public class IndexModel : PageModel
             c.Backups.StopContainers = Input.BackupStopContainers;
         }, ct);
 
-        // A new domain or DNS account means new host names, certificates and records: tell Matcad and Matddns.
-        if ((domainChanged || dnsChanged) && (await _proxy.IsActiveAsync(ct) || await _dns.IsActiveAsync(ct)))
+        // A new domain or DNS account means new host names, certificates and records: tell Matcad and Matddns. A domain that was removed too: its routes,
+        // the bindings of web.route and the public addresses of the apps go.
+        if ((domainChanged || dnsChanged) && (await _proxy.IsActiveAsync(ct) || await _dns.IsActiveAsync(ct) || !string.IsNullOrWhiteSpace(before.BaseDomain)))
         {
             var jobId = await _jobs.EnqueueAsync(JobKind.Provision, "Hand the domain and the DNS account to the engines", null, AppJobs.ConnectEngines(), ct);
             return RedirectToPage("/Jobs/Details", new { id = jobId });

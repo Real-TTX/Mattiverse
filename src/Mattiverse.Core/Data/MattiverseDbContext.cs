@@ -26,6 +26,7 @@ public class MattiverseDbContext : DbContext
     public DbSet<Backup> Backups => Set<Backup>();
     public DbSet<BackupSchedule> BackupSchedules => Set<BackupSchedule>();
     public DbSet<ShareLink> ShareLinks => Set<ShareLink>();
+    public DbSet<AppBinding> AppBindings => Set<AppBinding>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -140,6 +141,19 @@ public class MattiverseDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.AppId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasQueryFilter(x => x.UpdateState != UpdateState.Deleted);
+        });
+
+        modelBuilder.Entity<AppBinding>(e =>
+        {
+            e.ToTable("AppBinding");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Capability).HasMaxLength(100).IsRequired();
+            e.Property(x => x.VariablesProtected).IsRequired();
+            e.HasIndex(x => new { x.ConsumerAppId, x.Capability });
+            e.HasIndex(x => x.ProviderAppId);
+            e.HasOne(x => x.ConsumerApp).WithMany().HasForeignKey(x => x.ConsumerAppId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.ProviderApp).WithMany().HasForeignKey(x => x.ProviderAppId).OnDelete(DeleteBehavior.Cascade);
             e.HasQueryFilter(x => x.UpdateState != UpdateState.Deleted);
         });
     }

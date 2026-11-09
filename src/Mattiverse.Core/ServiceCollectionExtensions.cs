@@ -79,6 +79,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MatSmtpClient>();
         services.AddScoped<MailLink>();
         services.AddScoped<FrameLink>();
+
+        // The bindings (MatDesign docs/PLATFORM.md "Bindings"): one broker for every capability, no code per app.
+        services.AddScoped<AppAddresses>();
+        services.AddScoped<AppManifests>();
+        services.AddScoped<BindingBroker>();
+        services.AddSingleton<ManifestCache>();
         services.AddScoped<IAppProvisioner, MatSmtpProvisioner>();
 
         return services;

@@ -23,6 +23,7 @@ public sealed class ProxyPublisher
     private readonly MatcadClient _matcad;
     private readonly DockerService _docker;
     private readonly ComposeFiles _files;
+    private readonly AppManifests _manifests;
     private readonly ILogger<ProxyPublisher> _logger;
 
     public ProxyPublisher(
@@ -31,8 +32,10 @@ public sealed class ProxyPublisher
         MatcadClient matcad,
         DockerService docker,
         ComposeFiles files,
+        AppManifests manifests,
         ILogger<ProxyPublisher> logger)
     {
+        _manifests = manifests;
         _db = db;
         _config = config;
         _matcad = matcad;
@@ -55,7 +58,17 @@ public sealed class ProxyPublisher
         return !string.IsNullOrWhiteSpace(config.BaseDomain) && await _matcad.IsAvailableAsync(ct);
     }
 
-    /// <summary>Creates (or updates) the route of one app and stores its public URL. Returns the URL, or <c>null</c> when nothing was published.</summary>
+    /// <summary>
+    /// True when the installed Matcad provides `web.route` (contract 2): the routes of the apps are then bindings the broker makes (`BindingBroker`), and this class
+    /// only sets Matcad up (the base domain, the DNS account, the wildcard route, Mattiverse's own route). An older Matcad gets the routes the old way.
+    /// </summary>
+    public async Task<bool> RoutesAreBindingsAsync(CancellationToken ct = default)
+    {
+        var matcad = await _db.InstalledApps.AsNoTracking().FirstOrDefaultAsync(a => a.Role == AppRoles.Proxy && a.Lifecycle == AppLifecycle.Installed, ct);
+        return matcad is not null && (await _manifests.GetAsync(matcad, ct: ct))?.Provides?.Any(c => c.Capability == Capabilities.WebRoute) == true;
+    }
+
+    /// <summary>Creates (or updates) the route of one app the old way (an older Matcad) and stores its public URL. Returns the URL, or <c>null</c> when nothing was published.</summary>
     public async Task<string?> PublishAsync(InstalledApp app, Action<string> log, CancellationToken ct = default)
     {
         if (app.UiService is null || app.UiPort is null || !await IsActiveAsync(ct))
@@ -118,6 +131,22 @@ public sealed class ProxyPublisher
     {
         if (!await IsActiveAsync(ct))
         {
+            // No domain (any more) but a Matcad: the routes Mattiverse made for a domain go (its own; the routes of the apps are bindings, the broker removes them too).
+            if (await _matcad.IsAvailableAsync(ct))
+            {
+                try
+                {
+                    foreach (var host in await _matcad.RemoveManagedExceptAsync(new HashSet<string>(), ct))
+                    {
+                        log($"Removed the route {host}: there is no domain any more.");
+                    }
+                }
+                catch (InvalidOperationException ex)
+                {
+                    log($"Could not clean up in Matcad: {ex.Message}");
+                }
+            }
+
             log("No reverse proxy with a base domain: nothing to publish.");
             return;
         }
@@ -141,10 +170,15 @@ public sealed class ProxyPublisher
         var apps = await _db.InstalledApps.AsNoTracking()
             .Where(a => a.Lifecycle == AppLifecycle.Installed && a.UiService != null && a.Role != AppRoles.Proxy)
             .ToListAsync(ct);
+        // The routes of the apps: bindings of web.route (the broker makes them after this, in the same job); the old way only for an older Matcad.
+        var asBindings = await RoutesAreBindingsAsync(ct);
         foreach (var app in apps)
         {
             wanted.Add(HostFor(app.Slug, baseDomain));
-            await PublishAsync(app, log, ct);
+            if (!asBindings)
+            {
+                await PublishAsync(app, log, ct);
+            }
         }
 
         try

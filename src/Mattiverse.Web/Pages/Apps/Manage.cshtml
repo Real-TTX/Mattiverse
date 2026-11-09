@@ -19,7 +19,7 @@
 }
 else
 {
-    @if (definition.Pages.Count > 1)
+    @if (definition.Pages.Count > 1 || Model.HasConnections)
     {
         <tab-bar model="Model.PageTabs" label="@Model.App.Name" />
     }
@@ -146,6 +146,11 @@ else
                 <a class="mat-btn mat-btn--secondary" href="@link" target="_blank" rel="noopener"><icon name="external" /><span>@(part.Label ?? "Open")</span></a>
                 break;
         }
+    }
+
+    @if (Model.ShowConnections)
+    {
+        <partial name="_AppConnections" />
     }
 
     <p class="mat-muted mat-small">@definition.App.Name @definition.App.Version · platform contract @definition.Contract</p>

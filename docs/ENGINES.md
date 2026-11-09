@@ -149,7 +149,9 @@ What was built, and where it differs from the sketch above (branch `mattiverse-i
 The single sign-on of the family (MatDesign docs/PLATFORM.md, "Sign-in with MatIdentity"). Key: `MAT_API_KEY` (the key of its platform `/api`, also the key of its `/api/v1`).
 `PUT /api/v1/clients/{clientId}` (`displayName`, `homeUrl`, `redirectUris`, `postLogoutRedirectUris`, `allowSignIn`, `allowMachine`, `callsAllApps`, `managedBy`, `renewSecret`,
 `backchannelLogoutUri`) → `clientSecret` only for a new client or a renewed one; `DELETE /api/v1/clients/{clientId}?managedBy=mattiverse`. Mattiverse sets `MATIDENTITY_ISSUER` (its public address) and registers
-every app with `identity: {}` and itself (`IdentityLink`, docs/ARCHITECTURE.md "MatIdentity, the single sign-on").
+**itself** this way (`IdentityLink`, docs/ARCHITECTURE.md "MatIdentity, the single sign-on"). **The apps** are bindings of `identity.oidc` (MatDesign docs/PLATFORM.md):
+`PUT /api/bindings/identity.oidc/<slug>` with `MAT_API_KEY` (the consumer's addresses, its internal address, the params `callback`, `signedOut`, `backchannel`) → the four
+`MATIDENTITY_*` variables; `DELETE /api/bindings/identity.oidc/<slug>?managedBy=mattiverse`. MatIdentity makes the same client as `/api/v1/clients` would.
 `backchannelLogoutUri` is where MatIdentity posts its logout tokens (OpenID Connect Back-Channel Logout 1.0: form field `logout_token`, a JWT of type `logout+jwt` with
 `iss`, `aud`, `iat`, `exp`, `jti`, `events`, `sub` and, unless the person was signed out everywhere, `sid`; five seconds, one more try). Mattiverse always sends it: the app's
 address on the shared network (`http://<container>:<port>/signout-backchannel`), Mattiverse's own (`http://<its container>:<its port>/signout-backchannel`), or `""` (removes
@@ -162,7 +164,7 @@ SMTP **2025** (STARTTLS), submission **2587**. The catalog publishes only the su
 mail on the shared network and **relay users may authenticate on the SMTP port from the Docker network without TLS**.
 
 Environment: **`MATSMTP_API_KEY`** (the key of `/api/v1`; generated, hidden), `MATSMTP_ADMIN_PASSWORD` (at least 8 characters; seeds the administrator, so no first-run page is needed),
-`MAT_API_KEY` and the `MATIDENTITY_*` variables (it is a platform app with `identity: {}`). Volume `matsmtp-data:/data`.
+`MAT_API_KEY` and the `MATIDENTITY_*` variables (it is a platform app and consumes `identity.oidc`). Volume `matsmtp-data:/data`.
 
 | Call | Body / answer |
 |---|---|
@@ -172,21 +174,21 @@ Environment: **`MATSMTP_API_KEY`** (the key of `/api/v1`; generated, hidden), `M
 | `DELETE /api/v1/relay-users/{id}?managedBy=mattiverse` | `204`; `404` when it does not exist; `409` when it is not managed by Mattiverse (it stays) |
 | `GET`/`PUT /api/v1/settings` | `{"setupCompleted":bool,"defaultSenderDomain":"example.com"}` |
 
-What Mattiverse does (`MatSmtpClient`, `MatSmtpProvisioner`, `MailLink`):
+What Mattiverse does (`MatSmtpClient`, `MatSmtpProvisioner`, `MailLink` for the setup; the broker for the apps):
 
 - **After the install** (`provision: matsmtp`): waits for the API, sets `setupCompleted: true` and `defaultSenderDomain` = the domain of the wizard (when there is one; otherwise
-  MatSMTP keeps its own), then connects every app with `mail: {}` and deploys it again. The account MatSMTP delivers through is set in MatSMTP's own UI.
-- **Every install and update of an app with `mail: {}`:** `PUT /relay-users/<slug>` (display name = the app, allowed sender = its sender) and the app's `MATSMTP_*` variables:
-  `HOST` = MatSMTP's container on the shared network, `PORT` and `TLS` from the status, `USERNAME` from the answer, `FROM` = `<slug>@<defaultSenderDomain>` (else the domain of the
-  wizard, else `localhost`), `PASSWORD` kept; `renewSecret` only when the app has no password. MatSMTP installed but not answering: the variables stay as they are. Not installed:
-  they are emptied and the app sends its mail itself.
-- **Uninstalling an app** deletes its relay user. **MatSMTP comes or goes:** every app with `mail: {}` is connected again and redeployed. **Connect again** (Settings, Engines) and a
-  new domain in the wizard set the domain of the senders again and redeploy the apps.
+  MatSMTP keeps its own), then binds every app that consumes `mail.smtp` and deploys it again. The account MatSMTP delivers through is set in MatSMTP's own UI.
+- **Every install and update of an app that consumes `mail.smtp`:** a binding, `PUT /api/bindings/mail.smtp/<slug>` with `MAT_API_KEY` (the param `sender`) → the six
+  `MATSMTP_*` variables (MatSMTP's container on the shared network, its port and TLS mode, the relay user, the password once, `<sender>@<defaultSenderDomain>`). Mattiverse keeps
+  the password and asks with `renew` only when it has none. Not installed: the variables are emptied and the app sends its mail itself. `/api/v1/relay-users` stays for the rest.
+- **Uninstalling an app** removes its binding (the relay user). **MatSMTP comes or goes:** every app that consumes `mail.smtp` is bound again (or loses it) and redeployed.
+  **Connect again** (Settings, Engines) and a new domain in the wizard set the domain of the senders again and bind the apps again.
 
 ## What Mattiverse does with them
 
-- **Installing an app:** renders the catalog entry to one compose file and a `.env`, then `PUT /stacks/mattiverse-<app>` (MatDock),
-  `POST /routes` (Matcad) and, with a domain, the DNS record (Matddns). Uninstalling removes all three.
+- **Installing an app:** renders the catalog entry to one compose file and a `.env`, then `PUT /stacks/mattiverse-<app>` (MatDock), and the broker binds what it consumes:
+  with a domain its route (`PUT /api/bindings/web.route/<slug>` at Matcad, the param `host`; `/api/v1/routes` for an older Matcad), its sign-in and its mail; then the DNS
+  records (Matddns). Uninstalling removes all of it.
 - **Without the engine API** (an older released image, or the engine is not installed yet) Mattiverse falls back to its own compose
   runner for the stack, so nothing stops working; the settings page says which engines are connected.
 - **The wizard** installs the five engines first (MatDock through Mattiverse's own compose runner, because nothing can deploy MatDock before

@@ -35,7 +35,8 @@
 @* The home screen of Mattiverse OS (layout _Launcher): widgets of glass, the apps as icons, search and dock at the bottom.
    data-window: the page that opens in the window; an installed app opens in a new tab (target=_blank) unless the person chose the window in its menu. *@
 
-<div class="os-grid" @(Model.Busy ? "data-autorefresh=4000" : "")>
+@* data-autorefresh only when there is a value: Razor writes data-x="" for a null, and the script would reload every 5 seconds. *@
+<div class="os-grid" @(Model.RefreshMs is { } refreshMs ? Html.Raw($"data-autorefresh=\"{refreshMs}\"") : null)>
     <section class="os-widget os-w2x2 os-today" aria-label="Today" data-widget>
         <span class="os-today__day" data-os-clock="weekday"></span>
         <span class="os-today__time" data-os-clock="time">--:--</span>
@@ -123,9 +124,89 @@
         }
     }
 
+    @* The widgets of the apps (contributes.widgets): drawn here from their values, the same for every app. *@
+    @foreach (var w in Model.Additions.Widgets)
+    {
+        var css = $"os-widget {w.SizeCss} os-appwidget" + (w.Tone is "warn" or "error" ? " os-widget--warn" : string.Empty);
+        if (w.Widget.Kind == "list")
+        {
+            <section class="@css" aria-label="@w.Widget.Label · @w.App.Name" data-widget>
+                <span class="os-widget__head">@Ui.Icon(w.Icon)@w.Widget.Label</span>
+                @if (w.Rows.Count == 0)
+                {
+                    <span class="os-widget__note">Nothing yet</span>
+                }
+                else
+                {
+                    <ul class="os-wlist">
+                        @foreach (var row in w.Rows)
+                        {
+                            <li>
+                                @if (row.Window is not null)
+                                {
+                                    <a class="os-wlist__item" href="@row.Window" data-window="@row.Window" data-title="@w.App.Name"><span class="os-wlist__title">@row.Title</span><small class="os-wlist__text">@row.Text</small></a>
+                                }
+                                else
+                                {
+                                    <span class="os-wlist__item"><span class="os-wlist__title">@row.Title</span><small class="os-wlist__text">@row.Text</small></span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
+        else if (w.Window is not null)
+        {
+            <a class="@css" href="@w.Window" data-window="@w.Window" data-title="@w.App.Name" data-widget>
+                <partial name="_AppWidgetBody" model="w" />
+            </a>
+        }
+        else
+        {
+            <div class="@css" data-widget>
+                <partial name="_AppWidgetBody" model="w" />
+            </div>
+        }
+    }
+
     @foreach (var tile in Model.Tiles)
     {
         var badge = BadgeIcon(tile.Status.Css);
+        if (Model.Additions.Launchers.TryGetValue(tile.App.Id, out var launchers))
+        {
+            @* The app put its own icons on the home screen (contributes.launchers): one per launcher, each with the app's state and the menu of its quick actions. *@
+            foreach (var l in launchers)
+            {
+                var quick = l.Quick.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(l.Quick.Select(q => new { label = q.Label, icon = q.Icon, window = q.Window, tab = q.Tab }));
+                <a class="os-app" href="@(l.Tab ?? l.Window)" @(l.Tab is not null ? Html.Raw("target=\"_blank\" rel=\"noopener\"") : null)
+                   data-window="@l.Window" data-tab="@l.Tab" data-details="@tile.Details" data-manage="@(isAdmin ? $"/Apps/Manage?id={tile.App.Id}" : null)"
+                   data-title="@l.Label" data-name="@($"{l.Label} {tile.App.Name}".ToLowerInvariant())" data-app-key="@l.Key" data-quick="@quick" title="@l.Label · @tile.App.Name · @tile.Status.Text">
+                    <span class="os-app__icon">
+                        @if (l.IconUrl is not null)
+                        {
+                            <span class="mv-appicon" aria-hidden="true"><img src="@l.IconUrl" alt="" loading="lazy" /></span>
+                        }
+                        else
+                        {
+                            <app-icon name="@l.Label" icon="@Model.IconOf(tile.App)" />
+                        }
+                        @if (badge is not null)
+                        {
+                            <span class="os-badge os-badge--@tile.Status.Css">@Ui.Icon(badge)</span>
+                        }
+                        else if (l.Badge is { } count)
+                        {
+                            <span class="os-count">@(count > 99 ? "99+" : count.ToString(System.Globalization.CultureInfo.InvariantCulture))</span>
+                        }
+                    </span>
+                    <span class="os-app__label">@l.Label</span>
+                    <span class="mat-sr-only">@tile.App.Name · @tile.Status.Text</span>
+                </a>
+            }
+            continue;
+        }
+
         <a class="os-app" href="@(tile.Tab ?? tile.Window)" @(tile.Tab is not null ? Html.Raw("target=\"_blank\" rel=\"noopener\"") : null)
            data-window="@tile.Window" data-tab="@tile.Tab" data-details="@tile.Details" data-manage="@(isAdmin ? $"/Apps/Manage?id={tile.App.Id}" : null)"
            data-title="@tile.App.Name" data-name="@tile.App.Name.ToLowerInvariant()" data-app-key="app-@tile.App.Id" title="@tile.App.Name · @tile.Status.Text">

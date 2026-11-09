@@ -33,21 +33,6 @@ public class BackchannelLogoutTests
     // ------------------------------------------------------------------ the addresses
 
     [Fact]
-    public void An_app_is_called_at_its_container_on_the_shared_network()
-    {
-        Assert.Equal("http://mattiverse-matsplit-web:8080/signout-backchannel", IdentityLink.BackchannelLogoutUriOf("mattiverse-matsplit-web", 8080, new CatalogIdentity()));
-        Assert.Equal("http://mattiverse-x-web:80/auth/backchannel", IdentityLink.BackchannelLogoutUriOf("mattiverse-x-web", 80, new CatalogIdentity { Backchannel = "auth/backchannel" }));
-    }
-
-    [Fact]
-    public void Without_a_web_service_or_port_the_address_is_removed()
-    {
-        Assert.Equal(string.Empty, IdentityLink.BackchannelLogoutUriOf(null, 8080, new CatalogIdentity()));
-        Assert.Equal(string.Empty, IdentityLink.BackchannelLogoutUriOf("web", null, new CatalogIdentity()));
-        Assert.Equal(string.Empty, IdentityLink.BackchannelLogoutUriOf("web", 8080, new CatalogIdentity { Backchannel = " " }));
-    }
-
-    [Fact]
     public void Mattiverse_is_called_at_its_own_container_and_not_at_all_outside_docker()
     {
         Assert.Equal("http://mattiverse:8030/signout-backchannel", IdentityLink.SelfBackchannelLogoutUriOf("mattiverse", 8030));
