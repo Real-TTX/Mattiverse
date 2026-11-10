@@ -6,6 +6,8 @@ using Mattiverse.Core.Docker;
 using Mattiverse.Core.Engines;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Jobs;
+using Mattiverse.Core.Users;
+using Mattiverse.Web.Infrastructure;
 using Mattiverse.Web.Support;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -27,10 +29,12 @@ public class IndexModel : PageModel
     private readonly AppUrls _urls;
     private readonly EngineOverview _engines;
     private readonly HomeContributions _home;
+    private readonly UserService _users;
 
-    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, BackupHub backupHub, CatalogService catalog, AppUrls urls, EngineOverview engines, HomeContributions home)
+    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, BackupHub backupHub, CatalogService catalog, AppUrls urls, EngineOverview engines, HomeContributions home, UserService users)
     {
         _home = home;
+        _users = users;
         _backupHub = backupHub;
         _engines = engines;
         _apps = apps;
@@ -78,7 +82,57 @@ public class IndexModel : PageModel
     /// <summary>How often the home screen reloads itself: while something installs, else as often as the most eager widget of an app asks.</summary>
     public int? RefreshMs => Busy ? 4000 : Additions.RefreshSeconds * 1000;
 
+    /// <summary>What a thing of the home screen is (the page draws each kind its own way).</summary>
+    public enum HomeKind
+    {
+        Today,
+        Engines,
+        Apps,
+        Backups,
+        Activity,
+        Docker,
+        Setup,
+        Start,
+        AppWidget,
+        AppTile,
+        Launcher,
+        SystemApp,
+        Folder,
+    }
+
+    /// <summary>
+    /// One thing of the home screen, which the person can move to another place or page, take off the screen, and (a widget) give another size.
+    /// <paramref name="Key"/> is its place in the person's layout (<see cref="HomeLayout"/>): stable as long as the thing exists (<c>w:today</c>, <c>a:&lt;slug&gt;</c>,
+    /// <c>a:&lt;slug&gt;/&lt;launcher&gt;</c>, <c>w:&lt;slug&gt;/&lt;widget&gt;</c>, <c>s:jobs</c>, <c>f:system</c>).
+    /// </summary>
+    /// <param name="Data">What the page draws it from: a <see cref="Tile"/>, a launcher with its tile, an <see cref="AppWidgetView"/> or a <see cref="SystemApp"/>.</param>
+    /// <param name="Sizes">The sizes a widget can have (empty for an app).</param>
+    /// <param name="Size">Its size now (<see cref="HomeLayout.SizeNames"/>), or <c>null</c> for an app.</param>
+    /// <param name="DefaultSize">Its own size, when the person chose none.</param>
+    public sealed record HomeItem(string Key, HomeKind Kind, string Name, object? Data = null, IReadOnlyList<string>? Sizes = null, string? Size = null, string? DefaultSize = null);
+
+    /// <summary>The pages of the home screen with what is on each, in the person's order.</summary>
+    public IReadOnlyList<IReadOnlyList<HomeItem>> Pages { get; private set; } = [];
+
+    /// <summary>What the person took off the home screen: drawn out of sight, so that it can come back without a reload.</summary>
+    public IReadOnlyList<HomeItem> HiddenItems { get; private set; } = [];
+
+    /// <summary>The widget Today, which has the page's heading, is off the screen: the heading is there for a screen reader alone.</summary>
+    public bool TodayHidden => HiddenItems.Any(i => i.Kind == HomeKind.Today);
+
+    /// <summary>The class of the grid for a size of a widget: two cells, two by two, four by two.</summary>
+    public static string SizeCss(string? size) => size switch { "medium" => "os-w2x2", "wide" => "os-w4x2", _ => "os-w2" };
+
+    private static readonly IReadOnlyList<string> SmallOrMedium = ["small", "medium"];
+    private static readonly IReadOnlyList<string> MediumOrWide = ["medium", "wide"];
+
     public async Task OnGetAsync()
+    {
+        await LoadAsync();
+        await ArrangeAsync();
+    }
+
+    private async Task LoadAsync()
     {
         var ct = HttpContext.RequestAborted;
         var isAdmin = User.IsAdmin();
@@ -117,6 +171,84 @@ public class IndexModel : PageModel
 
         Dock = Launcher.Dock(isAdmin);
         SystemApps = Launcher.OnScreen(isAdmin, ActiveJobs);
+    }
+
+    /// <summary>
+    /// Everything on the home screen in its own order (the widgets of the system, the ones of the apps, the apps, the parts of Mattiverse, the folder System), then
+    /// placed on the pages as the person left them (<see cref="HomeLayout.Arrange"/>): what is new joins the end of the first page.
+    /// </summary>
+    private async Task ArrangeAsync()
+    {
+        var isAdmin = User.IsAdmin();
+        var items = new List<HomeItem>();
+        void Widget(string key, HomeKind kind, string name, IReadOnlyList<string> sizes, string size, object? data = null)
+            => items.Add(new HomeItem(key, kind, name, data, sizes, size, size));
+
+        Widget("w:today", HomeKind.Today, "Today", MediumOrWide, "medium");
+        if (Engines.Count > 0)
+        {
+            Widget("w:engines", HomeKind.Engines, "Engines", MediumOrWide, "medium");
+        }
+
+        Widget("w:apps", HomeKind.Apps, "Apps", SmallOrMedium, "small");
+        if (isAdmin)
+        {
+            Widget("w:backups", HomeKind.Backups, "Backups", SmallOrMedium, "small");
+            Widget("w:activity", HomeKind.Activity, "Activity", SmallOrMedium, "small");
+        }
+
+        Widget("w:docker", HomeKind.Docker, "Docker", SmallOrMedium, "small");
+        if (isAdmin && !Config.WizardCompleted)
+        {
+            Widget("w:setup", HomeKind.Setup, "Setup", SmallOrMedium, "small");
+        }
+
+        if (Tiles.Count == 0)
+        {
+            Widget("w:start", HomeKind.Start, isAdmin ? "Get started" : "No apps yet", SmallOrMedium, "small");
+        }
+
+        foreach (var w in Additions.Widgets)
+        {
+            var own = w.Widget.Size is { } s && HomeLayout.SizeNames.Contains(s) ? s : "small";
+            Widget($"w:{w.App.Slug}/{w.Widget.Id}", HomeKind.AppWidget, $"{w.Widget.Label} · {w.App.Name}", HomeLayout.SizeNames, own, w);
+        }
+
+        foreach (var tile in Tiles)
+        {
+            if (Additions.Launchers.TryGetValue(tile.App.Id, out var launchers))
+            {
+                items.AddRange(launchers.Select(l => new HomeItem($"a:{tile.App.Slug}/{l.LauncherId}", HomeKind.Launcher, l.Label, (tile, l))));
+            }
+            else
+            {
+                items.Add(new HomeItem($"a:{tile.App.Slug}", HomeKind.AppTile, tile.App.Name, tile));
+            }
+        }
+
+        items.AddRange(SystemApps.Select(app => new HomeItem("s:" + app.Href.Trim('/').Replace('/', '-').ToLowerInvariant(), HomeKind.SystemApp, app.Name, app)));
+        if (Engines.Count > 0)
+        {
+            items.Add(new HomeItem("f:system", HomeKind.Folder, "System"));
+        }
+
+        // A key twice (an app that names two launchers alike) is one place: the first.
+        var byKey = new Dictionary<string, HomeItem>(StringComparer.Ordinal);
+        foreach (var item in items.Where(i => HomeLayout.IsKey(i.Key)))
+        {
+            byKey.TryAdd(item.Key, item);
+        }
+
+        var layout = User.GetUserId() is { } userId ? await _users.GetHomeLayoutAsync(userId, HttpContext.RequestAborted) : HomeLayout.Empty;
+        HomeItem Sized(string key)
+        {
+            var item = byKey[key];
+            return item.Sizes is { Count: > 0 } sizes ? item with { Size = layout.SizeOf(key, sizes.ToList(), item.DefaultSize ?? sizes[0]) } : item;
+        }
+
+        var arranged = layout.Arrange(byKey.Keys.ToList());
+        Pages = arranged.Pages.Select(p => (IReadOnlyList<HomeItem>)p.Select(Sized).ToList()).ToList();
+        HiddenItems = arranged.Hidden.Select(Sized).ToList();
     }
 
     /// <summary>The newest backup in any engine (MatDock keeps its own); a MatDock that does not answer in time leaves the widget at what Mattiverse knows itself.</summary>

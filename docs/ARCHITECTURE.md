@@ -213,7 +213,22 @@ The home screen is a **small operating system** (the owner's choice of 2026-11-0
   `/api/widgets/{id}`; `_AppWidgetBody`). Who sees what follows `audience` (`admin` for administrators); widgets with the values of the `person` who is looking are left out
   until Mattiverse can ask an app on a person's behalf. The definitions and values are asked with a short timeout and kept a little while (`AppManifests`, `ManifestCache`),
   so a slow or stopped app does not hold the home screen up; a widget with `refresh` makes the home screen reload itself that often (at least every 30 s).
-- Next (planned): widgets that can be placed and sized.
+- **The person arranges it, the account keeps it** (`js/os.js`, `Core/Users/HomeLayout.cs`, `User.HomeLayout` as JSON, `PUT` / `DELETE /api/home` with the anti-forgery token
+  in the header `RequestVerificationToken`). Every thing of the home screen has a key (`w:today`, `w:<slug>/<widget>`, `a:<slug>`, `a:<slug>/<launcher>`, `s:jobs`, `f:system`;
+  `IndexModel.ArrangeAsync`); the layout is the pages with their keys in order, the keys taken off the screen, and the size chosen for a widget. The page draws it as the
+  person left it: what is new (an app installed since) joins the end of the first page, what is gone drops out, an empty page goes, and a layout that cannot be read is the
+  home screen as it comes. What is off the screen is drawn out of sight (`.os-hidden`), so that it comes back without a reload.
+  - **A right click everywhere** (a long press on a touch screen; Shift with the right click is the browser's own menu, a field keeps the browser's menu): an app (open, its quick
+    actions, details), a widget (open it or the row under the pointer, its size: small, medium, wide as far as it offers them), every thing of a page (one place back or on,
+    to another page or a new one, off the screen, edit the home screen), the dock, the bar of the window (back, reload, a tab, full screen, home, close) and the empty screen
+    (edit, add a page, show again what is off it, the wallpaper, the store and the settings for an administrator, reload, reset).
+  - **Dragging**: the mouse drags a thing at once (a copy follows the pointer, the others glide out of the way); a finger drags while editing, else it swipes the pages.
+    Waiting at the edge of the screen or over a dot turns the page and takes the thing along; past the last page a new one begins.
+  - **Pages** side by side, a sideways strip that snaps (`.os-pages`, `.os-page`): a swipe, the dots, the arrow keys. A reload (the home screen refreshes itself) comes back to
+    the same page; it waits while the person edits or drags (`os-hold`). The search shows the apps of all pages in one grid.
+  - **Editing** ("Edit the home screen"): the things wiggle, each has a minus that takes it off the screen (Delete does it by keyboard), the bar instead of the search has
+    *Add a page*, *Show again* and *Done*; a tap beside the things ends it.
+  - The dock and the folder *System* stay as they are (the dock is the parts of Mattiverse, the folder the engines).
 
 ## Bindings between the apps
 

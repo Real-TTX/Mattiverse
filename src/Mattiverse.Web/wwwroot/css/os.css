@@ -142,7 +142,7 @@ a.os-wlist__item:hover { background: var(--os-hover); text-decoration: none; }
 .os-today { justify-content: flex-start; }
 .os-today__day { font-size: 13px; font-weight: 700; color: var(--os-danger); text-transform: uppercase; letter-spacing: .04em; }
 .os-today__time { margin-top: 2px; font-size: 64px; font-weight: 300; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
-.os-today h1 { margin: auto 0 0; font-family: var(--os-font); font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--os-fg); }
+.os-today__greet { margin: auto 0 0; font-family: var(--os-font); font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--os-fg); }
 .os-today__sub { font-size: 13px; color: var(--os-fg-soft); }
 
 /* An app: an icon and its name, no frame; it lifts a little under the pointer */
@@ -321,7 +321,8 @@ a.os-wlist__item:hover { background: var(--os-hover); text-decoration: none; }
 }
 
 /* ---- The engines: a widget with their state, and the folder System with them as apps ---- */
-.os-engines { grid-column: span 3; justify-content: flex-start; gap: 10px; }
+.os-engines { justify-content: flex-start; gap: 10px; }
+.os-engines.os-w2x2 { grid-column: span 3; }
 .os-engines__list { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
 .os-engine { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 3px 8px; border-radius: 10px; color: var(--os-fg); text-decoration: none; }
 .os-engine:hover { background: var(--os-hover); text-decoration: none; }
@@ -367,7 +368,8 @@ a.os-wlist__item:hover { background: var(--os-hover); text-decoration: none; }
 @media (max-width: 700px) {
   .os-folder__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 100px; padding: 18px 12px; border-radius: 28px; }
   .os-folderbtn__icon { padding: 7px; gap: 4px; }
-  .os-engines { grid-column: span 4; gap: 4px; }
+  .os-engines { gap: 4px; }
+  .os-engines.os-w2x2 { grid-column: span 4; }
   .os-engine { min-height: 30px; padding: 1px 8px; }
   .os-engine .mv-appicon { width: 22px; height: 22px; border-radius: 6px; }
   .os-engine__name { font-size: 13.5px; }
@@ -375,3 +377,87 @@ a.os-wlist__item:hover { background: var(--os-hover); text-decoration: none; }
   .os-search { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .os-folder, .os-folder__panel { animation: none; } }
+
+/* ---- Pages: the home screen can have several side by side; a swipe, the dots or the arrow keys turn them (js/os.js) ----
+   The strip of pages scrolls sideways and snaps to a page; it reaches out over the padding of the screen, so that the shadows of the widgets and an icon
+   that lifts are not cut off. */
+.os-pages {
+  display: flex; gap: 56px;
+  margin: -12px -28px -36px; padding: 12px 28px 36px;
+  overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; scroll-padding: 0 28px;
+  scrollbar-width: none;
+}
+.os-pages::-webkit-scrollbar { display: none; }
+.os-page { flex: 0 0 100%; min-width: 0; align-content: start; scroll-snap-align: start; }
+/* the search: the apps of all pages in one grid */
+.os-pages.is-searching { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); grid-auto-rows: 118px; gap: 20px 16px; grid-auto-flow: dense; overflow: visible; }
+.os-pages.is-searching > .os-page { display: contents; }
+/* the things of a page do not take a selection of text: a press drags them */
+.os-page > [data-home-key] { -webkit-user-select: none; user-select: none; }
+.os-hidden { display: none; }
+
+/* the dots: one per page, the page that is seen is full */
+.os-dots { display: flex; justify-content: center; gap: 2px; margin-bottom: -6px; }
+.os-dots[hidden] { display: none; }
+.os-dot { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.os-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--os-label); box-shadow: var(--os-label-shadow); opacity: .38; transition: opacity .2s, transform .2s var(--os-ease); }
+.os-dot[aria-selected="true"]::before { opacity: 1; }
+.os-dot:hover::before { opacity: .75; }
+.os-dot.is-target::before { opacity: 1; transform: scale(1.8); }
+
+/* ---- Editing the home screen: the things wiggle (their own rotate, so a glide to a new place still works), a minus on each, a bar on top ---- */
+.os-editing .os-page > [data-home-key] { animation: os-wiggle .26s ease-in-out infinite alternate; touch-action: none; cursor: grab; }
+.os-editing .os-page > [data-home-key]:nth-child(2n) { animation-duration: .3s; animation-delay: -.13s; }
+.os-editing .os-page > .os-widget { animation-name: os-wiggle-soft; }
+.os-editing .os-app:hover .os-app__icon, .os-editing .os-widget[data-window]:hover { transform: none; }
+.os-editing .os-page { min-height: 118px; border-radius: 26px; }
+.os-editing .os-page.is-empty { outline: 2px dashed var(--os-glass-line); outline-offset: -2px; background: var(--os-veil); }
+@keyframes os-wiggle { from { rotate: -1.4deg; } to { rotate: 1.4deg; } }
+@keyframes os-wiggle-soft { from { rotate: -.45deg; } to { rotate: .45deg; } }
+.os-remove {
+  position: absolute; z-index: 3; top: -2px; left: calc(50% - 43px);
+  display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
+  border: 0; border-radius: 50%; background: var(--os-glass-strong); color: var(--os-fg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .3); cursor: pointer;
+}
+.os-remove .mat-icon { font-size: 14px; stroke-width: 3; }
+.os-remove:hover { background: var(--os-danger); color: #fff; }
+.os-widget > .os-remove { top: 8px; left: auto; right: 8px; }
+.os-editing .os-search { display: none; }
+.os-editbar {
+  display: flex; align-items: center; gap: 4px; padding: 5px;
+  border-radius: 16px; background: var(--os-glass-strong); border: 1px solid var(--os-glass-line);
+  -webkit-backdrop-filter: var(--os-blur); backdrop-filter: var(--os-blur);
+  box-shadow: var(--os-shadow); color: var(--os-fg);
+  animation: os-pop .16s var(--os-ease) both;
+}
+.os-editbar[hidden] { display: none; }
+.os-editbar__btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 11px; background: none; color: inherit; font: 600 13px var(--os-font); cursor: pointer; white-space: nowrap; }
+.os-editbar__btn[hidden] { display: none; }
+.os-editbar__btn:hover { background: var(--os-hover); }
+.os-editbar__btn .mat-icon { font-size: 15px; }
+.os-editbar__btn--done, .os-editbar__btn--done:hover { background: var(--os-accent); color: #fff; }
+
+/* ---- Dragging: a copy follows the pointer, the thing waits at its new place, faint ---- */
+.os-dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
+.os-dragging .os-page > [data-home-key] { cursor: grabbing; }
+.os-ghost { position: fixed; z-index: 90; margin: 0; pointer-events: none; animation: none; rotate: 2deg; scale: 1.06; filter: drop-shadow(0 18px 28px rgba(0, 0, 0, .35)); }
+.os-ghost.os-widget { rotate: .6deg; }
+.os-page > .is-placeholder { opacity: .22; animation: none; }
+
+/* the menus: a heading above a group of entries, an entry without an icon, the entry that takes something away */
+.os-menu__label { padding: 6px 10px 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--os-fg-soft); }
+.os-menu__blank { width: 16px; flex: none; }
+.os-menu__item--danger:hover, .os-menu__item--danger:focus-visible { background: var(--os-danger); color: #fff; }
+
+@media (max-width: 700px) {
+  .os-pages { margin: -12px -18px -36px; padding: 12px 18px 36px; gap: 36px; scroll-padding: 0 18px; }
+  .os-pages.is-searching { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 98px; gap: 14px 10px; }
+  .os-remove { left: calc(50% - 40px); }
+  .os-editbar__btn { padding: 0 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .os-editing .os-page > [data-home-key] { animation: none; outline: 2px dashed var(--os-glass-line); outline-offset: 4px; border-radius: 18px; }
+  .os-dot::before, .os-editbar { transition: none; animation: none; }
+}

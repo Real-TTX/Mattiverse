@@ -55,5 +55,61 @@ public static class ApiEndpoints
             await http.SignInAsync(AuthConstants.CookieScheme, PrincipalFactory.Build(user, http.User.GetSessionToken() ?? string.Empty));
             return Results.NoContent();
         }).RequireAuthorization();
+
+        // How the person arranged the home screen (js/os.js after every move): JSON {pages, hidden, sizes}, the anti-forgery token of the page in the header
+        // RequestVerificationToken. DELETE puts the home screen back as it comes.
+        app.MapPut("/api/home", async (HttpContext http, IAntiforgery antiforgery, UserService users, CancellationToken ct) =>
+        {
+            if (!await ValidAsync(http, antiforgery) || http.User.GetUserId() is not { } userId)
+            {
+                return Results.BadRequest();
+            }
+
+            if (http.Request.ContentLength is > 64 * 1024)
+            {
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            }
+
+            HomeLayout.Stored? stored;
+            try
+            {
+                stored = await http.Request.ReadFromJsonAsync<HomeLayout.Stored>(ct);
+            }
+            catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException)
+            {
+                return Results.BadRequest();
+            }
+
+            var layout = HomeLayout.From(stored);
+            if (layout is null)
+            {
+                return Results.BadRequest();
+            }
+
+            return await users.SetHomeLayoutAsync(userId, layout, ct) ? Results.NoContent() : Results.NotFound();
+        }).RequireAuthorization();
+
+        app.MapDelete("/api/home", async (HttpContext http, IAntiforgery antiforgery, UserService users, CancellationToken ct) =>
+        {
+            if (!await ValidAsync(http, antiforgery) || http.User.GetUserId() is not { } userId)
+            {
+                return Results.BadRequest();
+            }
+
+            return await users.SetHomeLayoutAsync(userId, null, ct) ? Results.NoContent() : Results.NotFound();
+        }).RequireAuthorization();
+    }
+
+    private static async Task<bool> ValidAsync(HttpContext http, IAntiforgery antiforgery)
+    {
+        try
+        {
+            await antiforgery.ValidateRequestAsync(http);
+            return true;
+        }
+        catch (AntiforgeryValidationException)
+        {
+            return false;
+        }
     }
 }

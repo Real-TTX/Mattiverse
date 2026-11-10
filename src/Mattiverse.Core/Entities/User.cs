@@ -28,5 +28,8 @@ public class User : AuditableEntity
     /// <summary>The picture behind the home screen: an id of <c>Wallpapers.All</c>.</summary>
     public string Wallpaper { get; set; } = "orbit";
 
+    /// <summary>How the person arranged the home screen (the JSON of <c>Mattiverse.Core.Users.HomeLayout</c>: pages, what is off the screen, sizes of widgets); null = as it comes.</summary>
+    public string? HomeLayout { get; set; }
+
     public ICollection<UserSession> Sessions { get; set; } = new List<UserSession>();
 }

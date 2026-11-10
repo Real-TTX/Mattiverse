@@ -7,8 +7,11 @@ namespace Mattiverse.Web.Support;
 /// <summary>An entry of the menu of a launcher: where it opens in the window and, when the app opens in a tab, there.</summary>
 public sealed record QuickItem(string Label, string Icon, string Window, string? Tab);
 
-/// <summary>An icon an app put on the home screen (contract 2, <c>contributes.launchers</c>): its picture at the app, where it opens, its menu, a number on its corner.</summary>
-public sealed record LauncherTile(string Key, string Label, string? IconUrl, string Window, string? Tab, IReadOnlyList<QuickItem> Quick, long? Badge);
+/// <summary>
+/// An icon an app put on the home screen (contract 2, <c>contributes.launchers</c>): its picture at the app, where it opens, its menu, a number on its corner.
+/// <paramref name="Key"/> keeps the person's choice of a tab in this browser, <paramref name="LauncherId"/> is the id the app gave it (its place on the home screen).
+/// </summary>
+public sealed record LauncherTile(string Key, string LauncherId, string Label, string? IconUrl, string Window, string? Tab, IReadOnlyList<QuickItem> Quick, long? Badge);
 
 /// <summary>A row of a widget: a label and a value (<c>tiles</c>), or a title, a line and an address (<c>list</c>).</summary>
 public sealed record WidgetRow(string Title, string? Text, string Tone, string? Window = null, string? Tab = null);
@@ -82,7 +85,7 @@ public sealed class HomeContributions
                     badge = count;
                 }
 
-                tiles.Add(new LauncherTile($"app-{app.Id}-{launcher.Id}", launcher.Label, ShellRules.IsPath(launcher.Icon) && root is not null ? root + launcher.Icon : null,
+                tiles.Add(new LauncherTile($"app-{app.Id}-{launcher.Id}", launcher.Id, launcher.Label, ShellRules.IsPath(launcher.Icon) && root is not null ? root + launcher.Icon : null,
                     ShellRules.WindowOf(app, launcher.Url), root is null ? null : root + launcher.Url, quick, badge));
             }
 

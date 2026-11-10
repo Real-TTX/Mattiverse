@@ -178,6 +178,78 @@ const pages = [
     expectTrue((await page.locator('.os-menu[role=menu]:not(#os-user-menu)').innerText()).includes('Open in a new tab'), 'a new tab');
     await page.keyboard.press('Escape');
   });
+  await check('the person arranges the home screen (a right click everywhere, dragging, pages, sizes, off the screen) and the account keeps it', async () => {
+    await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+    const token = await page.locator('input[name="__RequestVerificationToken"]').first().inputValue();
+    expectEqual((await page.request.delete(BASE + '/api/home', { headers: { RequestVerificationToken: token } })).status(), 204, 'the home screen as it comes');
+    await page.reload({ waitUntil: 'networkidle' });
+    const keys = i => page.locator('.os-page').nth(i).locator(':scope > [data-home-key]').evaluateAll(els => els.map(e => e.getAttribute('data-home-key')));
+    const menu = () => page.locator('.os-menu[role=menu]:not(#os-user-menu)');
+    const entry = text => menu().locator('.os-menu__item', { hasText: text }).first();
+    const saved = () => page.waitForResponse(r => r.url().endsWith('/api/home') && r.request().method() === 'PUT');
+
+    await page.mouse.click(1300, 800, { button: 'right' });
+    const screen = await menu().innerText();
+    expectTrue(/Edit the home screen/.test(screen) && /Add a page/.test(screen) && /Reset the home screen/.test(screen), 'the menu of the empty screen');
+    await page.keyboard.press('Escape');
+
+    await page.locator('[data-home-key="w:today"]').click({ button: 'right', position: { x: 30, y: 30 } });
+    let put = saved();
+    await entry('Wide').click();
+    expectEqual((await put).status(), 204, 'a size is saved');
+
+    // Users dragged with the mouse onto the place of Activity.
+    const from = await page.locator('[data-home-key="s:users"]').boundingBox();
+    const to = await page.locator('[data-home-key="s:jobs"]').boundingBox();
+    put = saved();
+    await page.mouse.move(from.x + from.width / 2, from.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2 - 20, from.y + 30, { steps: 4 });
+    await page.mouse.move(to.x + 10, to.y + 30, { steps: 16 });
+    await page.mouse.up();
+    await put;
+    const order = await keys(0);
+    expectTrue(order.indexOf('s:users') < order.indexOf('s:jobs'), 'Users is before Activity: ' + order.join(' '));
+    expectTrue(!(await page.locator('#os-window').isVisible()), 'the drag opened nothing');
+
+    await page.locator('[data-home-key="s:jobs"]').click({ button: 'right' });
+    put = saved();
+    await entry('To a new page').click();
+    await put;
+    await page.locator('[data-home-key="w:docker"]').click({ button: 'right', position: { x: 20, y: 20 } });
+    put = saved();
+    await entry('Remove from the home screen').click();
+    await put;
+
+    await page.reload({ waitUntil: 'networkidle' });
+    expectEqual(await page.locator('.os-page').count(), 2, 'two pages after a reload');
+    expectEqual(await keys(1), ['s:jobs'], 'Activity on page 2');
+    expectEqual(await page.getAttribute('[data-home-key="w:today"]', 'data-size'), 'wide', 'Today is wide');
+    expectEqual(await page.locator('.os-page [data-home-key="w:docker"]').count(), 0, 'Docker is off the screen');
+    expectEqual(await page.locator('.os-dots .os-dot').count(), 2, 'a dot per page');
+
+    await page.mouse.click(1300, 800, { button: 'right' });
+    await entry('Edit the home screen').click();
+    expectTrue(await page.locator('.os-editbar').isVisible() && await page.locator('.os-page .os-remove').count() > 0, 'editing: the bar, a minus on each thing');
+    await page.locator('[data-os-done]').click();
+    expectEqual(await page.locator('.os-remove').count(), 0, 'Done ends it');
+
+    await page.mouse.click(1300, 800, { button: 'right' });
+    await entry('Reset the home screen').click();
+    await Promise.all([page.waitForEvent('load'), page.locator('dialog[open] button[value="ok"]').click()]);
+    expectEqual(await page.locator('.os-page').count(), 1, 'reset: one page');
+    expectEqual(await page.locator('.os-page [data-home-key="w:docker"]').count(), 1, 'reset: Docker is back');
+  });
+  await check('with Today off the screen the home screen still has its one h1', async () => {
+    await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+    const token = await page.locator('input[name="__RequestVerificationToken"]').first().inputValue();
+    const put = await page.request.put(BASE + '/api/home', { headers: { RequestVerificationToken: token }, data: { hidden: ['w:today'] } });
+    expectEqual(put.status(), 204, 'Today off the screen');
+    await page.reload({ waitUntil: 'networkidle' });
+    expectEqual(await page.locator('h1').count(), 1, 'one h1');
+    expectEqual((await page.request.put(BASE + '/api/home', { headers: { RequestVerificationToken: token }, data: { pages: [['<x>']] } })).status(), 400, 'a key that is no key: 400');
+    await page.request.delete(BASE + '/api/home', { headers: { RequestVerificationToken: token } });
+  });
   await check('the wallpaper is chosen on the account and drawn on the home screen', async () => {
     const choose = async (id) => {
       await page.goto(BASE + '/Account/Profile?tab=home');

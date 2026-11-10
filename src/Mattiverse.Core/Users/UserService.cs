@@ -134,6 +134,24 @@ public sealed class UserService
         return user;
     }
 
+    /// <summary>The home screen of a user as they arranged it (<see cref="HomeLayout.Empty"/> when they never did, or for an unknown user).</summary>
+    public async Task<HomeLayout> GetHomeLayoutAsync(long id, CancellationToken ct = default)
+        => HomeLayout.Parse(await _db.Users.Where(u => u.Id == id).Select(u => u.HomeLayout).FirstOrDefaultAsync(ct));
+
+    /// <summary>Stores how a user arranged the home screen; <c>null</c> (or an empty layout) puts it back as it comes. False for an unknown user.</summary>
+    public async Task<bool> SetHomeLayoutAsync(long id, HomeLayout? layout, CancellationToken ct = default)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+        if (user is null)
+        {
+            return false;
+        }
+
+        user.HomeLayout = layout is null || layout.IsEmpty ? null : layout.ToJson();
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
     /// <summary>
     /// The local account of a person who signed in through MatIdentity: found by the claim <c>sub</c>, else the local account with the same user name that is
     /// not linked yet (the administrator who set Mattiverse up is the administrator of MatIdentity too), else a new account. The role follows the claim

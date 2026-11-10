@@ -74,13 +74,13 @@ src/Mattiverse.Core        domain, no web types
                              catalog consumes + /api + implicit web.route; AdoptAsync takes over the variables of an earlier Mattiverse), AppManifests + ManifestCache (definitions and values, short
                              timeouts, kept a while), ShellRules (who sees a contribution, which addresses it may open)
   Jobs/                      JobService/Queue/RunnerService, AppJobs (the work per job kind), JobContext/log
-  Auth/ Users/ Security/     login, sessions (EndIdentitySessionsAsync: the back-channel logout), LogoutToken (the check of a logout token of MatIdentity), PBKDF2 hasher, secret protector; Wallpapers (the pictures of the home screen)
+  Auth/ Users/ Security/     login, sessions (EndIdentitySessionsAsync: the back-channel logout), LogoutToken (the check of a logout token of MatIdentity), PBKDF2 hasher, secret protector; Wallpapers (the pictures of the home screen); HomeLayout (how a person arranged the home screen: pages, what is off it, sizes; User.HomeLayout)
   Configuration/             options, AppPaths, JsonConfigStore, SystemConfig
 src/Mattiverse.Web         Razor Pages, controls, JS/CSS, Program.cs
   Controls/                  tag helpers icon (a use of the sprite), app-icon, mat-field (label, control, hint, error), tab-bar; ListModels (ToolbarModel, PagerModel, ListView, ListQuery)
   Pages/                     Index (Mattiverse OS), Engines/ (one engine in the window), Apps/, Store/, Backups/, Jobs/, Settings/, Wizard/, Users/, Account/, Share/
   Pages/Shared/              _Layout (the shell: menus, switcher, user, theme, breadcrumb), _Launcher (Mattiverse OS: status bar, wallpaper, the one window, no menu), _Bare (no menu), _Head, _Toolbar, _Pager, _ValidationSummary, _StatusPill, _DnsFields
-  Infrastructure/            cookie session validation, setup guard, DB bootstrap, API endpoints, health check, MatIdentitySignIn, BackchannelLogout (POST /signout-backchannel)
+  Infrastructure/            cookie session validation, setup guard, DB bootstrap, API endpoints (the job log, the theme, PUT/DELETE /api/home: the arrangement of the home screen), health check, MatIdentitySignIn, BackchannelLogout (POST /signout-backchannel)
   Support/                   Toolkit (the icon sprite), Ui (Icon, Logo), Navigation (the menus: NavSet, NavItem, NavBadge), Launcher (the parts of Mattiverse as apps on the home screen and in its dock), EngineOverview (the five engines for the settings, the home screen and /Engines), HomeContributions (the launchers, quick actions and widgets of the apps for the home screen), Crumbs, AppUrls, FrameProbe, AppStatus, Format
   wwwroot/matui/             the toolkit, a copy of MatDesign's; wwwroot/css/mattiverse.css the few classes only this app has (mv-*, mv-in-window); css/os.css the home screen (os-*); js/mattiverse.js its behaviour, js/os.js the home screen, js/window-mode.js a page in the window
 tests/Mattiverse.Tests       unit tests + WebUiTests (they read the source of the pages)
@@ -122,6 +122,8 @@ tests/e2e                    run.js: the pages in a real browser against the run
   live in the folder *System* and open `/Engines?id=` (`Support/EngineOverview.cs`); their own pages open there in the window when they allow Mattiverse to frame them
   (`MAT_FRAME_ANCESTORS`, filled by `Core/Integrations/FrameLink.cs` for apps whose compose file names it; `FrameProbe`/`FramePolicy` check before a frame). Wallpapers are drawn by `scripts/wallpapers` (`node scripts/wallpapers/render.js`);
   a new one needs its id in `Wallpapers.All`, its rule in `os.css` and its pictures (`WallpaperTests` checks all three).
+  The person arranges it and the account keeps it (`HomeLayout`, `/api/home`): pages, dragging, a right click on everything, editing with a minus; every thing of the home
+  screen needs a stable key (`data-home-key`, `IndexModel.ArrangeAsync`), and a new widget offers its sizes (docs/ARCHITECTURE.md "The home screen").
 - The theme: the toolkit's button cycles System / Light / Dark and posts the choice to `/api/theme`; the account keeps it. Account, logout and the theme are at the bottom of the menu.
 - Mobile matters: check phone width (390 px) for every new page; secondary table columns get `mat-hide-sm`.
 - After a change to a CSS/cshtml file the container must be rebuilt (they are baked into the image).

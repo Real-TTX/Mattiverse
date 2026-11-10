@@ -32,8 +32,8 @@
   if (auto) {
     var wait = parseInt(auto.getAttribute('data-autorefresh'), 10) || 5000;
     var reload = function () {
-      // On the home screen a reload would take its window with it (js/os.js): wait while one is open.
-      if (document.body.classList.contains('os-has-window')) { setTimeout(reload, wait); return; }
+      // On the home screen a reload would take its window with it (js/os.js), or the person's editing and dragging (os-hold): wait while there is one.
+      if (document.body.classList.contains('os-has-window') || document.body.classList.contains('os-hold')) { setTimeout(reload, wait); return; }
       if (!document.hidden) { location.reload(); } else { document.addEventListener('visibilitychange', function () { location.reload(); }, { once: true }); }
     };
     setTimeout(reload, wait);
