@@ -37,10 +37,21 @@ engines is [ENGINES.md](ENGINES.md).
 3. `StackEngines` picks the engine that **runs** the stack: **MatDock** once its API answers (`apiVersion >= 1`), else Mattiverse's own
    `docker compose` runner (`LocalComposeEngine`). MatDock itself is always deployed by the local runner, because nothing can deploy it before it exists.
    The app remembers its engine (`InstalledApp.Engine`).
-4. The stack is created in MatDock (`PUT /stacks/mattiverse-<app>`, `managedBy: mattiverse`) and deployed; the output of MatDock's operation is
-   forwarded to the job's log.
-5. The provisioners and publishers then connect it: the route in Matcad, the record in Matddns.
-6. The **broker** binds it (MatDesign docs/PLATFORM.md "Bindings", docs/APP-MODEL.md): see "Bindings between the apps" below.
+4. **The images first** (`ImagePreflight`): Mattiverse pulls every image of the stack itself. One that cannot be pulled stops the install there, with what the
+   registry said and what to do ("it is private, or it was not published yet"), before the engine has a stack of the app: a retry or a removal finds nothing half made.
+   An image this machine has a copy of is used from there when the registry refuses it or does not answer (built on the host, no internet); `pull_policy: never` is
+   taken from this machine only.
+5. The stack is created in MatDock (`PUT /stacks/mattiverse-<app>`, `managedBy: mattiverse`) and deployed without a second pull; the output of MatDock's operation is
+   forwarded to the job's log. A deploy for new variables (a binding) does not pull either: only *Update* brings newer images.
+6. The provisioners and publishers then connect it: the route in Matcad, the record in Matddns.
+7. The **broker** binds it (MatDesign docs/PLATFORM.md "Bindings", docs/APP-MODEL.md): see "Bindings between the apps" below.
+
+**A port that another container holds does not fail the install** when a variable names it (MatSMTP's `SUBMISSION_PORT`): the app gets the next free port and the log says so; a port written as a number (Matcad's 80 and 443) stays, with a warning.
+
+**A failed install can always be tried again or removed.** *Try again* runs the install once more (a port taken since is planned anew). *Uninstall* of an app
+whose install failed does not depend on what is missing: an app without containers has no final backup (there is nothing to back up), a backup that fails is a
+warning, a route or DNS record that cannot be removed is a warning, and when the engine cannot remove the stack but no container of the app is left, Mattiverse
+removes the app all the same (and its volumes when the data is to go). A job that Mattiverse's restart interrupted leaves the app *failed*, not *installing*.
 
 **Reading is not going through the engines.** Status, containers and logs always come straight from Docker (every container carries the
 labels `mattiverse.managed`, `mattiverse.app`, `mattiverse.instance`, `mattiverse.service`), so the launcher stays correct and fast even

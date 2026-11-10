@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ComposeRenderer>();
         services.AddScoped<ComposeFiles>();
         services.AddScoped<ComposeRunner>();
+        services.AddScoped<ImagePreflight>();
         services.AddScoped<PortPlanner>();
         services.AddScoped<EngineLocator>();
         services.AddScoped<MatDockClient>();

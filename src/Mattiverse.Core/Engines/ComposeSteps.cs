@@ -1,9 +1,10 @@
+using System.Text.RegularExpressions;
 using Mattiverse.Core.Apps;
 
 namespace Mattiverse.Core.Engines;
 
 /// <summary>Runs one <c>docker compose</c> step and turns a failure into a message a person can act on.</summary>
-public static class ComposeSteps
+public static partial class ComposeSteps
 {
     public static async Task RunAsync(ComposeRunner compose, string slug, IEnumerable<string> subcommand, string failureMessage, Action<string> log, CancellationToken ct)
     {
@@ -42,12 +43,33 @@ public static class ComposeSteps
             return " Hint: a host port is already in use. Stop whatever uses it, or change the port in the install form (Advanced).";
         }
 
-        if (dockerOutput.Contains("pull access denied", StringComparison.OrdinalIgnoreCase) ||
-            dockerOutput.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
+        if (RegistryRefused(dockerOutput))
         {
-            return " Hint: the image is private or does not exist. For a private image run 'docker login' on the host.";
+            return " Hint: the registry refused the image: it is private, or it was not published yet (the build of its repository has not run). Publish it or make it public," +
+                " or run 'docker login' for its registry on the host.";
+        }
+
+        if (dockerOutput.Contains("manifest unknown", StringComparison.OrdinalIgnoreCase) ||
+            dockerOutput.Contains("not found: manifest", StringComparison.OrdinalIgnoreCase) ||
+            (dockerOutput.Contains("manifest for ", StringComparison.OrdinalIgnoreCase) && dockerOutput.Contains("not found", StringComparison.OrdinalIgnoreCase)))
+        {
+            return " Hint: the registry has no image of this name or tag. Check the image in the app's definition, or publish that tag.";
         }
 
         return string.Empty;
     }
+
+    /// <summary>
+    /// The registry said no: "pull access denied", "unauthorized", "error from registry: denied" or an answer that ends in a bare "denied" (MatDock's "Deploy failed:
+    /// denied"). Not "permission denied", which is the Docker socket or a file.
+    /// </summary>
+    public static bool RegistryRefused(string dockerOutput)
+        => dockerOutput.Contains("pull access denied", StringComparison.OrdinalIgnoreCase) ||
+           dockerOutput.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) ||
+           dockerOutput.Contains("error from registry: denied", StringComparison.OrdinalIgnoreCase) ||
+           dockerOutput.Contains("requested access to the resource is denied", StringComparison.OrdinalIgnoreCase) ||
+           BareDenied().IsMatch(dockerOutput);
+
+    [GeneratedRegex(@"(^|[:|]\s*)denied\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline)]
+    private static partial Regex BareDenied();
 }

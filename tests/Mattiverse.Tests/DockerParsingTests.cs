@@ -77,7 +77,11 @@ public class DockerParsingTests
     [Theory]
     [InlineData("Error response from daemon: all predefined address pools have been fully subnetted", "run out of network addresses")]
     [InlineData("Bind for 0.0.0.0:80 failed: port is already allocated", "host port is already in use")]
-    [InlineData("pull access denied for foo, repository does not exist", "private or does not exist")]
+    [InlineData("pull access denied for foo, repository does not exist", "it is private, or it was not published yet")]
+    [InlineData("Error response from daemon: error from registry: denied", "it is private, or it was not published yet")]
+    [InlineData("Deploy failed: denied", "it is private, or it was not published yet")]
+    [InlineData("Error response from daemon: manifest unknown", "no image of this name or tag")]
+    [InlineData("manifest for ghcr.io/real-ttx/matdo:v9 not found: manifest unknown: manifest unknown", "no image of this name or tag")]
     public void Hint_ExplainsKnownDockerErrors(string output, string expected)
         => Assert.Contains(expected, ComposeSteps.Hint(output));
 

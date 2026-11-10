@@ -24,12 +24,16 @@ public sealed class LocalComposeEngine : IStackEngine
 
     public string Id => "local";
 
-    public async Task DeployAsync(StackSpec spec, Action<string> log, CancellationToken ct = default)
+    public async Task DeployAsync(StackSpec spec, bool pull, Action<string> log, CancellationToken ct = default)
     {
         await _files.WriteAsync(spec, ct);
         await ComposeSteps.RunAsync(_compose, spec.Slug, ["config", "--quiet"], "The compose file is invalid", log, ct);
-        log("Pulling the images ...");
-        await ComposeSteps.RunAsync(_compose, spec.Slug, ["pull"], "The images could not be pulled (a private image needs 'docker login' on the host)", log, ct);
+        if (pull)
+        {
+            log("Pulling the images ...");
+            await ComposeSteps.RunAsync(_compose, spec.Slug, ["pull"], "The images could not be pulled", log, ct);
+        }
+
         log("Starting the app ...");
         await ComposeSteps.RunAsync(_compose, spec.Slug, ["up", "-d", "--remove-orphans"], "The app could not be started", log, ct);
     }

@@ -21,8 +21,11 @@ public interface IStackEngine
     /// <summary>Stored with the app: <c>local</c> or <c>matdock</c>.</summary>
     string Id { get; }
 
-    /// <summary>Saves the stack (compose and env), pulls the images and starts it.</summary>
-    Task DeployAsync(StackSpec spec, Action<string> log, CancellationToken ct = default);
+    /// <summary>
+    /// Saves the stack (compose and env) and starts it. With <paramref name="pull"/> the engine pulls the images first; without, it starts what this machine has
+    /// (an image that is missing is still fetched): the install pulled them itself (<see cref="ImagePreflight"/>), and a deploy for new variables (a binding) is no update.
+    /// </summary>
+    Task DeployAsync(StackSpec spec, bool pull, Action<string> log, CancellationToken ct = default);
 
     /// <summary>
     /// Pulls the images and re-creates the containers only if an image changed. With a <paramref name="spec"/> the stack is saved first

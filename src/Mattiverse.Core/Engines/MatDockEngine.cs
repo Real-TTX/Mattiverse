@@ -34,12 +34,20 @@ public sealed class MatDockEngine : IStackEngine
         return available;
     }
 
-    public async Task DeployAsync(StackSpec spec, Action<string> log, CancellationToken ct = default)
+    public async Task DeployAsync(StackSpec spec, bool pull, Action<string> log, CancellationToken ct = default)
     {
-        var operation = await _client.UpsertStackAsync(spec, deploy: true, pull: true, ct)
+        var operation = await _client.UpsertStackAsync(spec, deploy: true, pull: pull, ct)
             ?? throw new InvalidOperationException("MatDock did not start the deployment.");
         log("MatDock is deploying the stack ...");
-        await _client.WaitOperationAsync(operation, log, ct);
+        try
+        {
+            await _client.WaitOperationAsync(operation, log, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // MatDock answers as briefly as Docker ("Deploy failed: denied"): what that means goes with it.
+            throw new InvalidOperationException($"MatDock could not deploy the stack: {ex.Message.TrimEnd('.')}.{ComposeSteps.Hint(ex.Message)}", ex);
+        }
     }
 
     public async Task<bool> UpdateAsync(InstalledApp app, StackSpec? spec, Action<string> log, CancellationToken ct = default)

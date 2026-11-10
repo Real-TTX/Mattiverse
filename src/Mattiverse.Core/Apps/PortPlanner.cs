@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Configuration;
 using Mattiverse.Core.Data;
@@ -11,7 +12,7 @@ namespace Mattiverse.Core.Apps;
 public sealed record PortConflict(int Port, string Protocol, string Container);
 
 /// <summary>Chooses the host port for an app UI and finds clashes of the ports an app publishes.</summary>
-public sealed class PortPlanner
+public sealed partial class PortPlanner
 {
     private readonly MattiverseDbContext _db;
     private readonly DockerService _docker;
@@ -59,6 +60,44 @@ public sealed class PortPlanner
 
         throw new InvalidOperationException("No free host port is left in the configured range.");
     }
+
+    /// <summary>
+    /// The first host port from <paramref name="from"/> upward that no container publishes, no installed app was given and that is not one of
+    /// <paramref name="alsoTaken"/>; null when none is free in the next 2000.
+    /// </summary>
+    public async Task<int?> FreePortFromAsync(int from, IReadOnlySet<int> alsoTaken, CancellationToken ct = default)
+    {
+        var taken = new HashSet<int>(await _db.InstalledApps.Where(a => a.HostPort != null).Select(a => a.HostPort!.Value).ToListAsync(ct));
+        taken.UnionWith(alsoTaken);
+        foreach (var published in await _docker.ListPublishedPortsAsync(ct))
+        {
+            taken.Add(published.HostPort);
+        }
+
+        for (var port = Math.Max(from, 1024); port <= Math.Min(from + 2000, 65535); port++)
+        {
+            if (!taken.Contains(port))
+            {
+                return port;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The variable that names the host side of a published port (<c>"${SUBMISSION_PORT:-2587}:2587"</c> gives <c>SUBMISSION_PORT</c>), or null when the
+    /// host side is a number (<c>"80:80"</c>): only a port a variable names can be moved.
+    /// </summary>
+    public static string? HostPortVariable(string raw)
+    {
+        var slash = raw.LastIndexOf('/');
+        var match = HostVariableRegex().Match(slash >= 0 ? raw[..slash] : raw);
+        return match.Success ? match.Groups["key"].Value : null;
+    }
+
+    [GeneratedRegex(@"^(?:[^:\$]+:)?\$\{(?<key>[A-Za-z_][A-Za-z0-9_]*)(?::?-[^}]*)?\}:[^:]+$")]
+    private static partial Regex HostVariableRegex();
 
     /// <summary>The container of another project that publishes this host port now, or null when the port is free (or this project's own).</summary>
     public async Task<string?> HolderOfAsync(int hostPort, string ownProject, CancellationToken ct = default)

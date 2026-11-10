@@ -307,6 +307,10 @@ public sealed partial class DockerService
     public async Task<bool> VolumeExistsAsync(string name, CancellationToken ct = default)
         => (await _cli.RunAsync(["volume", "inspect", name], ct: ct)).Success;
 
+    /// <summary>Deletes a volume (no container may use it). False when Docker refused.</summary>
+    public async Task<bool> RemoveVolumeAsync(string name, CancellationToken ct = default)
+        => (await _cli.RunAsync(["volume", "rm", name], ct: ct)).Success;
+
     /// <summary>Creates a volume with the labels compose expects, so <c>docker compose up</c> adopts it without a warning.</summary>
     public async Task CreateProjectVolumeAsync(string project, string logicalName, CancellationToken ct = default)
     {

@@ -56,7 +56,8 @@ apps' launchers, quick actions and widgets on the home screen). **No code that k
 ```
 src/Mattiverse.Core        domain, no web types
   Entities/ Data/            EF entities (AuditableEntity, soft delete), DbContext, migrations
-  Apps/                      AppService (install/update/uninstall/lifecycle; redeploys the apps first and the reverse proxy last), ComposeRenderer (catalog entry -> the one
+  Apps/                      AppService (install/update/uninstall/lifecycle; redeploys the apps first and the reverse proxy last; a failed install can always be retried or removed),
+                             ImagePreflight (the images of a stack pulled before the engine gets it: a refusal stops the install with the reason, a local copy is used), ComposeRenderer (catalog entry -> the one
                              compose file; ComposePorts: a routed app publishes no port, the proxy the ports of its port routes),
                              ComposeFiles, ComposeRunner, AppReconciler (adopt MatDock stacks), AppVariables, PortPlanner, AppAddresses (public and internal address of an app)
   Engines/                   IStackEngine: LocalComposeEngine (own docker compose) and MatDockEngine; StackEngines picks one;

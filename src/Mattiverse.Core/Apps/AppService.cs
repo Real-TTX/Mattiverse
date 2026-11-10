@@ -47,6 +47,7 @@ public sealed partial class AppService
     private readonly MailLink _mail;
     private readonly FrameLink _frames;
     private readonly BindingBroker _broker;
+    private readonly ImagePreflight _images;
     private readonly ILogger<AppService> _logger;
 
     public AppService(
@@ -66,6 +67,7 @@ public sealed partial class AppService
         MailLink mail,
         FrameLink frames,
         BindingBroker broker,
+        ImagePreflight images,
         ILogger<AppService> logger)
     {
         _db = db;
@@ -84,6 +86,7 @@ public sealed partial class AppService
         _mail = mail;
         _frames = frames;
         _broker = broker;
+        _images = images;
         _logger = logger;
     }
 
@@ -204,12 +207,22 @@ public sealed partial class AppService
                 conflicts = await _ports.FindConflictsAsync(catalog, variables, app.ProjectName, ct);
             }
 
+            // A port the app publishes itself (MatSMTP's submission port) that another container holds: a variable names it, so the app gets a free one instead
+            // (the wizard asks for none of them, and an install that fails on a port nobody chose helps nobody). A port written as a number stays.
+            if (await MovePortsAsync(app, catalog, variables, conflicts, log, ct))
+            {
+                (spec, variables) = await BuildSpecAsync(app, catalog, log, ct);
+                conflicts = await _ports.FindConflictsAsync(catalog, variables, app.ProjectName, ct);
+            }
+
             foreach (var conflict in conflicts)
             {
                 log($"Warning: host port {conflict.Port}/{conflict.Protocol} is already used by '{conflict.Container}'; the start may fail.");
             }
 
-            await engine.DeployAsync(spec, log, ct);
+            // The images first: one that cannot be pulled stops here, with the reason, before the engine has a stack of the app.
+            await _images.EnsureAsync(spec, log, ct);
+            await engine.DeployAsync(spec, pull: false, log, ct);
             app.ComposeSha = await StoredHashAsync(engine, app, spec, ct);
             await _db.SaveChangesAsync(ct);
 
@@ -304,6 +317,7 @@ public sealed partial class AppService
         }
 
         var config = await _config.GetAsync(ct);
+        var failedBefore = app.Lifecycle == AppLifecycle.Failed;
         app.Lifecycle = AppLifecycle.Removing;
         await _db.SaveChangesAsync(ct);
 
@@ -311,21 +325,35 @@ public sealed partial class AppService
         {
             if (backupFirst)
             {
-                log("Saving a final backup ...");
-                await _backups.RunAsync(app, BackupKind.Manual, config.Backups.StopContainers, "Final backup before the uninstall", log, ct);
+                await FinalBackupAsync(app, failedBefore, config.Backups.StopContainers, log, ct);
             }
 
             // A route from before the bindings (an older Matcad): removed the old way. Every binding (route, client, relay user) the broker removes.
-            if (!await _broker.HasBindingAsync(app, Capabilities.WebRoute, ct))
+            // Neither may keep the app: a route or a DNS record that stays is a warning, an app that cannot be removed would stay for good.
+            try
             {
-                await _proxy.UnpublishAsync(app, log, ct);
+                if (!await _broker.HasBindingAsync(app, Capabilities.WebRoute, ct))
+                {
+                    await _proxy.UnpublishAsync(app, log, ct);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log($"Warning: the route of {app.Name} could not be removed from Matcad: {ex.Message}");
             }
 
             var orphans = await DisconnectBindingsAsync(app, log, ct);
-            await _dns.PublishAllAsync(log, excludeSlug: app.Slug, ct);
+            try
+            {
+                await _dns.PublishAllAsync(log, excludeSlug: app.Slug, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log($"Warning: the DNS records could not be updated: {ex.Message}");
+            }
 
             log(deleteData ? "Removing the containers and the data ..." : "Removing the containers (the data is kept) ...");
-            await _engines.For(app).RemoveAsync(app, deleteData, log, ct);
+            await RemoveStackAsync(app, deleteData, log, ct);
 
             var shares = await _db.ShareLinks.Where(s => s.AppId == app.Id).ToListAsync(ct);
             _db.ShareLinks.RemoveRange(shares);
@@ -348,6 +376,100 @@ public sealed partial class AppService
             app.StatusMessage = Truncate("Uninstall failed: " + ex.Message, 900);
             await _db.SaveChangesAsync(CancellationToken.None);
             throw;
+        }
+    }
+
+    /// <summary>Gives every conflicting port that a variable names the next free port (the variable is saved with the app). True when one moved.</summary>
+    private async Task<bool> MovePortsAsync(
+        InstalledApp app, CatalogApp catalog, IReadOnlyDictionary<string, string> variables, IReadOnlyList<PortConflict> conflicts, Action<string> log, CancellationToken ct)
+    {
+        var values = AppVariables.Deserialize(catalog, app.VariablesJson, _protector);
+        var given = new HashSet<int>();
+        var moved = false;
+        foreach (var conflict in conflicts)
+        {
+            var port = catalog.FixedPorts.FirstOrDefault(p => CatalogParser.ParsePort(EnvSubstitution.Apply(p.Raw, variables))?.HostPort == conflict.Port);
+            if (port is null || PortPlanner.HostPortVariable(port.Raw) is not { } key)
+            {
+                continue;
+            }
+
+            if (await _ports.FreePortFromAsync(conflict.Port + 1, given, ct) is not { } free)
+            {
+                continue;
+            }
+
+            given.Add(free);
+            values[key] = free.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            moved = true;
+            log($"Host port {conflict.Port} is used by '{conflict.Container}': {app.Name} gets port {free} instead ({key}).");
+        }
+
+        if (moved)
+        {
+            app.VariablesJson = AppVariables.Serialize(catalog, values, _protector);
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return moved;
+    }
+
+    /// <summary>
+    /// The backup before an uninstall. An app without containers has nothing to back up (an install that failed before it ran: MatDock cannot back up a stack
+    /// without containers), and for an app whose install failed a backup that fails is a warning: it never ran, so its removal must not depend on one.
+    /// </summary>
+    private async Task FinalBackupAsync(InstalledApp app, bool failedBefore, bool stopContainers, Action<string> log, CancellationToken ct)
+    {
+        if ((await _docker.ListContainersAsync(app.Slug, ct)).Count == 0)
+        {
+            log("No final backup: the app has no containers, so there is nothing to back up.");
+            return;
+        }
+
+        log("Saving a final backup ...");
+        try
+        {
+            await _backups.RunAsync(app, BackupKind.Manual, stopContainers, "Final backup before the uninstall", log, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && failedBefore)
+        {
+            log($"Warning: the final backup failed ({ex.Message}). The install of {app.Name} had failed, so it is removed without one.");
+        }
+    }
+
+    /// <summary>
+    /// The engine removes the stack. When it cannot (MatDock does not answer, or does not know the stack the way it was asked) but no container of the app is
+    /// left, the app is removed all the same: nothing of it runs, and an app that cannot be removed would stay for good. Its volumes go too when the data is to go.
+    /// </summary>
+    private async Task RemoveStackAsync(InstalledApp app, bool deleteData, Action<string> log, CancellationToken ct)
+    {
+        var engine = _engines.For(app);
+        try
+        {
+            await engine.RemoveAsync(app, deleteData, log, ct);
+            return;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            if ((await _docker.ListContainersAsync(app.Slug, ct)).Count > 0)
+            {
+                throw;
+            }
+
+            log($"Warning: {(engine.Id == "matdock" ? "MatDock" : "docker compose")} could not remove the stack ({ex.Message}). No container of {app.Name} is left, so Mattiverse removes it all the same.");
+        }
+
+        if (deleteData)
+        {
+            foreach (var volume in await _docker.ListProjectVolumesAsync(app.ProjectName, ct))
+            {
+                log(await _docker.RemoveVolumeAsync(volume, ct) ? $"Volume {volume} deleted." : $"Warning: the volume {volume} could not be deleted.");
+            }
+        }
+
+        if (_files.Exists(app.Slug))
+        {
+            _files.DeleteFolder(app.Slug);
         }
     }
 
@@ -621,7 +743,9 @@ public sealed partial class AppService
             {
                 var (spec, _) = await BuildSpecAsync(app, catalog, log, ct);
                 var engine = _engines.For(app);
-                await engine.DeployAsync(spec, log, ct);
+
+                // New variables, not an update: the images stay as they are (Update pulls).
+                await engine.DeployAsync(spec, pull: false, log, ct);
                 app.ComposeSha = await StoredHashAsync(engine, app, spec, ct);
                 await _db.SaveChangesAsync(ct);
             }
