@@ -99,7 +99,7 @@ const pages = [
     for (const href of ['/Store', '/Apps', '/Backups', '/Settings']) {
       expectEqual(await page.locator(`.os-dock a[data-window="${href}"]`).count(), 1, href + ' in the dock');
     }
-    for (const href of ['/Jobs', '/Users']) {
+    for (const href of ['/Jobs', '/People']) {
       expectEqual(await page.locator(`.os-grid .os-app[data-window="${href}"]`).count(), 1, href + ' on the screen');
     }
     expectEqual(await page.locator('.os-engines .os-engine').count(), 5, 'the five engines in their widget');
@@ -160,8 +160,8 @@ const pages = [
     const all = await page.locator('.os-grid .os-app:visible').count();
     await page.keyboard.press('/');
     expectEqual(await page.evaluate(() => document.activeElement && document.activeElement.id), 'home-find', 'the search has the focus');
-    await page.keyboard.type('users');
-    expectEqual(await page.locator('.os-grid .os-app:visible').count(), 1, 'only Users is left');
+    await page.keyboard.type('people');
+    expectEqual(await page.locator('.os-grid .os-app:visible').count(), 1, 'only People is left');
     expectEqual(await page.locator('.os-grid [data-widget]:visible').count(), 0, 'the widgets step aside');
     await page.fill('#home-find', '');
     expectEqual(await page.locator('.os-grid .os-app:visible').count(), all, 'all apps again');
@@ -173,7 +173,7 @@ const pages = [
     expectEqual(await page.locator('#os-user-menu [data-window="/Account/Profile?tab=home"]').count(), 1, 'the wallpaper');
     expectTrue(/Mattiverse \S+/.test(await page.locator('#os-user-menu .os-menu__foot').innerText()), 'the version (SHELL-06)');
     await page.keyboard.press('Escape');
-    await page.click('.os-grid .os-app[data-window="/Users"]', { button: 'right' });
+    await page.click('.os-grid .os-app[data-window="/People"]', { button: 'right' });
     expectTrue(await page.locator('.os-menu[role=menu]:not(#os-user-menu)').isVisible(), 'the menu of an app');
     expectTrue((await page.locator('.os-menu[role=menu]:not(#os-user-menu)').innerText()).includes('Open in a new tab'), 'a new tab');
     await page.keyboard.press('Escape');
@@ -182,8 +182,8 @@ const pages = [
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });
     const token = await page.locator('input[name="__RequestVerificationToken"]').first().inputValue();
     expectEqual((await page.request.delete(BASE + '/api/home', { headers: { RequestVerificationToken: token } })).status(), 204, 'the home screen as it comes');
-    // Activity and Users first, so that both are on the screen whatever fits on it; the rest follows as it comes.
-    expectEqual((await page.request.put(BASE + '/api/home', { headers: { RequestVerificationToken: token }, data: { pages: [['s:jobs', 's:users']] } })).status(), 204, 'a layout is taken');
+    // Activity and People first, so that both are on the screen whatever fits on it; the rest follows as it comes.
+    expectEqual((await page.request.put(BASE + '/api/home', { headers: { RequestVerificationToken: token }, data: { pages: [['s:jobs', 's:people']] } })).status(), 204, 'a layout is taken');
     await page.reload({ waitUntil: 'networkidle' });
     const keys = i => page.locator('.os-page').nth(i).locator(':scope > [data-home-key]').evaluateAll(els => els.map(e => e.getAttribute('data-home-key')));
     const menu = () => page.locator('.os-menu[role=menu]:not(#os-user-menu)');
@@ -200,8 +200,8 @@ const pages = [
     await entry('Wide').click();
     expectEqual((await put).status(), 204, 'a size is saved');
 
-    // Users dragged with the mouse onto the place of Activity.
-    const from = await page.locator('[data-home-key="s:users"]').boundingBox();
+    // People dragged with the mouse onto the place of Activity.
+    const from = await page.locator('[data-home-key="s:people"]').boundingBox();
     const to = await page.locator('[data-home-key="s:jobs"]').boundingBox();
     put = saved();
     await page.mouse.move(from.x + from.width / 2, from.y + 30);
@@ -211,7 +211,7 @@ const pages = [
     await page.mouse.up();
     await put;
     const order = await keys(0);
-    expectTrue(order.indexOf('s:users') < order.indexOf('s:jobs'), 'Users is before Activity: ' + order.join(' '));
+    expectTrue(order.indexOf('s:people') < order.indexOf('s:jobs'), 'People is before Activity: ' + order.join(' '));
     expectTrue(!(await page.locator('#os-window').isVisible()), 'the drag opened nothing');
 
     await page.locator('[data-home-key="s:jobs"]').click({ button: 'right' });
@@ -286,7 +286,7 @@ const pages = [
   });
 
   await check('an administrator has two menus, the switcher shows the one with the page', async () => {
-    await page.goto(BASE + '/Users');
+    await page.goto(BASE + '/People');
     expectEqual(await page.locator('.mat-switcher__name').innerText(), 'Administration', 'the menu of the page');
     await page.goto(BASE + '/Store');
     expectEqual(await page.locator('.mat-switcher__name').innerText(), 'Mattiverse', 'the menu of the launcher');
