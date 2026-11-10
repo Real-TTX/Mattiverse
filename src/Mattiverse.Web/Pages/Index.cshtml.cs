@@ -30,11 +30,14 @@ public class IndexModel : PageModel
     private readonly EngineOverview _engines;
     private readonly HomeContributions _home;
     private readonly UserService _users;
+    private readonly Mattiverse.Core.Integrations.PersonAccess _person;
 
-    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, BackupHub backupHub, CatalogService catalog, AppUrls urls, EngineOverview engines, HomeContributions home, UserService users)
+    public IndexModel(AppService apps, SystemConfigService config, JobService jobs, DockerService docker, BackupService backups, BackupHub backupHub, CatalogService catalog, AppUrls urls, EngineOverview engines, HomeContributions home, UserService users,
+        Mattiverse.Core.Integrations.PersonAccess person)
     {
         _home = home;
         _users = users;
+        _person = person;
         _backupHub = backupHub;
         _engines = engines;
         _apps = apps;
@@ -139,7 +142,9 @@ public class IndexModel : PageModel
         Config = await _config.GetAsync(ct);
         Engine = await _docker.GetEngineInfoAsync(ct);
 
-        var apps = (await _apps.ListAsync(ct)).Where(a => a.Pinned).ToList();
+        // What MatIdentity says the person may use (null: it says nothing, a local account or no MatIdentity): an app they may not use has no icon and no widget.
+        var person = await _person.ForUserAsync(User.GetUserId(), ct);
+        var apps = (await _apps.ListAsync(ct)).Where(a => a.Pinned && (isAdmin || person is null || person.MayUse(a))).ToList();
         var runtimes = Engine.Available ? await _apps.GetRuntimesAsync(ct) : new Dictionary<string, RuntimeInfo>();
 
         Tiles = new List<Tile>(apps.Count);
@@ -153,7 +158,7 @@ public class IndexModel : PageModel
         }
 
         Running = Tiles.Count(t => t.Status.Css == "online");
-        Additions = await _home.BuildAsync(Tiles.Select(t => t.App), isAdmin, Request, ct);
+        Additions = await _home.BuildAsync(Tiles.Select(t => t.App), isAdmin, Request, ct, person);
 
         if (isAdmin)
         {

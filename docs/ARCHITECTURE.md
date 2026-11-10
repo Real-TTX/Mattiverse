@@ -265,8 +265,8 @@ class for every capability and no code that knows an app (`Core/Integrations/Bin
 
 ## MatIdentity, the single sign-on
 
-MatIdentity is an engine (the fourth card of the wizard, `core: true`), and **Mattiverse manages all of it**; people,
-groups and who may open which app stay in MatIdentity's own pages (the Manage tab of MatIdentity links there).
+MatIdentity is an engine (the fourth card of the wizard, `core: true`), and **Mattiverse manages all of it**. People, groups and who may open which app live in
+MatIdentity; Mattiverse administers them in its area **People** (below) and MatIdentity's own pages do the same.
 
 - **Its address.** Mattiverse gives MatIdentity its public address as the fixed issuer (`MATIDENTITY_ISSUER`: the route of the proxy, else this host and
   its port). Inside Docker the apps reach it as `http://<project>-matidentity-matidentity:2300` (`MATIDENTITY_INTERNAL_URL`); MatIdentity names the public
@@ -290,6 +290,18 @@ groups and who may open which app stay in MatIdentity's own pages (the Manage ta
   `exp`, the back-channel event, `sub`/`sid`, no `nonce`, a `jti` replay cache in memory) and ends the sessions (`SessionService.EndIdentitySessionsAsync`): with `sid`
   the sessions that began with it, with `sub` alone every session of the linked user, local ones too. Sessions live in SQLite and the cookie is checked against
   its session on every request, so the next request is signed out. `200`; `400` for an invalid token; `404` while Mattiverse is not connected; `no-store`.
+- **People** (MatDesign docs/ACCESS.md, PLATFORM.md "People, permissions and quotas"). `/People` (administrators) is a front end of MatIdentity, Mattiverse keeps no people
+  of its own there: `Core/Integrations/MatIdentityPeople.cs` speaks SCIM 2.0 with MatIdentity (`/scim/v2`: users, groups, the extension `urn:mat:scim:schemas:extension:access:1.0`
+  with the grants and what a person ends up with per app) and `/api/v1` (the apps with their roles, permissions and quotas; the actions on a person), with MatIdentity's key,
+  naming the person who acts (`X-Mat-Actor`). The pages: People (list, a person: details, groups, the section Apps, the actions), Groups, and Access (what a person or group
+  is given in one app: whether at all, the role, the permissions, the quotas, the usage the app reports at `/api/quotas/{subject}`, `PlatformClient.GetQuotasAsync`). Every
+  form is drawn from what MatIdentity keeps of the app, which it read from the app's `/api`: **no page knows an app**. Mattiverse's own accounts (the local administrator,
+  the way in when MatIdentity is down) are the tab *Mattiverse accounts* (`/Users`). Without MatIdentity the area says what is missing.
+- **What each person sees.** `PersonAccess` asks MatIdentity (SCIM) which apps a person may use and their role in each, and keeps it a minute (the People pages forget
+  it after a change). The home screen and the list of apps show a person only those apps (an app that does not sign in through MatIdentity stays, it has users of its own),
+  `/Apps/Open` refuses the others, and the launchers and widgets follow the person's role in the app: `roles` of a contribution decide when the role is known, `admin` is
+  the app's first role (`ShellRules.Sees`). An administrator of Mattiverse sees every app; a local account and a person MatIdentity says nothing about see what
+  they always saw (the rules of `audience`).
 - **Manage.** An app with `platform: true` gets the tab *Manage*: `PlatformClient` reads its MatApiDefinition (`GET /api`) and its values with `MAT_API_KEY`,
   and the page draws its pages (tiles, settings form, buttons) with MatUi without knowing the app.
 

@@ -50,7 +50,8 @@ public sealed class HomeContributions
         _toolkit = toolkit;
     }
 
-    public async Task<HomeAdditions> BuildAsync(IEnumerable<InstalledApp> apps, bool isAdmin, HttpRequest request, CancellationToken ct)
+    /// <param name="person">What MatIdentity says the person may use and their role in each app (null: nothing, the rules of <c>audience</c> as they always were).</param>
+    public async Task<HomeAdditions> BuildAsync(IEnumerable<InstalledApp> apps, bool isAdmin, HttpRequest request, CancellationToken ct, PersonApps? person = null)
     {
         var launchers = new Dictionary<long, IReadOnlyList<LauncherTile>>();
         var widgets = new List<AppWidgetView>();
@@ -72,7 +73,9 @@ public sealed class HomeContributions
             async Task<IReadOnlyDictionary<string, PlatformValue>> StateAsync() => state ??= await _manifests.StateAsync(app, ct);
 
             var tiles = new List<LauncherTile>();
-            foreach (var launcher in (contributes.Launchers ?? []).Where(l => ShellRules.Sees(l.Audience, isAdmin, launcher: true) && ShellRules.IsPath(l.Url)))
+            var role = person?.RoleIn(app);
+            var firstRole = person?.FirstRoleOf(app);
+            foreach (var launcher in (contributes.Launchers ?? []).Where(l => ShellRules.Sees(l.Audience, l.Roles, isAdmin, launcher: true, role, firstRole) && ShellRules.IsPath(l.Url)))
             {
                 var quick = (contributes.QuickActions ?? [])
                     .Where(q => q.Launcher == launcher.Id)
@@ -94,7 +97,7 @@ public sealed class HomeContributions
                 launchers[app.Id] = tiles;
             }
 
-            foreach (var widget in (contributes.Widgets ?? []).Where(w => ShellRules.Sees(w.Audience, isAdmin, launcher: false)))
+            foreach (var widget in (contributes.Widgets ?? []).Where(w => ShellRules.Sees(w.Audience, w.Roles, isAdmin, launcher: false, role, firstRole)))
             {
                 var view = await WidgetAsync(app, definition, widget, root, StateAsync, ct);
                 if (view is not null)

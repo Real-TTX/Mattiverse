@@ -67,18 +67,19 @@ src/Mattiverse.Core        domain, no web types
   Catalog/                   CatalogParser/Service/Models + apps/*.yml (embedded)
   Docker/                    DockerCli (process wrapper), DockerService (typed ops, parsing)
   Integrations/              MatcadClient, MatddnsClient, ProxyPublisher (routes, wildcard), DnsPublisher (records), IAppProvisioner (one per engine),
-                             MatIdentityClient + IdentityLink (Mattiverse's own sign-in, the issuer of MatIdentity), MatSmtpClient + MailLink (the setup of MatSMTP), FrameLink (Mattiverse's
+                             MatIdentityClient + IdentityLink (Mattiverse's own sign-in, the issuer of MatIdentity), MatIdentityPeople (SCIM to MatIdentity: the People area) + PersonAccess (what a person may use, kept a minute), MatSmtpClient + MailLink (the setup of MatSMTP), FrameLink (Mattiverse's
                              shell.embed: MAT_FRAME_ANCESTORS), PlatformClient (/api of an app, contract 2),
                              BindingBroker (the bindings between the apps and of the engines: identity.oidc, mail.smtp, web.route (a host under the domain, else a port of
                              this machine: every app behind Matcad; PortsAsync); one class for every capability, AppBinding;
                              catalog consumes + /api + implicit web.route; AdoptAsync takes over the variables of an earlier Mattiverse), AppManifests + ManifestCache (definitions and values, short
-                             timeouts, kept a while), ShellRules (who sees a contribution, which addresses it may open)
+                             timeouts, kept a while), ShellRules (who sees a contribution: `audience`, and `roles` by the person's role in the app; which addresses it may open)
   Jobs/                      JobService/Queue/RunnerService, AppJobs (the work per job kind), JobContext/log
   Auth/ Users/ Security/     login, sessions (EndIdentitySessionsAsync: the back-channel logout), LogoutToken (the check of a logout token of MatIdentity), PBKDF2 hasher, secret protector; Wallpapers (the pictures of the home screen); HomeLayout (how a person arranged the home screen: pages, what is off it, sizes; User.HomeLayout)
   Configuration/             options, AppPaths, JsonConfigStore, SystemConfig
 src/Mattiverse.Web         Razor Pages, controls, JS/CSS, Program.cs
   Controls/                  tag helpers icon (a use of the sprite), app-icon, mat-field (label, control, hint, error), tab-bar; ListModels (ToolbarModel, PagerModel, ListView, ListQuery)
-  Pages/                     Index (Mattiverse OS), Engines/ (one engine in the window), Apps/, Store/, Backups/, Jobs/, Settings/, Wizard/, Users/, Account/, Share/
+  Pages/                     Index (Mattiverse OS), Engines/ (one engine in the window), Apps/, Store/, Backups/, Jobs/, Settings/, Wizard/, People/ (the people, groups and grants of MatIdentity:
+                             Index, Edit, Access, Groups, Group), Users/ (Mattiverse's own accounts, a tab of People), Account/, Share/
   Pages/Shared/              _Layout (the shell: menus, switcher, user, theme, breadcrumb), _Launcher (Mattiverse OS: status bar, wallpaper, the one window, no menu), _Bare (no menu), _Head, _Toolbar, _Pager, _ValidationSummary, _StatusPill, _DnsFields
   Infrastructure/            cookie session validation, setup guard, DB bootstrap, API endpoints (the job log, the theme, PUT/DELETE /api/home: the arrangement of the home screen), health check, MatIdentitySignIn, BackchannelLogout (POST /signout-backchannel)
   Support/                   Toolkit (the icon sprite), Ui (Icon, Logo), Navigation (the menus: NavSet, NavItem, NavBadge), Launcher (the parts of Mattiverse as apps on the home screen and in its dock), EngineOverview (the five engines for the settings, the home screen and /Engines), HomeContributions (the launchers, quick actions and widgets of the apps for the home screen), Crumbs, AppUrls, FrameProbe, AppStatus, Format

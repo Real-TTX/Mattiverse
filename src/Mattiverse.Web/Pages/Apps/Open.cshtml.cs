@@ -1,6 +1,7 @@
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Entities;
 using Mattiverse.Core.Apps;
+using Mattiverse.Web.Infrastructure;
 using Mattiverse.Web.Support;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -17,13 +18,15 @@ public class OpenModel : PageModel
     private readonly CatalogService _catalog;
     private readonly AppUrls _urls;
     private readonly FrameProbe _probe;
+    private readonly Mattiverse.Core.Integrations.PersonAccess _person;
 
-    public OpenModel(AppService apps, CatalogService catalog, AppUrls urls, FrameProbe probe)
+    public OpenModel(AppService apps, CatalogService catalog, AppUrls urls, FrameProbe probe, Mattiverse.Core.Integrations.PersonAccess person)
     {
         _apps = apps;
         _catalog = catalog;
         _urls = urls;
         _probe = probe;
+        _person = person;
     }
 
     public InstalledApp App { get; private set; } = null!;
@@ -40,6 +43,12 @@ public class OpenModel : PageModel
         if (app is null)
         {
             return NotFound();
+        }
+
+        // MatIdentity would turn the person away at the app anyway; the window does not even open it.
+        if (!User.IsAdmin() && await _person.ForUserAsync(User.GetUserId(), ct) is { } person && !person.MayUse(app))
+        {
+            return Forbid();
         }
 
         // An app that is still installing (or failed) has nothing to show yet: go to its page.

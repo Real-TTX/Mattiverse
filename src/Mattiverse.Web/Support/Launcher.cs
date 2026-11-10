@@ -32,7 +32,7 @@ public static class Launcher
         ?
         [
             new("Activity", "/Jobs", "activity", "os-ico--activity", activeJobs > 0 ? activeJobs : null, activeJobs == 1 ? "task running" : "tasks running"),
-            new("Users", "/Users", "users", "os-ico--users"),
+            new("People", "/People", "users", "os-ico--users"),
         ]
         : [];
 }

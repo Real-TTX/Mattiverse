@@ -74,6 +74,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MatIdentityClient>();
         services.AddScoped<IdentityLink>();
         services.AddScoped<PlatformClient>();
+        // The People area: the people, groups and grants of MatIdentity (SCIM) and the apps' roles, permissions and quotas.
+        services.AddScoped<MatIdentityPeople>();
+        // What each person may use, for the home screen (kept a minute per person).
+        services.AddScoped<PersonAccess>();
         services.AddScoped<IAppProvisioner, MatIdentityProvisioner>();
 
         // MatSMTP, the mail relay: every app that sends mail gets a relay user there from Mattiverse.

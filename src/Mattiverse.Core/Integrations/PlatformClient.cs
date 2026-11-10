@@ -29,10 +29,10 @@ public sealed record PlatformCapability(string Capability, int Version, bool? Op
 public sealed record PlatformContributions(IReadOnlyList<PlatformLauncher>? Launchers, IReadOnlyList<PlatformWidget>? Widgets, IReadOnlyList<PlatformQuickAction>? QuickActions);
 
 /// <summary>An icon of the app on the home screen: its picture and address are relative to the app.</summary>
-public sealed record PlatformLauncher(string Id, string Label, string Icon, string Url, string? Accent = null, string? Audience = null, string? Badge = null);
+public sealed record PlatformLauncher(string Id, string Label, string Icon, string Url, string? Accent = null, string? Audience = null, string? Badge = null, IReadOnlyList<string>? Roles = null);
 
 /// <summary>A widget of the app: <c>stat</c>, <c>meter</c>, <c>tiles</c> (keys of state) or <c>list</c> (rows of <c>/api/widgets/{id}</c>).</summary>
-public sealed record PlatformWidget(string Id, string Label, string Kind, string? Size = null, IReadOnlyList<string>? Items = null, string? Icon = null, string? Url = null, int? Refresh = null, string? Audience = null);
+public sealed record PlatformWidget(string Id, string Label, string Kind, string? Size = null, IReadOnlyList<string>? Items = null, string? Icon = null, string? Url = null, int? Refresh = null, string? Audience = null, IReadOnlyList<string>? Roles = null);
 
 /// <summary>An entry of the menu of a launcher: an address of the app or a post action.</summary>
 public sealed record PlatformQuickAction(string Launcher, string Label, string? Icon = null, string? Url = null, string? Action = null);
@@ -89,6 +89,9 @@ public sealed record PlatformValue(JsonElement Value, string? Level, string? Tex
 
 /// <summary>The answer of a change: the errors per key (empty = saved) or the message of an action.</summary>
 public sealed record PlatformResult(bool Ok, string? Message, IReadOnlyDictionary<string, string> Errors);
+
+/// <summary>What a person uses of one quota of an app (<c>GET /api/quotas/{subject}</c>): the limit that applies (null: none), whether MatIdentity set it, the period.</summary>
+public sealed record PlatformQuotaUsage(long Used, long? Limit, bool Fixed, string? Period);
 
 /// <summary>
 /// Talks to the platform API of an installed app (MatDesign docs/PLATFORM.md): its definition (<c>GET /api</c>), its values, its settings and its actions.
@@ -276,6 +279,20 @@ public sealed class PlatformClient
         }
     }
 
+    /// <summary>What <paramref name="subject"/> uses of the app's quotas, by key; null when the app does not know the person, has no quotas or does not answer.</summary>
+    public async Task<IReadOnlyDictionary<string, PlatformQuotaUsage>?> GetQuotasAsync(InstalledApp app, string subject, CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await SendAsync(app, HttpMethod.Get, "/api/quotas/" + Uri.EscapeDataString(subject), null, withKey: true, ct);
+            return response.IsSuccessStatusCode ? (await response.Content.ReadFromJsonAsync<QuotasBody>(Json, ct))?.Values : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>What the app uses and offers (<c>GET /api/connections</c>); null when it does not answer (an app before contract 2).</summary>
     public async Task<PlatformConnections?> GetConnectionsAsync(InstalledApp app, CancellationToken ct = default)
     {
@@ -348,4 +365,6 @@ public sealed class PlatformClient
     private sealed record BindBody(Dictionary<string, JsonElement>? Variables);
 
     private sealed record WidgetBody(List<PlatformWidgetItem>? Items);
+
+    private sealed record QuotasBody(Dictionary<string, PlatformQuotaUsage>? Values);
 }

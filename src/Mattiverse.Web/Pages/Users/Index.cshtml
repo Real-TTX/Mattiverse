@@ -6,7 +6,11 @@
     ViewData["Crumbs"] = Crumbs.Of(("Users", null));
     var currentUserId = User.GetUserId();
     var list = Model.List;
+    var tabs = Mattiverse.Web.Pages.People.PeopleTabs.For("accounts");
 }
+
+<tab-bar model="tabs" label="People" />
+<p class="mat-muted">The accounts that sign in to Mattiverse itself. The local administrator is the way in when MatIdentity is down (<span class="mat-mono">?local=1</span>); everyone else signs in through MatIdentity and is managed under People.</p>
 
 <div class="mat-list">
     <partial name="_Toolbar" model="list.Toolbar" />

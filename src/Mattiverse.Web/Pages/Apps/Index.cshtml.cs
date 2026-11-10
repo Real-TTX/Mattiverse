@@ -1,7 +1,9 @@
 using Mattiverse.Core.Apps;
 using Mattiverse.Core.Catalog;
 using Mattiverse.Core.Entities;
+using Mattiverse.Core.Integrations;
 using Mattiverse.Web.Controls;
+using Mattiverse.Web.Infrastructure;
 using Mattiverse.Web.Support;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -15,11 +17,13 @@ public class IndexModel : PageModel
 
     private readonly AppService _apps;
     private readonly CatalogService _catalog;
+    private readonly PersonAccess _person;
 
-    public IndexModel(AppService apps, CatalogService catalog)
+    public IndexModel(AppService apps, CatalogService catalog, PersonAccess person)
     {
         _apps = apps;
         _catalog = catalog;
+        _person = person;
     }
 
     public sealed record Row(InstalledApp App, AppStatusView Status, string? Icon, string Kind);
@@ -31,7 +35,9 @@ public class IndexModel : PageModel
     public async Task OnGetAsync()
     {
         var ct = HttpContext.RequestAborted;
-        var apps = await _apps.ListAsync(ct);
+        // A person sees only the apps MatIdentity lets them use (an administrator of Mattiverse all of them).
+        var person = User.IsAdmin() ? null : await _person.ForUserAsync(User.GetUserId(), ct);
+        var apps = (await _apps.ListAsync(ct)).Where(a => person is null || person.MayUse(a)).ToList();
         var runtimes = await _apps.GetRuntimesAsync(ct);
 
         var all = apps.Select(a => new Row(
