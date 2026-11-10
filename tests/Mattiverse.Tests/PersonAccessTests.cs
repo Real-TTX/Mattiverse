@@ -83,6 +83,51 @@ public sealed class PersonAccessTests
         Assert.Null(await access.ForAsync("sub-nobody"));
     }
 
+    [Theory]
+    [InlineData("redirect")]
+    [InlineData("html")]
+    [InlineData("down")]
+    [InlineData("slow")]
+    public async Task A_matidentity_without_scim_or_without_an_answer_never_takes_the_home_screen_down(string kind)
+    {
+        var handler = new Failing(kind);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var access = new PersonAccess(new MatIdentityPeople(new StubLocator(), new StubFactory(handler)), null!, cache);
+
+        // Nothing to say: the home screen shows what it always showed.
+        Assert.Null(await access.ForAsync("sub-anna"));
+
+        // And it is kept like an answer: a MatIdentity that is down is not asked at every look.
+        var asked = handler.Count;
+        Assert.Null(await access.ForAsync("sub-anna"));
+        Assert.Equal(asked, handler.Count);
+    }
+
+    private sealed class Failing(string kind) : HttpMessageHandler
+    {
+        public int Count { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Count++;
+            switch (kind)
+            {
+                case "redirect":
+                    var redirect = new HttpResponseMessage(HttpStatusCode.Redirect) { Content = new StringContent(string.Empty) };
+                    redirect.Headers.Location = new Uri("http://matidentity.test/Account/Login");
+                    return redirect;
+                case "html":
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<!DOCTYPE html><html></html>", Encoding.UTF8, "text/html") };
+                case "down":
+                    throw new HttpRequestException("Connection refused");
+                default:
+                    // Longer than the home screen waits: the wait cancels it.
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    return new HttpResponseMessage(HttpStatusCode.OK);
+            }
+        }
+    }
+
     private sealed class Handler : HttpMessageHandler
     {
         public int Count { get; private set; }

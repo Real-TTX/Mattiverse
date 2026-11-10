@@ -124,6 +124,19 @@ public sealed class MatIdentityPeopleTests
         Assert.Equal("http://matidentity.test/api/v1/clients", handler.Requests.Single().Url);
     }
 
+    [Theory]
+    // An older MatIdentity sends /scim/v2 to its sign-in page: a redirect (never followed), or the page itself.
+    [InlineData(HttpStatusCode.Redirect, "text/html", "")]
+    [InlineData(HttpStatusCode.OK, "text/html", "<!DOCTYPE html><html><body>Sign in</body></html>")]
+    [InlineData(HttpStatusCode.NotFound, "text/html", "<html>Not found</html>")]
+    [InlineData(HttpStatusCode.OK, "application/json", "{ not json")]
+    public async Task A_matidentity_without_scim_says_so_instead_of_an_error_of_the_parser(HttpStatusCode status, string type, string body)
+    {
+        var handler = new ScimHandler { Answer = _ => (status, body), ContentType = type };
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => People(handler).PersonAsync("sub-anna"));
+        Assert.Equal(MatIdentityPeople.NoScim, error.Message);
+    }
+
     [Fact]
     public async Task A_refusal_of_matidentity_reaches_the_page_in_its_words()
     {
@@ -149,6 +162,8 @@ public sealed class MatIdentityPeopleTests
 
         public Func<(string Method, string Url), (HttpStatusCode Status, string Body)> Answer { get; set; } = _ => (HttpStatusCode.OK, "{}");
 
+        public string ContentType { get; set; } = "application/scim+json";
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var text = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
@@ -157,7 +172,13 @@ public sealed class MatIdentityPeopleTests
                 request.Headers.TryGetValues(MatIdentityPeople.ActorHeader, out var actor) ? actor.Single() : null,
                 string.IsNullOrEmpty(text) ? null : JsonNode.Parse(text)));
             var (status, body) = Answer((request.Method.Method, url));
-            return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/scim+json") };
+            var response = new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, ContentType) };
+            if ((int)status is >= 300 and < 400)
+            {
+                response.Headers.Location = new Uri("http://matidentity.test/Account/Login?returnUrl=%2Fscim%2Fv2");
+            }
+
+            return response;
         }
     }
 

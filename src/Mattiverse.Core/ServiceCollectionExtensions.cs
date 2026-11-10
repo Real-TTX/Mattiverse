@@ -75,6 +75,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IdentityLink>();
         services.AddScoped<PlatformClient>();
         // The People area: the people, groups and grants of MatIdentity (SCIM) and the apps' roles, permissions and quotas.
+        services.AddHttpClient(MatIdentityPeople.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         services.AddScoped<MatIdentityPeople>();
         // What each person may use, for the home screen (kept a minute per person).
         services.AddScoped<PersonAccess>();

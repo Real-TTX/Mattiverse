@@ -63,6 +63,15 @@ public sealed class MatIdentityPeople
     public const string GroupAccess = "urn:mat:scim:schemas:extension:access:1.0:Group";
     public const string ActorHeader = "X-Mat-Actor";
 
+    /// <summary>
+    /// The HTTP client of these calls: it follows no redirect (an older MatIdentity without SCIM answers <c>/scim/v2</c> with its sign-in page, which must not be taken
+    /// for an answer).
+    /// </summary>
+    public const string HttpClientName = "matidentity-people";
+
+    /// <summary>What a person reads when MatIdentity answers, but not as SCIM (an image from before SCIM).</summary>
+    public const string NoScim = "MatIdentity does not speak SCIM yet (an older version): update MatIdentity.";
+
     private readonly EngineLocator _locator;
     private readonly IHttpClientFactory _http;
 
@@ -341,10 +350,17 @@ public sealed class MatIdentityPeople
             request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/scim+json");
         }
 
-        var client = _http.CreateClient("engine");
+        var client = _http.CreateClient(HttpClientName);
         client.Timeout = TimeSpan.FromSeconds(30);
         using var response = await client.SendAsync(request, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
+        var json = IsJson(response);
+        if ((int)response.StatusCode is >= 300 and < 400 || (!json && !string.IsNullOrWhiteSpace(text)))
+        {
+            // A redirect (to the sign-in page) or a page instead of JSON: this MatIdentity has no SCIM.
+            throw new InvalidOperationException(NoScim);
+        }
+
         if (response.StatusCode == HttpStatusCode.NotFound && notFoundIsNull)
         {
             return null;
@@ -355,8 +371,20 @@ public sealed class MatIdentityPeople
             throw new InvalidOperationException(Message(text) ?? $"MatIdentity answered HTTP {(int)response.StatusCode}.");
         }
 
-        return string.IsNullOrWhiteSpace(text) ? null : JsonNode.Parse(text);
+        try
+        {
+            return string.IsNullOrWhiteSpace(text) ? null : JsonNode.Parse(text);
+        }
+        catch (JsonException)
+        {
+            throw new InvalidOperationException(NoScim);
+        }
     }
+
+    /// <summary>The answer is JSON (<c>application/json</c>, <c>application/scim+json</c>, any <c>+json</c>).</summary>
+    private static bool IsJson(HttpResponseMessage response)
+        => response.Content.Headers.ContentType?.MediaType is { } type
+           && (type.Equals("application/json", StringComparison.OrdinalIgnoreCase) || type.EndsWith("+json", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>What MatIdentity said: the SCIM <c>detail</c>, the first of <c>errors</c>, or null.</summary>
     private static string? Message(string text)

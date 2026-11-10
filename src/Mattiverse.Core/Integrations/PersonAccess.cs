@@ -40,6 +40,9 @@ public sealed class PersonAccess
 {
     public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(1);
 
+    /// <summary>How long the home screen waits for MatIdentity before it shows what it always showed.</summary>
+    public static readonly TimeSpan Wait = TimeSpan.FromSeconds(4);
+
     // A change of a group can concern anybody: it starts a new generation of the cache instead of finding the people one by one.
     private static int _generation;
 
@@ -72,20 +75,23 @@ public sealed class PersonAccess
         }
 
         PersonApps? apps = null;
+        using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        wait.CancelAfter(Wait);
         try
         {
-            if (await _people.IsAvailableAsync(ct) && await _people.PersonAsync(subject, ct) is { } person)
+            if (await _people.IsAvailableAsync(wait.Token) && await _people.PersonAsync(subject, wait.Token) is { } person)
             {
-                var all = await _people.AppsAsync(ct);
+                var all = await _people.AppsAsync(wait.Token);
                 apps = new PersonApps(
                     person.Access.GroupBy(a => a.App, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First().Role, StringComparer.Ordinal),
                     all.Where(a => a.AllowSignIn).Select(a => a.ClientId).ToHashSet(StringComparer.Ordinal),
                     all.ToDictionary(a => a.ClientId, a => a.RolesByIdentity ? a.Roles.FirstOrDefault()?.Key : null, StringComparer.Ordinal));
             }
         }
-        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        catch (Exception) when (!ct.IsCancellationRequested)
         {
-            // MatIdentity does not answer: the person cannot sign in to its apps now anyway; the screen shows what it always showed.
+            // Whatever goes wrong (MatIdentity does not answer, is too slow, has no SCIM yet, answers something else): the home screen never fails for it and shows
+            // what it always showed, kept a minute like an answer, so a MatIdentity that is down is not asked at every look.
             apps = null;
         }
 
