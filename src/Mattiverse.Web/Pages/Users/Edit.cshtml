@@ -3,6 +3,8 @@
 @{
     ViewData["Title"] = Model.IsEdit ? "Edit user" : "New user";
     ViewData["PageSub"] = Model.IsEdit ? "Change the name, the role or the password." : "Creates an account that can sign in.";
+    // Mattiverse's own accounts are a tab of People: the menu marks People (and so the switcher shows Administration).
+    ViewData["ActiveHref"] = "/People";
     ViewData["Crumbs"] = Crumbs.Of(("Users", "/Users"), (Model.IsEdit ? Model.Input.Username : "New user", null));
     ViewData["Width"] = "narrow";
     var pwHint = Model.IsEdit ? "Leave blank to keep the current password." : "At least 8 characters.";

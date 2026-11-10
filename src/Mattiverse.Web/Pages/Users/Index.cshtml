@@ -3,6 +3,8 @@
 @{
     ViewData["Title"] = "Users";
     ViewData["PageSub"] = "Who can sign in to Mattiverse, and what they may do.";
+    // Mattiverse's own accounts are a tab of People: the menu marks People (and so the switcher shows Administration).
+    ViewData["ActiveHref"] = "/People";
     ViewData["Crumbs"] = Crumbs.Of(("Users", null));
     var currentUserId = User.GetUserId();
     var list = Model.List;
