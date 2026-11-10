@@ -123,7 +123,7 @@ tests/e2e                    run.js: the pages in a real browser against the run
   live in the folder *System* and open `/Engines?id=` (`Support/EngineOverview.cs`); their own pages open there in the window when they allow Mattiverse to frame them
   (`MAT_FRAME_ANCESTORS`, filled by `Core/Integrations/FrameLink.cs` for apps whose compose file names it; `FrameProbe`/`FramePolicy` check before a frame). Wallpapers are drawn by `scripts/wallpapers` (`node scripts/wallpapers/render.js`);
   a new one needs its id in `Wallpapers.All`, its rule in `os.css` and its pictures (`WallpaperTests` checks all three).
-  The person arranges it and the account keeps it (`HomeLayout`, `/api/home`): pages, dragging, a right click on everything, editing with a minus; every thing of the home
+  It never scrolls: what does not fit on the screen continues on the next page (`flow()` in `js/os.js`). The person arranges it and the account keeps it (`HomeLayout`, `/api/home`): pages, dragging, a right click on everything, editing with a minus; every thing of the home
   screen needs a stable key (`data-home-key`, `IndexModel.ArrangeAsync`), and a new widget offers its sizes (docs/ARCHITECTURE.md "The home screen").
 - The theme: the toolkit's button cycles System / Light / Dark and posts the choice to `/api/theme`; the account keeps it. Account, logout and the theme are at the bottom of the menu.
 - Mobile matters: check phone width (390 px) for every new page; secondary table columns get `mat-hide-sm`.

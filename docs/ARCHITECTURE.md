@@ -224,6 +224,9 @@ The home screen is a **small operating system** (the owner's choice of 2026-11-0
     (edit, add a page, show again what is off it, the wallpaper, the store and the settings for an administrator, reload, reset).
   - **Dragging**: the mouse drags a thing at once (a copy follows the pointer, the others glide out of the way); a finger drags while editing, else it swipes the pages.
     Waiting at the edge of the screen or over a dot turns the page and takes the thing along; past the last page a new one begins.
+  - **The home screen never scrolls**: it is exactly the window (status bar, pages, dock). A page shows what fits on the screen; the first thing that reaches below it and all
+    after it continue on a page of their own right after it (`data-continues`, `flow()` in `js/os.js`; the grid places things in order, so an earlier thing never moves for a
+    later one). The account keeps the person's pages, not the screens, so the same arrangement fits a phone and a large screen; a new size of the window lets them flow again.
   - **Pages** side by side, a sideways strip that snaps (`.os-pages`, `.os-page`): a swipe, the dots, the arrow keys. A reload (the home screen refreshes itself) comes back to
     the same page; it waits while the person edits or drags (`os-hold`). The search shows the apps of all pages in one grid.
   - **Editing** ("Edit the home screen"): the things wiggle, each has a minus that takes it off the screen (Delete does it by keyboard), the bar instead of the search has

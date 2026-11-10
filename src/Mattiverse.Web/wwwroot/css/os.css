@@ -31,8 +31,12 @@
   --os-ease: cubic-bezier(.2, .9, .25, 1);
 
   margin: 0;
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* a screen, not a page: exactly the window, nothing scrolls (what does not fit is on the next page, js/os.js) */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   font-family: var(--os-font);
   color: var(--os-fg);
   background: #000;
@@ -48,7 +52,7 @@
 .os button { font: inherit; color: inherit; }
 
 /* ---- The wallpaper: the picture of the account, in a fixed layer behind everything ---- */
-.os-desktop { position: relative; isolation: isolate; min-height: calc(100vh - var(--os-status-h)); min-height: calc(100dvh - var(--os-status-h)); display: flex; flex-direction: column; }
+.os-desktop { position: relative; isolation: isolate; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; overflow: clip; }
 .os-desktop::before {
   content: ""; position: fixed; inset: 0; z-index: -1;
   background-color: var(--os-window-bg);
@@ -65,7 +69,7 @@
 
 /* ---- The status bar: the system's line at the top, like the menu bar of a Mac ---- */
 .os-status {
-  position: sticky; top: 0; z-index: 60;
+  position: relative; z-index: 60; flex: none;
   display: flex; align-items: center; gap: 6px;
   height: var(--os-status-h);
   padding: env(safe-area-inset-top) 10px 0 14px;
@@ -94,7 +98,7 @@
 .os-theme[data-theme-state="dark"] [data-theme-icon="dark"] { display: inline-block; }
 
 /* ---- The home screen ---- */
-.os-home { flex: 1 0 auto; width: 100%; max-width: 1120px; margin: 0 auto; padding: 30px 28px 0; display: flex; flex-direction: column; gap: 22px; }
+.os-home { flex: 1 1 auto; min-height: 0; width: 100%; max-width: 1120px; margin: 0 auto; padding: 30px 28px 0; display: flex; flex-direction: column; gap: 22px; }
 .os-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); grid-auto-rows: 118px; gap: 20px 16px; grid-auto-flow: dense; }
 .os-w2 { grid-column: span 2; }
 .os-w2x2 { grid-column: span 2; grid-row: span 2; }
@@ -183,7 +187,7 @@ a.os-wlist__item:hover { background: var(--os-hover); text-decoration: none; }
 .os-ico--account { background: linear-gradient(165deg, #d0b6ff, #7c3aed); }
 
 /* ---- Search and dock at the bottom ---- */
-.os-bottom { position: sticky; bottom: 0; z-index: 20; margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0 calc(14px + env(safe-area-inset-bottom)); }
+.os-bottom { position: relative; z-index: 20; flex: none; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0 calc(14px + env(safe-area-inset-bottom)); }
 .os-search {
   display: flex; align-items: center; gap: 8px; width: min(100%, 280px); height: 34px; padding: 0 14px;
   border-radius: 17px; background: var(--os-glass); border: 1px solid var(--os-glass-line);
@@ -379,19 +383,21 @@ a.os-wlist__item:hover { background: var(--os-hover); text-decoration: none; }
 @media (prefers-reduced-motion: reduce) { .os-folder, .os-folder__panel { animation: none; } }
 
 /* ---- Pages: the home screen can have several side by side; a swipe, the dots or the arrow keys turn them (js/os.js) ----
-   The strip of pages scrolls sideways and snaps to a page; it reaches out over the padding of the screen, so that the shadows of the widgets and an icon
-   that lifts are not cut off. */
+   The strip of pages fills the screen between the status bar and the dock and never scrolls down: what does not fit continues on the next page.
+   It scrolls sideways and snaps to a page; it reaches out over the padding of the screen as far as the shadows of the widgets reach (40px around,
+   more below), so that the strip never cuts them off with a visible edge, and the pages are far enough apart that no shadow of the next one shows. */
 .os-pages {
-  display: flex; gap: 56px;
-  margin: -12px -28px -36px; padding: 12px 28px 36px;
+  flex: 1 1 auto; min-height: 0;
+  display: flex; gap: 96px;
+  margin: -30px -44px -56px; padding: 30px 44px 56px;
   overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
-  scroll-snap-type: x mandatory; scroll-padding: 0 28px;
+  scroll-snap-type: x mandatory; scroll-padding: 0 44px;
   scrollbar-width: none;
 }
 .os-pages::-webkit-scrollbar { display: none; }
 .os-page { flex: 0 0 100%; min-width: 0; align-content: start; scroll-snap-align: start; }
 /* the search: the apps of all pages in one grid */
-.os-pages.is-searching { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); grid-auto-rows: 118px; gap: 20px 16px; grid-auto-flow: dense; overflow: visible; }
+.os-pages.is-searching { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); grid-auto-rows: 118px; gap: 20px 16px; grid-auto-flow: dense; align-content: start; overflow-x: hidden; overflow-y: auto; }
 .os-pages.is-searching > .os-page { display: contents; }
 /* the things of a page do not take a selection of text: a press drags them */
 .os-page > [data-home-key] { -webkit-user-select: none; user-select: none; }
@@ -452,7 +458,8 @@ a.os-wlist__item:hover { background: var(--os-hover); text-decoration: none; }
 .os-menu__item--danger:hover, .os-menu__item--danger:focus-visible { background: var(--os-danger); color: #fff; }
 
 @media (max-width: 700px) {
-  .os-pages { margin: -12px -18px -36px; padding: 12px 18px 36px; gap: 36px; scroll-padding: 0 18px; }
+  /* a phone: the edge of the screen is the edge of the strip (a shadow cut there is the screen's own edge) */
+  .os-pages { margin: -14px -18px -56px; padding: 14px 18px 56px; scroll-padding: 0 18px; }
   .os-pages.is-searching { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 98px; gap: 14px 10px; }
   .os-remove { left: calc(50% - 40px); }
   .os-editbar__btn { padding: 0 10px; }

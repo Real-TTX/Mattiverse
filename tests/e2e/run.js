@@ -182,6 +182,8 @@ const pages = [
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });
     const token = await page.locator('input[name="__RequestVerificationToken"]').first().inputValue();
     expectEqual((await page.request.delete(BASE + '/api/home', { headers: { RequestVerificationToken: token } })).status(), 204, 'the home screen as it comes');
+    // Activity and Users first, so that both are on the screen whatever fits on it; the rest follows as it comes.
+    expectEqual((await page.request.put(BASE + '/api/home', { headers: { RequestVerificationToken: token }, data: { pages: [['s:jobs', 's:users']] } })).status(), 204, 'a layout is taken');
     await page.reload({ waitUntil: 'networkidle' });
     const keys = i => page.locator('.os-page').nth(i).locator(':scope > [data-home-key]').evaluateAll(els => els.map(e => e.getAttribute('data-home-key')));
     const menu = () => page.locator('.os-menu[role=menu]:not(#os-user-menu)');
@@ -222,11 +224,12 @@ const pages = [
     await put;
 
     await page.reload({ waitUntil: 'networkidle' });
-    expectEqual(await page.locator('.os-page').count(), 2, 'two pages after a reload');
-    expectEqual(await keys(1), ['s:jobs'], 'Activity on page 2');
+    const screens = await page.locator('.os-page').count();
+    expectEqual(await page.locator('.os-page:not([data-continues])').count(), 2, 'two pages of the person after a reload');
+    expectEqual(await keys(screens - 1), ['s:jobs'], 'Activity alone on the last page');
     expectEqual(await page.getAttribute('[data-home-key="w:today"]', 'data-size'), 'wide', 'Today is wide');
     expectEqual(await page.locator('.os-page [data-home-key="w:docker"]').count(), 0, 'Docker is off the screen');
-    expectEqual(await page.locator('.os-dots .os-dot').count(), 2, 'a dot per page');
+    expectEqual(await page.locator('.os-dots .os-dot').count(), screens, 'a dot per page');
 
     await page.mouse.click(1300, 800, { button: 'right' });
     await entry('Edit the home screen').click();
@@ -237,8 +240,24 @@ const pages = [
     await page.mouse.click(1300, 800, { button: 'right' });
     await entry('Reset the home screen').click();
     await Promise.all([page.waitForEvent('load'), page.locator('dialog[open] button[value="ok"]').click()]);
-    expectEqual(await page.locator('.os-page').count(), 1, 'reset: one page');
+    expectEqual(await page.locator('.os-page:not([data-continues])').count(), 1, 'reset: one page of the person');
     expectEqual(await page.locator('.os-page [data-home-key="w:docker"]').count(), 1, 'reset: Docker is back');
+  });
+  await check('the home screen never scrolls: what does not fit on the screen is on the next page (a large screen, a phone)', async () => {
+    for (const options of [{ viewport: { width: 1360, height: 900 } }, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }]) {
+      const { ctx: c, page: p } = await signedIn(options);
+      await p.goto(BASE + '/', { waitUntil: 'networkidle' });
+      const what = options.viewport.width + 'x' + options.viewport.height;
+      expectTrue(await p.evaluate(() => document.scrollingElement.scrollHeight <= window.innerHeight + 1), what + ': the page does not scroll');
+      const outside = await p.evaluate(() => Array.prototype.slice.call(document.querySelectorAll('.os-page')).reduce((n, page) => {
+        const bottom = page.getBoundingClientRect().bottom + 1;
+        return n + Array.prototype.slice.call(page.children).filter(t => t.hasAttribute('data-home-key') && t.getBoundingClientRect().bottom > bottom && page.children.length > 1).length;
+      }, 0));
+      expectEqual(outside, 0, what + ': things below the end of their page');
+      const screens = await p.locator('.os-page').count();
+      expectTrue(screens === 1 || await p.locator('.os-dots .os-dot').count() === screens, what + ': a dot per page');
+      await c.close();
+    }
   });
   await check('with Today off the screen the home screen still has its one h1', async () => {
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });

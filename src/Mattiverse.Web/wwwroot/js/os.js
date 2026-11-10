@@ -273,6 +273,47 @@
     renderDots();
     return page;
   }
+  // ------------------------------------------------------------------ a page holds what fits on the screen
+
+  // The home screen never scrolls. The person's pages are as long as they like; the screen shows of each what fits, and the rest continues on a page of
+  // its own right after it (data-continues), as a phone does. The places of the grid are taken in order (an earlier thing never moves for a later one),
+  // so the first thing that reaches below the page and all after it continue. What is kept is the person's pages (layout()), so the same arrangement
+  // fits a phone and a large screen. Moving, sizing, hiding a thing and a new size of the window let the pages flow again.
+  function flow() {
+    if (!pagesEl || pagesEl.classList.contains('is-searching')) { return; }
+    var owner = null;
+    pages().forEach(function (page) {
+      if (page.hasAttribute('data-continues') && owner) {
+        things(page).forEach(function (t) { owner.appendChild(t); });
+        page.remove();
+      } else {
+        owner = page;
+      }
+    });
+    for (var page = pages()[0]; page; page = page.nextElementSibling) {
+      var list = things(page);
+      var bottom = page.getBoundingClientRect().bottom + 1;
+      var cut = -1;
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].getBoundingClientRect().bottom > bottom) { cut = i; break; }
+      }
+      // A thing taller than the screen stays alone on its page.
+      if (cut === 0) { cut = list.length > 1 ? 1 : -1; }
+      if (cut > 0) {
+        var next = document.createElement('div');
+        next.className = 'os-grid os-page';
+        next.setAttribute('data-page', '');
+        next.setAttribute('data-continues', '');
+        next.setAttribute('role', 'group');
+        pagesEl.insertBefore(next, page.nextElementSibling);
+        list.slice(cut).forEach(function (t) { next.appendChild(t); });
+      }
+    }
+    labelPages();
+    markEmpty();
+    renderDots();
+  }
+
   // Empty pages go (while editing they stay, so that something can be put there); one page always stays.
   function pruneEmptyPages() {
     var now = currentPage();
@@ -297,8 +338,21 @@
     }
     // Native dragging of a link or a picture would take the place of moving a thing.
     pagesEl.addEventListener('dragstart', function (e) { e.preventDefault(); });
-    markEmpty();
-    renderDots();
+    flow();
+    // Another size of the window holds more or less: the pages flow again, and the thing that was first on the screen stays in sight.
+    var resizing = null;
+    window.addEventListener('resize', function () {
+      if (resizing === null) { var shown = pages()[currentPage()]; resizing = { first: shown ? things(shown)[0] : null }; }
+      clearTimeout(resizing.timer);
+      resizing.timer = setTimeout(function () {
+        var first = resizing.first;
+        resizing = null;
+        if (drag) { return; }
+        flow();
+        if (first && first.parentNode) { goToPage(pages().indexOf(first.parentNode), false); }
+        updateDots();
+      }, 150);
+    });
     // A reload (the home screen refreshes itself) comes back to the page the person was on.
     try {
       var kept = parseInt(sessionStorage.getItem(PAGE) || '0', 10);
@@ -318,7 +372,12 @@
       if (size && size !== el.getAttribute('data-size-default')) { sizes[keyOf(el)] = size; }
     });
     return {
-      pages: pages().map(function (p) { return things(p).map(keyOf); }).filter(function (keys) { return keys.length > 0; }),
+      // the person's pages: what continued on the next screen belongs to the page before it
+      pages: pages().reduce(function (all, p) {
+        var keys = things(p).map(keyOf);
+        if (p.hasAttribute('data-continues') && all.length) { all[all.length - 1] = all[all.length - 1].concat(keys); } else { all.push(keys); }
+        return all;
+      }, []).filter(function (keys) { return keys.length > 0; }),
       hidden: hiddenBox ? things(hiddenBox).map(keyOf) : [],
       sizes: sizes,
     };
@@ -390,13 +449,13 @@
     if (before === el || (el.parentNode === page && el.nextSibling === before)) { return; }
     var at = snapshot();
     page.insertBefore(el, before || null);
+    flow();
     glide(at);
-    markEmpty();
   }
   function moveToPage(el, index) {
     var page = index >= pages().length ? createPage() : pages()[index];
     moveTo(el, page, null);
-    goToPage(index, true);
+    goToPage(pages().indexOf(el.parentNode), true);
     if (!editing) { setTimeout(pruneEmptyPages, 450); }
     save();
   }
@@ -415,6 +474,7 @@
     Object.keys(sizeClass).forEach(function (s) { el.classList.remove(sizeClass[s]); });
     el.classList.add(sizeClass[size] || 'os-w2');
     el.setAttribute('data-size', size);
+    flow();
     glide(at);
     save();
   }
@@ -424,8 +484,8 @@
     var at = snapshot();
     $$(':scope > .os-remove', el).forEach(function (b) { b.remove(); });
     hiddenBox.appendChild(el);
+    flow();
     glide(at);
-    markEmpty();
     updateEditbar();
     save();
   }
@@ -435,6 +495,7 @@
     var at = snapshot();
     page.appendChild(el);
     if (editing) { addRemove(el); }
+    flow();
     glide(at);
     if (!reduced && el.animate) { el.animate([{ transform: 'scale(.6)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'cubic-bezier(.2, .9, .25, 1)' }); }
     markEmpty();
@@ -537,7 +598,8 @@
           createPage();
         }
         moveTo(drag.el, pages()[index], null);
-        goToPage(index, true);
+        // A full page let it continue on the next one: the page that has it.
+        goToPage(pages().indexOf(drag.el.parentNode), true);
         drag.turn = null;
       }, why.indexOf('dot') === 0 ? 420 : 650),
     };
@@ -553,9 +615,12 @@
       turnTo(parseInt(dot.getAttribute('data-page-index'), 10), 'dot' + dot.getAttribute('data-page-index'));
       return;
     }
+    // the edges of the strip as far as they are on the screen (it reaches out beyond the screen for the shadows)
     var box = pagesEl.getBoundingClientRect();
+    var left = Math.max(box.left, 0) + 40;
+    var right = Math.min(box.right, window.innerWidth) - 40;
     var now = currentPage();
-    if (x < box.left + 40) { turnTo(now - 1, 'left' + now); } else if (x > box.right - 40) { turnTo(now + 1, 'right' + now); } else { clearTurn(); }
+    if (x < left) { turnTo(now - 1, 'left' + now); } else if (x > right) { turnTo(now + 1, 'right' + now); } else { clearTurn(); }
 
     var page = under && under.closest ? under.closest('.os-page') : null;
     if (!page || !pagesEl.contains(page)) { return; }
@@ -565,12 +630,18 @@
       // The empty part of a page: the thing goes to its end, when the pointer is past the last one.
       var list = things(page);
       var last = list[list.length - 1];
-      if (last !== drag.el) {
+      // A full page has no room at its end (the thing would continue on the next page): then nothing happens until the pointer is over a thing.
+      if (last !== drag.el && drag.full !== page) {
         var lr = last ? last.getBoundingClientRect() : null;
-        if (!lr || y > lr.bottom || (y >= lr.top && x > lr.right)) { moveTo(drag.el, page, null); drag.last = null; }
+        if (!lr || y > lr.bottom || (y >= lr.top && x > lr.right)) {
+          moveTo(drag.el, page, null);
+          drag.last = null;
+          drag.full = drag.el.parentNode === page ? null : page;
+        }
       }
       return;
     }
+    drag.full = null;
     var tr = target.getBoundingClientRect();
     var after = x > tr.left + tr.width / 2;
     if (drag.last && drag.last.target === target && drag.last.after === after) { return; }
@@ -1005,7 +1076,7 @@
     var filter = function () {
       var q = find.value.trim().toLowerCase();
       if (q !== '' && editing) { setEditing(false); }
-      if (pagesEl) { pagesEl.classList.toggle('is-searching', q !== ''); }
+      if (pagesEl) { var was = pagesEl.classList.contains('is-searching'); pagesEl.classList.toggle('is-searching', q !== ''); if (was && q === '') { flow(); } }
       if (dotsEl) { dotsEl.hidden = q !== '' || pages().length < 2; }
       $$('.os-grid .os-app[data-name]').forEach(function (a) { a.hidden = q !== '' && a.getAttribute('data-name').indexOf(q) === -1; });
       $$('.os-grid [data-widget]').forEach(function (w) { w.hidden = q !== ''; });
