@@ -38,6 +38,10 @@ public class LoginModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Local { get; set; }
 
+    /// <summary>Mattiverse registered itself again in MatIdentity on the way here (its address had changed): no second try.</summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Reconnected { get; set; }
+
     /// <summary><c>?local=1</c> (or <c>true</c>), as the platform contract writes it.</summary>
     public bool WantsLocal => Local is "1" or "true" or "True";
 
@@ -89,6 +93,35 @@ public class LoginModel : PageModel
         }
 
         MatIdentitySignIn.Refresh(HttpContext.RequestServices);
+        if (!await MatIdentitySignIn.ReadyAsync(HttpContext))
+        {
+            // MatIdentity may have another address now (an update, another address of this machine): Mattiverse registers itself again while MatIdentity
+            // answers, and the page comes once more (the sign-in of this request was set up with the old settings). A MatIdentity that does not answer leaves
+            // the settings alone, and the local sign-in is the way in.
+            var again = false;
+            if (Reconnected is null)
+            {
+                try
+                {
+                    again = await _identity.ReconnectSelfAsync(origin, HttpContext.RequestAborted);
+                }
+                catch (InvalidOperationException)
+                {
+                    // nothing more to try
+                }
+            }
+
+            if (again && (await _config.GetAsync(HttpContext.RequestAborted)).Identity is not null)
+            {
+                MatIdentitySignIn.Refresh(HttpContext.RequestServices);
+                return LocalRedirect("/Account/Login?reconnected=1&returnUrl=" + Uri.EscapeDataString(SafeReturnUrl()));
+            }
+
+            ErrorMessage = "MatIdentity does not answer. Sign in with a local account.";
+            IdentityAvailable = (await _config.GetAsync(HttpContext.RequestAborted)).Identity is not null;
+            return Page();
+        }
+
         return Challenge(new AuthenticationProperties { RedirectUri = "/Account/External?returnUrl=" + Uri.EscapeDataString(SafeReturnUrl()) }, MatIdentitySignIn.Scheme);
     }
 

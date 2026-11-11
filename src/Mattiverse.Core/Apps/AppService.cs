@@ -301,6 +301,13 @@ public sealed partial class AppService
         await _db.SaveChangesAsync(ct);
         log($"{app.Name} is up to date.");
 
+        // MatIdentity was deployed again with its public address as the issuer (it follows the address of this machine and the domain): Mattiverse's own
+        // sign-in follows it, as after its install; else the two no longer match and nobody can sign in to Mattiverse through it.
+        if (catalog.Role == AppRoles.Identity)
+        {
+            await ConnectSelfAsync(log, ct);
+        }
+
         // A new version may provide or consume something else.
         await ConnectBindingsAsync(app, log, ct);
     }

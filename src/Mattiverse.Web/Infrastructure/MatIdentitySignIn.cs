@@ -1,4 +1,5 @@
 using Mattiverse.Core.Configuration;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -85,6 +86,34 @@ public sealed class MatIdentitySignIn : IConfigureNamedOptions<OpenIdConnectOpti
         if (!string.IsNullOrWhiteSpace(identity.InternalUrl) && !string.Equals(identity.InternalUrl.TrimEnd('/'), identity.Authority.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
         {
             options.BackchannelHttpHandler = new InternalUrlRewriter(identity.Authority, identity.InternalUrl) { InnerHandler = new HttpClientHandler() };
+        }
+    }
+
+    /// <summary>
+    /// Whether the sign-in through MatIdentity can start with the settings as they are: its discovery document and its keys can be read (through the internal
+    /// address), waiting a few seconds at most. The sign-in page asks first, so that a MatIdentity that does not answer, or one with another address now, is a
+    /// message on the page instead of an error. It asks the handler of this request (set up when the request began), the one the redirect to MatIdentity uses,
+    /// so the document is read once.
+    /// </summary>
+    public static async Task<bool> ReadyAsync(HttpContext context)
+    {
+        var handler = await context.RequestServices.GetRequiredService<IAuthenticationHandlerProvider>().GetHandlerAsync(context, Scheme) as OpenIdConnectHandler;
+        var manager = handler?.Options.ConfigurationManager;
+        if (manager is null)
+        {
+            return false;
+        }
+
+        using var wait = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+        wait.CancelAfter(TimeSpan.FromSeconds(8));
+        try
+        {
+            await manager.GetConfigurationAsync(wait.Token);
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or HttpRequestException || (ex is OperationCanceledException && !context.RequestAborted.IsCancellationRequested))
+        {
+            return false;
         }
     }
 

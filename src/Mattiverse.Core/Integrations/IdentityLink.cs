@@ -105,6 +105,14 @@ public sealed class IdentityLink
         return true;
     }
 
+    /// <summary>
+    /// Registers Mattiverse again when MatIdentity answers but the sign-in does not work with what Mattiverse keeps (its public address changed: an update, another
+    /// address of this machine), so the sign-in follows MatIdentity. While MatIdentity does not answer nothing changes: a short outage must not switch the sign-in
+    /// through it off. Returns whether Mattiverse registered itself.
+    /// </summary>
+    public async Task<bool> ReconnectSelfAsync(string? origin, CancellationToken ct)
+        => await _identity.GetStatusAsync(ct) is { ApiVersion: >= 1 } && await ConnectSelfAsync(origin, _ => { }, ct);
+
     /// <summary>The path of Mattiverse's own back-channel logout (the web project's <c>BackchannelLogout</c>).</summary>
     public const string SelfBackchannelLogoutPath = "/signout-backchannel";
 

@@ -287,7 +287,11 @@ MatIdentity; Mattiverse administers them in its area **People** (below) and MatI
 - **Mattiverse itself** is the client `mattiverse` (it may call every app). The login page goes straight to MatIdentity when it is connected (`?local=1`
   keeps the local form); `/Account/External` turns the answer into a session: the person is found by `sub` (`User.ExternalSubject`), else by the user
   name, else created, and the role follows the claim `role`. Signing out ends the session at MatIdentity too. The OpenID Connect options are read from the
-  settings when they are built, so nothing needs a restart (`MatIdentitySignIn`). The session keeps the claim `sid` of the ID token (`UserSession.IdentitySessionId`);
+  settings when they are built, so nothing needs a restart (`MatIdentitySignIn`). **The sign-in follows MatIdentity's address:** MatIdentity's issuer is its public
+  address (the address of this machine with its port, or its name under the domain), so an install or an update of MatIdentity registers Mattiverse again
+  (`IdentityLink.ConnectSelfAsync`). The login page first checks that the discovery document and the keys can be read (`MatIdentitySignIn.ReadyAsync`); when not,
+  and MatIdentity answers, Mattiverse registers itself again and the page comes once more (`?reconnected=1`; the sign-in of a request is set up when it begins);
+  a MatIdentity that does not answer leaves the settings alone and the page offers the local sign-in with a message instead of an error. The session keeps the claim `sid` of the ID token (`UserSession.IdentitySessionId`);
   `POST /signout-backchannel` (`Infrastructure/BackchannelLogout.cs`, anonymous, no anti-forgery) checks the logout token (`Core/Auth/LogoutToken.cs`, the same checks
   as MatPlatform's: signature with the keys of the handler's discovery document, `typ` `logout+jwt`, `iss`, `aud` = `mattiverse`, `iat` at most five minutes old,
   `exp`, the back-channel event, `sub`/`sid`, no `nonce`, a `jti` replay cache in memory) and ends the sessions (`SessionService.EndIdentitySessionsAsync`): with `sid`
